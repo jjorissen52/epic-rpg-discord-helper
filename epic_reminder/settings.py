@@ -10,23 +10,49 @@ For the full list of settings and their values, see
 https://docs.djangoproject.com/en/3.1/ref/settings/
 """
 
+import os
 from pathlib import Path
+from env_settings import utils
 
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
-BASE_DIR = Path(__file__).resolve().parent.parent
+BASE_DIR = str(Path(__file__).resolve().parent.parent)
+# { start } generated using python manage.py populate_settings
+
+environment_defaults = {
+    "DEBUG": "1",
+    "SECRET_KEY": "n8s0=e-jypoxyoe1+)n^u^kwl&=y2g9_-j9-f^@qw33i9v+ax0",
+    "INITIAL_ADMIN_USERNAME": "admin",
+    "INITIAL_ADMIN_EMAIL": "example@email.com",
+    "INITIAL_ADMIN_PASSWORD": "password123",
+    "ALLOWED_HOSTS": ["*"],
+    "USE_SQLITE": "1",
+    "DATABASE_NAME": "postgres",
+    "DATABASE_USER": "postgres",
+    "DATABASE_PASSWORD": "superstrongpassword123",
+    "DATABASE_HOST": "127.0.0.1",
+    "DATABASE_PORT": "5432",
+    "DISCORD_TOKEN": "TOKEN"
+}
+
+ENV = utils.get_runtime_parameters(environment_defaults)
+
+DEBUG = ENV.DEBUG
+SECRET_KEY = ENV.SECRET_KEY
+INITIAL_ADMIN_USERNAME = ENV.INITIAL_ADMIN_USERNAME
+INITIAL_ADMIN_EMAIL = ENV.INITIAL_ADMIN_EMAIL
+INITIAL_ADMIN_PASSWORD = ENV.INITIAL_ADMIN_PASSWORD
+ALLOWED_HOSTS = ENV.ALLOWED_HOSTS
+USE_SQLITE = ENV.USE_SQLITE
+DATABASE_NAME = ENV.DATABASE_NAME
+DATABASE_USER = ENV.DATABASE_USER
+DATABASE_PASSWORD = ENV.DATABASE_PASSWORD
+DATABASE_HOST = ENV.DATABASE_HOST
+DATABASE_PORT = ENV.DATABASE_PORT
+DISCORD_TOKEN = ENV.DISCORD_TOKEN
 
 
 # Quick-start development settings - unsuitable for production
 # See https://docs.djangoproject.com/en/3.1/howto/deployment/checklist/
-
-# SECURITY WARNING: keep the secret key used in production secret!
-SECRET_KEY = 'n8s0=e-jypoxyoe1+)n^u^kwl&=y2g9_-j9-f^@qw33i9v+ax0'
-
-# SECURITY WARNING: don't run with debug turned on in production!
-DEBUG = True
-
-ALLOWED_HOSTS = []
-
 
 # Application definition
 
@@ -37,6 +63,9 @@ INSTALLED_APPS = [
     'django.contrib.sessions',
     'django.contrib.messages',
     'django.contrib.staticfiles',
+
+    # Third Party
+    'env_settings',
 ]
 
 MIDDLEWARE = [
@@ -73,12 +102,29 @@ WSGI_APPLICATION = 'epic_reminder.wsgi.application'
 # Database
 # https://docs.djangoproject.com/en/3.1/ref/settings/#databases
 
-DATABASES = {
-    'default': {
-        'ENGINE': 'django.db.backends.sqlite3',
-        'NAME': BASE_DIR / 'db.sqlite3',
+
+
+if ENV.USE_SQLITE:
+    DATABASES = {
+        'default': {
+            'ENGINE': 'django.db.backends.sqlite3',
+            'NAME': os.path.join(BASE_DIR, 'db.sqlite3'),
+        }
     }
-}
+else:
+    DATABASE_HOST = ENV.DATABASE_HOST
+    DATABASES = {
+        'default': {
+            'ENGINE': 'django.db.backends.postgresql_psycopg2',
+            'NAME': ENV.DATABASE_NAME,
+            'USER': ENV.DATABASE_USER,
+            'PASSWORD': ENV.DATABASE_PASSWORD,
+            'HOST': DATABASE_HOST,
+            'PORT': ENV.DATABASE_PORT,
+        }
+    }
+
+
 
 
 # Password validation
@@ -118,3 +164,56 @@ USE_TZ = True
 # https://docs.djangoproject.com/en/3.1/howto/static-files/
 
 STATIC_URL = '/static/'
+LOGGING = {
+    'version': 1,
+    'disable_existing_loggers': False,
+    'filters': {
+        'require_debug_false': {
+            '()': 'django.utils.log.RequireDebugFalse',
+        },
+        'require_debug_true': {
+            '()': 'django.utils.log.RequireDebugTrue',
+        },
+    },
+    'formatters': {
+        'django.server': {
+            '()': 'django.utils.log.ServerFormatter',
+            'format': '[%(server_time)s] %(message)s',
+        }
+    },
+    'handlers': {
+        'console': {
+            'level': 'INFO',
+            'filters': ['require_debug_true'],
+            'class': 'logging.StreamHandler',
+        },
+        # Custom handler which we will use with logger 'django'.
+        # We want errors/warnings to be logged when DEBUG=False
+        'console_on_not_debug': {
+            'level': 'WARNING',
+            'filters': ['require_debug_false'],
+            'class': 'logging.StreamHandler',
+        },
+        'django.server': {
+            'level': 'INFO',
+            'class': 'logging.StreamHandler',
+            'formatter': 'django.server',
+        },
+        'mail_admins': {
+            'level': 'ERROR',
+            'filters': ['require_debug_false'],
+            'class': 'django.utils.log.AdminEmailHandler'
+        }
+    },
+    'loggers': {
+        'django': {
+            'handlers': ['console', 'mail_admins', 'console_on_not_debug'],
+            'level': 'INFO',
+        },
+        'django.server': {
+            'handlers': ['django.server'],
+            'level': 'INFO',
+            'propagate': False,
+        },
+    }
+}

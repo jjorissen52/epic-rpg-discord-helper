@@ -2,10 +2,11 @@
 """Django's command-line utility for administrative tasks."""
 import os
 import sys
+import dotenv
 
 
 def main():
-    """Run administrative tasks."""
+    dotenv.load_dotenv(override=True)  # override means variables defined in .env take precedence over environment
     os.environ.setdefault('DJANGO_SETTINGS_MODULE', 'epic_reminder.settings')
     try:
         from django.core.management import execute_from_command_line

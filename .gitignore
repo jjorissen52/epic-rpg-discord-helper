@@ -1,3 +1,6 @@
 .vscode/
 venv/
 dist/
+*.env
+__pycache__
+*.sqlite3
