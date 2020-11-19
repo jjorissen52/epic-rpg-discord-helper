@@ -7,7 +7,7 @@ import dotenv
 
 def main():
     dotenv.load_dotenv(override=True)  # override means variables defined in .env take precedence over environment
-    os.environ.setdefault('DJANGO_SETTINGS_MODULE', 'epic_reminder.settings')
+    os.environ.setdefault("DJANGO_SETTINGS_MODULE", "epic_reminder.settings")
     try:
         from django.core.management import execute_from_command_line
     except ImportError as exc:
@@ -19,5 +19,5 @@ def main():
     execute_from_command_line(sys.argv)
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     main()
