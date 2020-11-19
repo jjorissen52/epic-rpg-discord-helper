@@ -56,16 +56,22 @@ DISCORD_TOKEN = ENV.DISCORD_TOKEN
 
 # Application definition
 
-INSTALLED_APPS = [
-    "django.contrib.admin",
-    "django.contrib.auth",
-    "django.contrib.contenttypes",
-    "django.contrib.sessions",
-    "django.contrib.messages",
-    "django.contrib.staticfiles",
-    # Third Party
-    "env_settings",
-]
+INSTALLED_APPS = (
+    [
+        "django.contrib.admin",
+        "django.contrib.auth",
+        "django.contrib.contenttypes",
+        "django.contrib.sessions",
+        "django.contrib.messages",
+        "django.contrib.staticfiles",
+        "epic",
+        # Third Party
+        "env_settings",
+    ]
+    + ["django_extensions"]
+    if DEBUG
+    else []
+)
 
 MIDDLEWARE = [
     "django.middleware.security.SecurityMiddleware",
