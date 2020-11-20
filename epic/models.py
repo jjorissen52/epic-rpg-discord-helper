@@ -56,6 +56,7 @@ class CoolDown(models.Model):
         r"\(\*\*(?P<days>\d{1}d)?\s*(?P<hours>\d{1,2}h)?\s*(?P<minutes>\d{1,2}m)?\s*(?P<seconds>\d{1,2}s)\*\*\)"
     )
     field_regex = re.compile(r":clock4: ~-~ \*\*`(?P<field_name>[^`]*)`\*\*")
+
     COOLDOWN_TYPE_CHOICES = (
         ("daily", "daily"),
         ("weekly", "weekly"),
@@ -70,12 +71,82 @@ class CoolDown(models.Model):
         ("arena", "arena"),
         ("dungeon", "dungeon"),
     )
+
+    COOLDOWN_MAP = {
+        "daily": datetime.timedelta(hours=24),
+        "weekly": datetime.timedelta(days=7),
+        "lootbox": datetime.timedelta(hours=3),
+        "vote": datetime.timedelta(hours=12),
+        "hunt": datetime.timedelta(seconds=60),
+        "adventure": datetime.timedelta(minutes=60),
+        "training": datetime.timedelta(minutes=15),
+        "duel": datetime.timedelta(hours=2),
+        "work": datetime.timedelta(minutes=5),
+        "mine": datetime.timedelta(minutes=5),
+        "horse": datetime.timedelta(hours=24),
+        "arena": datetime.timedelta(hours=24),
+        "dungeon": datetime.timedelta(hours=12),
+    }
+
+    COMMAND_RESOLUTION_MAP = {
+        "daily": lambda x: "daily",
+        "weekly": lambda x: "weekly",
+        "buy": lambda x: "lootbox" if "lootbox" in x else None,
+        "vote": lambda x: "vote",
+        "hunt": lambda x: "hunt",
+        "adv": lambda x: "adventure",
+        "adventure": lambda x: "adventure",
+        "tr": lambda x: "training",
+        "training": lambda x: "training",
+        "ultraining": lambda x: "training",
+        "duel": lambda x: "duel",
+        "mine": lambda x: "work",
+        "pickaxe": lambda x: "work",
+        "drill": lambda x: "work",
+        "dynamite": lambda x: "work",
+        "pickup": lambda x: "work",
+        "ladder": lambda x: "work",
+        "tractor": lambda x: "work",
+        "greenhouse": lambda x: "work",
+        "chop": lambda x: "work",
+        "axe": lambda x: "work",
+        "bowsaw": lambda x: "work",
+        "chainsaw": lambda x: "work",
+        "fish": lambda x: "work",
+        "net": lambda x: "work",
+        "boat": lambda x: "work",
+        "bigboat": lambda x: "work",
+        "horse": lambda x: "horse" if any([o == x for o in ["training", "breeding", "race"]]) else None,
+        "arena": lambda x: "arena",
+        "big": lambda x: "arena" if "arena" in x else None,
+        "dungeon": lambda x: "dungeon",
+        "miniboss": lambda x: "dungeon",
+    }
+
     profile = models.ForeignKey(Profile, on_delete=models.CASCADE)
     type = models.CharField(choices=COOLDOWN_TYPE_CHOICES, max_length=10)
     after = models.DateTimeField()
 
     def __str__(self):
         return f"{self.profile} can {self.type} after {self.after}"
+
+    @staticmethod
+    def cd_from_command(cmd):
+        resolved = None
+        if not cmd:
+            return None, None
+        cmd = re.sub(r"\s+", " ", cmd).strip()
+        split = cmd.split()
+        # zero argument commands will just return whether or not the command matched
+        if len(split) == 1:
+            resolved = CoolDown.COMMAND_RESOLUTION_MAP.get(split[0], lambda x: None)(None)
+        else:
+            cmd, *args = split
+            # mutli-arguments must be resolved in the basis of other args
+            resolved = CoolDown.COMMAND_RESOLUTION_MAP.get(cmd, lambda x: None)(" ".join(args))
+        if not resolved:
+            return None, None
+        return resolved, datetime.datetime.now(tz=datetime.timezone.utc) + CoolDown.COOLDOWN_MAP[resolved]
 
     @staticmethod
     def from_cd(profile, fields):
