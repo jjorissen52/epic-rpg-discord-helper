@@ -11,9 +11,7 @@ from django.core.wsgi import get_wsgi_application
 
 get_wsgi_application()
 
-
-from asgiref.sync import sync_to_async
-from epic.models import get_profile, upsert_cooldowns, CoolDown
+from epic.models import CoolDown, Profile, Server, get_instance, upsert_cooldowns
 
 
 class Client(discord.Client):
@@ -21,24 +19,26 @@ class Client(discord.Client):
         print("Logged on as {0}!".format(self.user))
 
     async def on_message(self, message):
-        if message.author == client.user:
+        if message.author == self.user:
+            return
+        # if this is not a registered server, we say NO
+        # (because the bot is inefficient and computational power is at a premium)
+        if not await get_instance(Server, id=message.channel.guild.id, active=True):
             return
 
         if str(message.author) == "EPIC RPG#4117":
             for embed in message.embeds:
-                try:
-                    # the user mentioned
-                    user_id = embed.author.icon_url.strip("https://cdn.discordapp.com/avatars/").split("/")[0]
-                    user = self.get_user(int(user_id))
-                    profile = await get_profile(uid=user_id)
+                # the user mentioned
+                user_id = embed.author.icon_url.strip("https://cdn.discordapp.com/avatars/").split("/")[0]
+                user = self.get_user(int(user_id))
+                # print(user.__dir__())
+                profile, _ = await get_instance(Profile, uid=user_id, defaults={"last_known_nickname": user.name})
+                if profile:
                     await upsert_cooldowns(CoolDown.from_cd(profile, [field.value for field in embed.fields]))
-                except:  # noqa
-                    raise
-        # print('Message from {0.author}: {0.content}'.format(message))
 
 
 if __name__ == "__main__":
     from django.conf import settings
 
-    client = Client()
-    client.run(settings.DISCORD_TOKEN)
+    bot = Client()
+    bot.run(settings.DISCORD_TOKEN)
