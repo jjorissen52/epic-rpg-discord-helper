@@ -6,11 +6,12 @@ from django.db import models
 from django.db.models import Q
 
 from .mixins import UpdateAble
-from .utils import Enum
+from .utils import Enum, tokenize
 
 
 class JoinCode(models.Model):
-    code = models.CharField(max_length=250)
+    code = models.CharField(max_length=256)
+    claimed = models.BooleanField(default=False)
 
     def __str__(self):
         return self.code
@@ -27,6 +28,8 @@ class Server(models.Model):
 
 
 class Profile(UpdateAble, models.Model):
+    # TODO: add last seen channel here
+    server = models.ForeignKey(Server, on_delete=models.CASCADE)
     last_known_nickname = models.CharField(max_length=250)
     uid = models.CharField(max_length=50, primary_key=True)
     notify = models.BooleanField(default=False)
@@ -133,10 +136,9 @@ class CoolDown(models.Model):
     @staticmethod
     def cd_from_command(cmd):
         resolved = None
-        if not cmd:
+        split = tokenize(cmd)
+        if not split:
             return None, None
-        cmd = re.sub(r"\s+", " ", cmd).strip()
-        split = cmd.split()
         # zero argument commands will just return whether or not the command matched
         if len(split) == 1:
             resolved = CoolDown.COMMAND_RESOLUTION_MAP.get(split[0], lambda x: None)(None)
@@ -209,5 +211,17 @@ def get_instance(model_class, on_dne=DNE_ACTIONS.NONE, defaults=None, **kwargs):
 
 
 @sync_to_async
+def update_instance(instance, **kwargs):
+    for k, v in kwargs.items():
+        setattr(instance, k, v)
+    return instance.save()
+
+
+@sync_to_async
 def query_filter(model_class, **kwargs):
     return model_class.objects.filter(**kwargs)
+
+
+# @sync_to_async
+# def send_cooldown_messages():
+# Profile.objects.filter(server__active=True).filter(notify=True).filter(cooldown__after__lt=datetime.datetime.now()).values("cooldown__type", "server")

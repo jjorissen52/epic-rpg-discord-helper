@@ -5,7 +5,8 @@ from .models import Profile, CoolDown, Server, JoinCode
 
 @admin.register(JoinCode)
 class JoinCodeAdmin(admin.ModelAdmin):
-    pass
+    list_filter = ("claimed",)
+    list_display = ("code", "claimed")
 
 
 @admin.register(Server)
