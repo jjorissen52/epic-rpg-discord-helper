@@ -245,7 +245,7 @@ def cd(tokens, message, server, profile, msg, help=None):
     cooldowns = {_cd[0]: _cd[1] for _cd in CoolDown.objects.filter(profile_id=profile.pk).values_list("type", "after")}
     for cooldown_type, _ in CoolDown.COOLDOWN_TYPE_CHOICES:
         if cooldowns.get(cooldown_type, default) > now:
-            msg += f"`{cooldown_type:12} {cooldowns[cooldown_type].strftime('%Y-%m-%d %H:%M')}`\n"
+            msg += f"`{cooldown_type:12} {cooldowns[cooldown_type].strftime('%Y-%m-%d %H:%M:%S')}`\n"
     return {"msg": NormalMessage(msg)}
 
 
