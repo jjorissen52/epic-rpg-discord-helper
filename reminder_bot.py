@@ -32,7 +32,9 @@ class Client(discord.Client):
         if server and not server.active:
             return
 
-        if message.content.startswith("rpgcd"):
+        content = message.content[:150].lower()
+
+        if content.startswith("rpgcd"):
             tokens = tokenize(message.content[5:])
             msg = await handle_rpcd_message(tokens, message, server, None, None)
             await message.channel.send(msg.msg)
@@ -57,13 +59,13 @@ class Client(discord.Client):
                         "channel": message.channel.id,
                     },
                 )
-                if profile.server_id != server.id:
-                    update_instance(profile, server_id=server.id)
+                if profile.server_id != server.id or profile.channel != message.channel.id:
+                    profile = await update_instance(profile, server_id=server.id, channel=message.channel.id)
                 if profile:
                     await upsert_cooldowns(CoolDown.from_cd(profile, [field.value for field in embed.fields]))
             return
 
-        if message.content.startswith("rpg"):
+        if content.startswith("rpg"):
             cooldown_type, after = CoolDown.cd_from_command(message.content[3:])
             if not cooldown_type:
                 return
@@ -76,6 +78,8 @@ class Client(discord.Client):
                     "channel": message.channel.id,
                 },
             )
+            if profile.server_id != server.id or profile.channel != message.channel.id:
+                profile = await update_instance(profile, server_id=server.id, channel=message.channel.id)
             await upsert_cooldowns([CoolDown(profile=profile, type=cooldown_type, after=after)])
 
 

@@ -11,4 +11,4 @@ class Enum(set):
 def tokenize(cmd):
     if not cmd:
         return cmd
-    return re.sub(r"\s+", " ", cmd).strip().split()
+    return re.sub(r"\s+", " ", cmd).strip().lower().split()

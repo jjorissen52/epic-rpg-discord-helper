@@ -226,7 +226,8 @@ def get_instance(model_class, on_dne=DNE_ACTIONS.NONE, defaults=None, **kwargs):
 def update_instance(instance, **kwargs):
     for k, v in kwargs.items():
         setattr(instance, k, v)
-    return instance.save()
+    instance.save()
+    return instance
 
 
 @sync_to_async
