@@ -13,6 +13,10 @@ class JoinCode(models.Model):
     code = models.CharField(max_length=256)
     claimed = models.BooleanField(default=False)
 
+    def claim(self):
+        self.claimed = True
+        self.save()
+
     def __str__(self):
         return self.code
 
@@ -28,8 +32,8 @@ class Server(models.Model):
 
 
 class Profile(UpdateAble, models.Model):
-    # TODO: add last seen channel here
     server = models.ForeignKey(Server, on_delete=models.CASCADE)
+    channel = models.PositiveBigIntegerField()
     last_known_nickname = models.CharField(max_length=250)
     uid = models.CharField(max_length=50, primary_key=True)
     notify = models.BooleanField(default=False)
