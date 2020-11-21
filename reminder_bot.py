@@ -1,5 +1,6 @@
 import os
 import re
+import asyncio
 import dotenv
 import discord
 
@@ -12,7 +13,8 @@ from django.core.wsgi import get_wsgi_application
 
 get_wsgi_application()
 
-from epic.models import CoolDown, Profile, Server, JoinCode, get_instance, update_instance, upsert_cooldowns
+from epic.models import CoolDown, Profile, Server, JoinCode
+from epic.models import get_instance, update_instance, upsert_cooldowns, bulk_delete, get_cooldown_messages
 from epic.utils import tokenize
 
 from epic.cmd_chain import handle_rpcd_message
@@ -81,4 +83,18 @@ if __name__ == "__main__":
     from django.conf import settings
 
     bot = Client()
+
+    async def notify():
+        await bot.wait_until_ready()
+        while not bot.is_closed():
+            cooldown_cleanup = []
+            cooldown_messages = await get_cooldown_messages()
+            for _id, _type, channel, uid in cooldown_messages:
+                _channel = await bot.fetch_channel(channel)
+                await _channel.send(f"<@{uid}> {_type}")
+                cooldown_cleanup.append(_id)
+            await bulk_delete(CoolDown, id__in=cooldown_cleanup)
+            await asyncio.sleep(5)  # task runs every 5 seconds
+
+    bot.loop.create_task(notify())
     bot.run(settings.DISCORD_TOKEN)

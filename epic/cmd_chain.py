@@ -39,12 +39,22 @@ def params_as_args(func):
         # if they are using commands, we want to go ahead and
         # make them a profile.
         if params["profile"] is None:
-            message, server = params["message"], params["server"]
-            profile, _ = Profile.objects.get_or_create(
-                uid=message.author.id,
-                defaults={"last_known_nickname": message.author.name, "server": server, "channel": message.channel.id},
-            )
-            params["profile"] = profile
+            message, server, tokens, help = params["message"], params["server"], params["tokens"], params["help"]
+            if server is not None:
+                profile, _ = Profile.objects.get_or_create(
+                    uid=message.author.id,
+                    defaults={
+                        "last_known_nickname": message.author.name,
+                        "server": server,
+                        "channel": message.channel.id,
+                    },
+                )
+                params["profile"] = profile
+            elif not help and tokens and tokens[0] not in {"help", "register"}:
+                params["msg"] = ErrorMessage(
+                    "You can only use `help` and `register` commands until"
+                    f"{message.channel.guild.name} has used a join code."
+                )
         args = [params.get(arg_name, None) for arg_name in arg_names]
         res = func(*args)
         if not res:
@@ -139,11 +149,15 @@ def notify(tokens, message, server, profile, msg, help=None):
     if len(tokens) != 3:
         return {"error": 1}
     _, command_type, toggle = tokens
-    if command_type in CoolDown.COOLDOWN_MAP and toggle in {"on", "off"}:
+    if (command_type in CoolDown.COOLDOWN_MAP or command_type == "all") and toggle in {"on", "off"}:
         on = toggle == "on"
-        # "work" is stored as "mine" in the database
-        command_type = "mine" if command_type == "work" else command_type
-        profile.update(**{command_type: on, "last_known_nickname": message.author.name})
+        if command_type == "all":
+            kwargs = {command_name: on for _, command_name in CoolDown.COOLDOWN_TYPE_CHOICES}
+        else:
+            # "work" is stored as "mine" in the database
+            command_type = "work" if command_type == "mine" else command_type
+            kwargs = {command_type: on}
+        profile.update(last_known_nickname=message.author.name, **kwargs)
         if not profile.notify:
             return {
                 "msg": NormalMessage(

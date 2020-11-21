@@ -1,5 +1,6 @@
 import re
 import datetime
+import itertools
 from asgiref.sync import sync_to_async
 
 from django.db import models
@@ -7,6 +8,7 @@ from django.db.models import Q
 
 from .mixins import UpdateAble
 from .utils import Enum, tokenize
+from .managers import ProfileManager
 
 
 class JoinCode(models.Model):
@@ -51,6 +53,8 @@ class Profile(UpdateAble, models.Model):
     arena = models.BooleanField(default=True)
     dungeon = models.BooleanField(default=True)
 
+    objects = ProfileManager()
+
     def __str__(self):
         return f"{self.last_known_nickname}({self.uid})"
 
@@ -71,6 +75,7 @@ class CoolDown(models.Model):
         ("vote", "vote"),
         ("hunt", "hunt"),
         ("adventure", "adventure"),
+        ("quest", "quest"),
         ("training", "training"),
         ("duel", "duel"),
         ("mine", "work"),  # call it mining because that's in the CD message
@@ -86,6 +91,7 @@ class CoolDown(models.Model):
         "vote": datetime.timedelta(hours=12),
         "hunt": datetime.timedelta(seconds=60),
         "adventure": datetime.timedelta(minutes=60),
+        "quest": datetime.timedelta(hours=6),
         "training": datetime.timedelta(minutes=15),
         "duel": datetime.timedelta(hours=2),
         "work": datetime.timedelta(minutes=5),
@@ -103,6 +109,8 @@ class CoolDown(models.Model):
         "hunt": lambda x: "hunt",
         "adv": lambda x: "adventure",
         "adventure": lambda x: "adventure",
+        "quest": lambda x: "quest",
+        "epic": lambda x: "quest" if "quest" in x else None,
         "tr": lambda x: "training",
         "training": lambda x: "training",
         "ultraining": lambda x: "training",
@@ -226,6 +234,24 @@ def query_filter(model_class, **kwargs):
     return model_class.objects.filter(**kwargs)
 
 
-# @sync_to_async
-# def send_cooldown_messages():
-# Profile.objects.filter(server__active=True).filter(notify=True).filter(cooldown__after__lt=datetime.datetime.now()).values("cooldown__type", "server")
+@sync_to_async
+def bulk_delete(model_class, **kwargs):
+    return model_class.objects.filter(**kwargs).delete()
+
+
+@sync_to_async
+def get_cooldown_messages():
+    now = datetime.datetime.now(tz=datetime.timezone.utc)
+    results = []
+    for cooldown_type, cooldown_name in CoolDown.COOLDOWN_TYPE_CHOICES:
+        results.extend(
+            Profile.objects.command_type_enabled(cooldown_name)
+            .filter(cooldown__after__lte=now, cooldown__type=cooldown_type)
+            .values_list("cooldown__id", "cooldown__type", "channel", "uid")
+        )
+    return results
+
+
+@sync_to_async
+def cleanup_old_cooldowns():
+    return CoolDown.objects.filter(after__lt=datetime.datetime.now(tz=datetime.timezone.utc)).delete()
