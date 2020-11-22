@@ -34,10 +34,16 @@ class Client(discord.Client):
 
         content = message.content[:150].lower()
 
-        if content.startswith("rpgcd"):
-            tokens = tokenize(message.content[5:])
+        if content.startswith("rpgcd") or content.startswith("rcd"):
+            if content.startswith("rcd"):
+                tokens = ["cd"]
+            else:
+                tokens = tokenize(message.content[5:])
             msg = await handle_rpcd_message(tokens, message, server, None, None)
-            await message.channel.send(msg.msg)
+            embed = msg.to_embed()
+            await message.channel.send(embed=embed)
+        elif content.startswith("rcd"):
+            tokens = "cd"
 
         if not server:
             return
@@ -93,9 +99,9 @@ if __name__ == "__main__":
         while not bot.is_closed():
             cooldown_cleanup = []
             cooldown_messages = await get_cooldown_messages()
-            for _id, _type, channel, uid in cooldown_messages:
+            for _id, cd_type, channel, uid in cooldown_messages:
                 _channel = await bot.fetch_channel(channel)
-                await _channel.send(f"<@{uid}> {_type}")
+                await _channel.send(f"<@{uid}> {CoolDown.COOLDOWN_TEXT_MAP[cd_type]}")
                 cooldown_cleanup.append(_id)
             await bulk_delete(CoolDown, id__in=cooldown_cleanup)
             await asyncio.sleep(5)  # task runs every 5 seconds

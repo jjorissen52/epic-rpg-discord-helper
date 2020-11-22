@@ -1,3 +1,5 @@
+import pytz
+import discord
 import datetime
 import functools
 
@@ -11,20 +13,36 @@ from epic.utils import tokenize
 
 
 class RpgCdMessage:
-    def __init__(self, msg):
+    color = 0x8C8A89
+    title = None
+
+    def __init__(self, msg, title=None):
         self.msg = msg
+        if title:
+            self.title = title
+
+    def to_embed(self):
+        kwargs = {"color": self.color, "description": self.msg}
+        if self.title:
+            kwargs["title"] = self.title
+        return discord.Embed(**kwargs)
 
 
 class ErrorMessage(RpgCdMessage):
-    pass
+    title = "Error"
+    color = 0xEB4034
 
 
 class NormalMessage(RpgCdMessage):
     pass
 
 
+class HelpMessage(RpgCdMessage):
+    title = "Help"
+
+
 class SuccessMessage(RpgCdMessage):
-    pass
+    color = 0x628F47
 
 
 def params_as_args(func):
@@ -73,23 +91,21 @@ def _help(tokens, message, server, profile, msg, help=None, error=None):
     `rpgcd help register`
 
     Available Commands:
-        - `rpgcd register`
-        - `rpgcd on`
-        - `rpgcd off`
-        - `rpgcd profile`
-        - `rpgcd notify <command_type> on|off`
-        - `rpgcd cd`
+        • `rpgcd register`
+        • `rpgcd on`
+        • `rpgcd off`
+        • `rpgcd profile|p [timzone|tz <timezone>]`
+        • `rpgcd notify|n <command_type> on|off`
+        • `rpgcd cd` or `rcd`
 
     This bot attempts to determine the cooldowns of your EPIC RPG commands
     and will notify you when it thinks your commands are available again.
     Cooldowns are determined in two ways:
-      - The cooldown duration for an observed EPIC RPG command
-        is added to the current time. A notification is scheduled for this time.
-      - The output of `rpg cd` is extracted and used to schedule notifications
-        for all commands currently on cooldown.
+        • The cooldown duration for an observed EPIC RPG command is added to the current time. A notification is scheduled for this time.
+        • The output of `rpg cd` is extracted and used to schedule notifications for all commands currently on cooldown.
     """
     if not tokens or (tokens[0] == "help" and len(tokens) == 1):
-        return {"msg": NormalMessage(_help.__doc__)}
+        return {"msg": HelpMessage(_help.__doc__)}
     if tokens[0] != "help":
         return
     return {"help": True, "tokens": tokens[1:]}
@@ -101,26 +117,26 @@ def register(tokens, message, server, profile, msg, help=None, error=None):
         Register your server for use with Epic Reminder.
     Compute resources are limited, so invite codes will be doled out sparingly.
     Example:
-        `rpgcd register asdf`
+        • `rpgcd register asdf` attempts to register the server using the join code `asdf`
     """
     if tokens[0] != "register":
         return None
     if help or len(tokens) == 1:
-        return {"msg": NormalMessage(register.__doc__)}
+        return {"msg": HelpMessage(register.__doc__)}
     if server:
-        return {"msg": NormalMessage(f"{message.channel.guild.name} has already joined! Hello again!")}
+        return {"msg": NormalMessage(f"{message.channel.guild.name} has already joined! Hello again!", title="Hi!")}
     if len(tokens) > 1:
         cmd, *args = tokens
     else:
         cmd, args = tokens[0], ()
     if not args:
-        return {"msg": ErrorMessage("You must provide a join code to register.")}
+        return {"msg": ErrorMessage("You must provide a join code to register.", title="Registration Error")}
     join_code = JoinCode.objects.filter(code=args[0], claimed=False).first()
     if not join_code:
-        return {"msg": ErrorMessage("That is not a valid Join Code.")}
+        return {"msg": ErrorMessage("That is not a valid Join Code.", title="Invalid Join Code")}
     server = Server.objects.create(id=message.channel.guild.id, name=message.channel.guild.name, code=join_code)
     join_code.claim()
-    return {"msg": SuccessMessage(f"Welcome {message.channel.guild.name}!")}
+    return {"msg": SuccessMessage(f"Welcome {message.channel.guild.name}!", title="Welcome!")}
 
 
 @params_as_args
@@ -130,31 +146,31 @@ def notify(tokens, message, server, profile, msg, help=None):
     epic rpg commands you would like to receive reminders for. For example, you can
     enable or disable showing a reminder for when `rpg hunt` should be available. All reminders
     are enabled by defailt. Example usage:
-        - `rpgcd notify hunt on` Will turn on notifications when `rpg hunt` is off of cooldown.
-        - `rpgcd notify hunt off` Will turn off notifications for `rpg hunt`
-        - `rpgcd notify weekly on` Will turn on notifications for `rpg weekly`
-        - `rpgcd notify all off` Will turn off all notifications (but `profile.notify == True`)
+        • `rpgcd notify hunt on` Will turn on notifications when `rpg hunt` is off of cooldown.
+        • `rpgcd n hunt off` Will turn off notifications for `rpg hunt`
+        • `rpgcd n weekly on` Will turn on notifications for `rpg weekly`
+        • `rpgcd n all off` Will turn off all notifications (but `profile.notify == True`)
 
     Command Types:
-        - `all`
-        - `daily`
-        - `weekly`
-        - `lootbox`
-        - `vote`
-        - `hunt`
-        - `adventure`
-        - `training`
-        - `duel`
-        - `quest`
-        - `work` (chop, mine, fish, etc.)
-        - `horse`
-        - `arena`
-        - `dungeon`
+        • `all`
+        • `daily`
+        • `weekly`
+        • `lootbox`
+        • `vote`
+        • `hunt`
+        • `adventure`
+        • `training`
+        • `duel`
+        • `quest`
+        • `work` (chop, mine, fish, etc.)
+        • `horse`
+        • `arena`
+        • `dungeon`
     """
-    if tokens[0] != "notify":
+    if tokens[0] not in {"notify", "n"}:
         return None
     if help or len(tokens) == 1:
-        return {"msg": NormalMessage(notify.__doc__)}
+        return {"msg": HelpMessage(notify.__doc__)}
     if len(tokens) != 3:
         return {"error": 1}
     _, command_type, toggle = tokens
@@ -186,12 +202,12 @@ def notify(tokens, message, server, profile, msg, help=None):
 def on(tokens, message, server, profile, msg, help=None):
     """
     Toggle your profile notifications **on**. Example:
-    `rpgcd on`
+      • `rpgcd on`
     """
     if tokens[0] != "on":
         return None
     if help and len(tokens) == 1:
-        return {"msg": NormalMessage(on.__doc__)}
+        return {"msg": HelpMessage(on.__doc__)}
     elif len(tokens) != 1:
         return {"error": 1}
 
@@ -203,12 +219,12 @@ def on(tokens, message, server, profile, msg, help=None):
 def off(tokens, message, server, profile, msg, help=None):
     """
     Toggle your profile notifications **off**. Example:
-    `rpgcd off`
+      • `rpgcd off`
     """
     if tokens[0] != "off":
         return None
     if help and len(tokens) == 1:
-        return {"msg": NormalMessage(off.__doc__)}
+        return {"msg": HelpMessage(off.__doc__)}
     elif len(tokens) != 1:
         return {"error": 1}
 
@@ -220,18 +236,33 @@ def off(tokens, message, server, profile, msg, help=None):
 def _profile(tokens, message, server, profile, msg, help=None):
     """
     Display your profile information. Example:
-    `rpgcd profile`
+      • `rpgcd profile` Displays your profile information
+      • `rpgcd p timezone <timezone>` Sets your timezone to the provided timzone.
+         (This only effects the time displayed in `rpgcd cd`; notification functionality
+         is not effected.)
     """
-    if tokens[0] != "profile":
+    if tokens[0] not in {"profile", "p"}:
         return None
     if help and len(tokens) == 1:
-        return {"msg": NormalMessage(_profile.__doc__)}
-    elif len(tokens) != 1:
-        return {"error": 1}
+        return {"msg": HelpMessage(_profile.__doc__)}
+    elif len(tokens) > 1:
+        if len(tokens) == 2 or tokens[1] not in {"timezone", "tz"}:
+            return {"error": 1}
+        if len(tokens) == 3:
+            # need case sensitive tokens
+            tokens = tokenize(message.content[:250], preserve_case=True)[1:]
+            tz = tokens[2]
+            if tokens[2] not in set(map(lambda x: x[0], Profile.TIMEZONE_CHOICES)):
+                return {"msg": ErrorMessage(f"{tz} is not a valid timezone.")}
+            else:
+                profile.update(timezone=tz)
+                return {"msg": SuccessMessage(f"**{message.author.name}'s** timezone has been set to **{tz}**.")}
     msg = ""
+    msg += f"`{'nickname':12}` =>   {profile.last_known_nickname}\n"
+    msg += f"`{'timezone':12}` =>   {profile.timezone}\n"
     for k, v in model_to_dict(profile).items():
         if isinstance(v, bool):
-            msg += f"`{k:12} => {'on ' if v else 'off'}`\n"
+            msg += f"`{k:12}` =>   {':ballot_box_with_check:' if v else ':x:'}\n"
     return {"msg": NormalMessage(msg)}
 
 
@@ -239,23 +270,38 @@ def _profile(tokens, message, server, profile, msg, help=None):
 def cd(tokens, message, server, profile, msg, help=None):
     """
     Display when your cooldowns are expected to be done. Example:
-    `rpgcd cd`
+      • `rpgcd cd`
+      • `rcd`
     """
     if tokens[0] != "cd":
         return None
     if help and len(tokens) == 1:
-        return {"msg": NormalMessage(cd.__doc__)}
+        return {"msg": HelpMessage(cd.__doc__)}
     elif len(tokens) != 1:
         return {"error": 1}
-    msg = ""
+    profile_tz = pytz.timezone(profile.timezone)
     now, default = datetime.datetime.now(tz=datetime.timezone.utc), datetime.datetime(
         1790, 1, 1, tzinfo=datetime.timezone.utc
     )
-    cooldowns = {_cd[0]: _cd[1] for _cd in CoolDown.objects.filter(profile_id=profile.pk).values_list("type", "after")}
-    for cooldown_type, _ in CoolDown.COOLDOWN_TYPE_CHOICES:
-        if cooldowns.get(cooldown_type, default) > now:
-            msg += f"`{cooldown_type:12} {cooldowns[cooldown_type].strftime('%Y-%m-%d %H:%M:%S')}`\n"
-    return {"msg": NormalMessage(msg)}
+    msg = ""
+    cooldowns = {
+        _cd[0]: _cd[1]
+        for _cd in CoolDown.objects.filter(profile_id=profile.pk).order_by("after").values_list("type", "after")
+    }
+    all_cooldown_types = sorted(
+        map(lambda c: c[0], CoolDown.COOLDOWN_TYPE_CHOICES), key=lambda x: cooldowns[x] if x in cooldowns else default
+    )
+    for cooldown_type in all_cooldown_types:
+        after = cooldowns.get(cooldown_type, None)
+        if after:
+            if after > now:
+                cooldown_after = cooldowns[cooldown_type].astimezone(profile_tz)
+                msg += f":clock2: `{cooldown_type:12} {cooldown_after.strftime('%I:%M:%S %p, %Y-%m-%d'):>35}`\n"
+        else:
+            msg += f":white_check_mark: `{cooldown_type:12} {'is ready!':>35}` \n"
+    if not msg:
+        msg = "Please use `rpg cd` or an EPIC RPG command to populate your cooldowns.\n"
+    return {"msg": NormalMessage(msg, title=f"**{message.author.name}'s** Cooldowns ({profile.timezone})")}
 
 
 command_pipeline = execution_pipeline(
