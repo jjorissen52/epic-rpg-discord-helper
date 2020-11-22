@@ -14,7 +14,7 @@ from django.core.wsgi import get_wsgi_application
 get_wsgi_application()
 
 from epic.models import CoolDown, Profile, Server, JoinCode
-from epic.models import get_instance, update_instance, upsert_cooldowns, bulk_delete, get_cooldown_messages
+from epic.query import get_instance, update_instance, upsert_cooldowns, bulk_delete, get_cooldown_messages
 from epic.utils import tokenize
 
 from epic.cmd_chain import handle_rpcd_message
@@ -42,8 +42,6 @@ class Client(discord.Client):
             msg = await handle_rpcd_message(self, tokens, message, server, None, None)
             embed = msg.to_embed()
             await message.channel.send(embed=embed)
-        elif content.startswith("rcd"):
-            tokens = "cd"
 
         if not server:
             return
@@ -101,7 +99,7 @@ if __name__ == "__main__":
             cooldown_messages = await get_cooldown_messages()
             for _id, cd_type, channel, uid in cooldown_messages:
                 _channel = await bot.fetch_channel(channel)
-                await _channel.send(f"<@{uid}> {CoolDown.COOLDOWN_TEXT_MAP[cd_type]}")
+                await _channel.send(f"<@{uid}> {CoolDown.COOLDOWN_TEXT_MAP[cd_type]} (**{cd_type.title()}**)")
                 cooldown_cleanup.append(_id)
             await bulk_delete(CoolDown, id__in=cooldown_cleanup)
             await asyncio.sleep(5)  # task runs every 5 seconds

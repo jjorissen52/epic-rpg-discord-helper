@@ -9,7 +9,7 @@ from pipeline import execution_pipeline
 
 from django.forms.models import model_to_dict
 
-from epic.models import CoolDown, Profile, Server, JoinCode, get_instance, update_instance, upsert_cooldowns
+from epic.models import CoolDown, Profile, Server, JoinCode
 from epic.utils import tokenize
 
 
@@ -35,7 +35,7 @@ class ErrorMessage(RpgCdMessage):
 
 
 class NormalMessage(RpgCdMessage):
-    pass
+    color = 0x4381CC
 
 
 class HelpMessage(RpgCdMessage):
@@ -90,6 +90,7 @@ def _help(client, tokens, message, server, profile, msg, help=None, error=None):
 
     Call `help` on an available command to see it's usage. Example:
     `rpgcd help register`
+    `rpgcd h register`
 
     Available Commands:
         • `rpgcd register`
@@ -105,9 +106,9 @@ def _help(client, tokens, message, server, profile, msg, help=None, error=None):
         • The cooldown duration for an observed EPIC RPG command is added to the current time. A notification is scheduled for this time.
         • The output of `rpg cd` is extracted and used to schedule notifications for all commands currently on cooldown.
     """
-    if not tokens or (tokens[0] == "help" and len(tokens) == 1):
+    if not tokens or (tokens[0] in {"help", "h"} and len(tokens) == 1):
         return {"msg": HelpMessage(_help.__doc__)}
-    if tokens[0] != "help":
+    if tokens[0] not in {"help", "h"}:
         return
     return {"help": True, "tokens": tokens[1:]}
 
@@ -315,7 +316,7 @@ def cd(client, tokens, message, server, profile, msg, help=None):
         if after:
             if after > now:
                 cooldown_after = cooldowns[cooldown_type].astimezone(profile_tz)
-                msg += f":clock2: `{cooldown_type:12} {cooldown_after.strftime('%I:%M:%S %p, %Y-%m-%d'):>35}`\n"
+                msg += f":clock2: `{cooldown_type:12} {cooldown_after.strftime('%I:%M:%S %p, %m/%d'):>35}`\n"
         else:
             msg += f":white_check_mark: `{cooldown_type:12} {'Ready!':>35}` \n"
     if not msg:
