@@ -1,4 +1,5 @@
 import re
+import pytz
 import datetime
 import itertools
 from asgiref.sync import sync_to_async
@@ -34,10 +35,17 @@ class Server(models.Model):
 
 
 class Profile(UpdateAble, models.Model):
+    TIMEZONE_CHOICES = tuple(zip(pytz.common_timezones, pytz.common_timezones))
+
+    uid = models.CharField(max_length=50, primary_key=True)
+
     server = models.ForeignKey(Server, on_delete=models.CASCADE)
     channel = models.PositiveBigIntegerField()
     last_known_nickname = models.CharField(max_length=250)
-    uid = models.CharField(max_length=50, primary_key=True)
+    timezone = models.CharField(
+        choices=TIMEZONE_CHOICES, max_length=max(map(len, pytz.common_timezones)), default="America/Chicago"
+    )
+
     notify = models.BooleanField(default=False)
     daily = models.BooleanField(default=True)
     weekly = models.BooleanField(default=True)
@@ -69,21 +77,21 @@ class CoolDown(models.Model):
     field_regex = re.compile(r":clock4: ~-~ \*\*`(?P<field_name>[^`]*)`\*\*")
 
     COOLDOWN_TYPE_CHOICES = (
-        ("daily", "daily"),
-        ("weekly", "weekly"),
-        ("lootbox", "lootbox"),
-        ("vote", "vote"),
-        ("hunt", "hunt"),
-        ("adventure", "adventure"),
-        ("quest", "quest"),
-        ("training", "training"),
-        ("duel", "duel"),
-        ("work", "work"),
-        ("horse", "horse"),
-        ("arena", "arena"),
-        ("dungeon", "dungeon"),
+        ("daily", "Time for your daily! :sun_with_face:"),
+        ("weekly", "Looks like it's that time of the week... :newspaper"),
+        ("lootbox", "Lootbox! :moneybag:"),
+        ("vote", "You can vote again. :ballot_box:"),
+        ("hunt", "is on the hunt! :crossed_swords:"),
+        ("adventure", "Let's go on an adventure! :woman_running:"),
+        ("quest", "The townspeople need our help! "),
+        ("training", "want to get buff? :man_lifting_weights:"),
+        ("duel", "It's time to d-d-d-d-duel! :crossed_swords:"),
+        ("work", "Get back to work. :pick:"),
+        ("horse", "Pie-O-My! :horse_racing:"),
+        ("arena", "Heeyyyy lets go hurt each other. :circus_tent:"),
+        ("dungeon", "can you reach the next area? :exclamation:"),
     )
-
+    COOLDOWN_TEXT_MAP = {c[0]: c[1] for c in COOLDOWN_TYPE_CHOICES}
     COOLDOWN_MAP = {
         "daily": datetime.timedelta(hours=24),
         "weekly": datetime.timedelta(days=7),
@@ -99,7 +107,6 @@ class CoolDown(models.Model):
         "arena": datetime.timedelta(hours=24),
         "dungeon": datetime.timedelta(hours=12),
     }
-
     COMMAND_RESOLUTION_MAP = {
         "daily": lambda x: "daily",
         "weekly": lambda x: "weekly",
@@ -159,7 +166,6 @@ class CoolDown(models.Model):
             resolved = CoolDown.COMMAND_RESOLUTION_MAP.get(cmd, lambda x: None)(" ".join(args))
         if not resolved:
             return None, None
-        print(resolved)
         return resolved, datetime.datetime.now(tz=datetime.timezone.utc) + CoolDown.COOLDOWN_MAP[resolved]
 
     @staticmethod

@@ -8,7 +8,10 @@ class Enum(set):
         raise AttributeError
 
 
-def tokenize(cmd):
+def tokenize(cmd, preserve_case=False):
     if not cmd:
         return cmd
-    return re.sub(r"\s+", " ", cmd).strip().lower().split()
+    cmd = re.sub(r"\s+", " ", cmd).strip()
+    if not preserve_case:
+        cmd = cmd.lower()
+    return cmd.split()
