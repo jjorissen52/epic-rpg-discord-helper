@@ -91,13 +91,16 @@ def _help(client, tokens, message, server, profile, msg, help=None, error=None):
     Call `help` on an available command to see it's usage. Example:
     `rpgcd help register`
     `rpgcd h register`
+    `rpgcd h notify`
 
     Available Commands:
         • `rpgcd register`
+        • `rpgcd profile|p [<profile_command>]`
         • `rpgcd on`
         • `rpgcd off`
-        • `rpgcd profile|p [timzone|tz <timezone>]`
-        • `rpgcd notify|n <command_type> on|off`
+        • `rpgcd timezone|tz <timezone>`
+        • `rpgcd <command_type> on|off`
+        • `rpgcd [notify|n] <command_type> on|off`
         • `rpgcd whocan|w <command_type>`
         • `rpgcd cd` or `rcd`
 
@@ -143,13 +146,57 @@ def register(client, tokens, message, server, profile, msg, help=None, error=Non
 
 
 @params_as_args
+def _profile(client, tokens, message, server, profile, msg, help=None):
+    """
+    When called without any arguments, e.g. `rpgcd profile` this will display
+    profile-related information. Otherwise, it will treat your input as a profile related sub-command.
+
+    Available Commands:
+        • `rpgcd profile|p`
+        • `rpgcd profile|p timezone|tz <timezone>`
+        • `rpgcd profile|p on|off`
+        • `rpgcd profile|p [notify|n] <cooldown_type> on|off`
+    Examples:
+        • `rpgcd profile` Displays your profile information
+        • `rpgcd p tz <timezone>` Sets your timezone to the provided timezone.
+        • `rpgcd p on` Enables notifications for your profile.
+        • `rpgcd p notify hunt on` Turns on hunt notifications for your profile.
+        • `rpgcd p hunt on` Turns on hunt notifications for your profile.
+    """
+    print(tokens)
+    if tokens[0] not in {"profile", "p"}:
+        return None
+    if help and len(tokens) == 1:
+        return {"msg": HelpMessage(_profile.__doc__)}
+    elif len(tokens) > 1:
+        # allow other commands to be namespaced by profile if that's how the user calls it
+        if tokens[1] in {
+            *("timezone", "tz"),
+            *("notify", "n"),
+            "on",
+            "off",
+            "cd",
+        }:
+            return {"tokens": tokens[1:]}
+        return {"error": 1}
+    msg = ""
+    msg += f"`{'nickname':12}` =>   {profile.last_known_nickname}\n"
+    msg += f"`{'timezone':12}` =>   {profile.timezone}\n"
+    for k, v in model_to_dict(profile).items():
+        if isinstance(v, bool):
+            msg += f"`{k:12}` =>   {':ballot_box_with_check:' if v else ':x:'}\n"
+    return {"msg": NormalMessage(msg)}
+
+
+@params_as_args
 def notify(client, tokens, message, server, profile, msg, help=None):
     """
         Manage your notification settings. Here you can specify which types of
     epic rpg commands you would like to receive reminders for. For example, you can
     enable or disable showing a reminder for when `rpg hunt` should be available. All reminders
     are enabled by defailt. Example usage:
-        • `rpgcd notify hunt on` Will turn on notifications when `rpg hunt` is off of cooldown.
+        • `rpgcd notify hunt on` Will turn on cd notifcations for `rpg hunt`.
+        • `rpgcd daily on` Will turn on cd notifcations for `rpg hunt`.
         • `rpgcd n hunt off` Will turn off notifications for `rpg hunt`
         • `rpgcd n weekly on` Will turn on notifications for `rpg weekly`
         • `rpgcd n all off` Will turn off all notifications (but `profile.notify == True`)
@@ -170,6 +217,9 @@ def notify(client, tokens, message, server, profile, msg, help=None):
         • `arena`
         • `dungeon`
     """
+    if tokens[0] in CoolDown.COOLDOWN_MAP:
+        # allow naked invocation of notify
+        tokens = ["notify", *tokens]
     if tokens[0] not in {"notify", "n"}:
         return None
     if help or len(tokens) == 1:
@@ -236,37 +286,29 @@ def off(client, tokens, message, server, profile, msg, help=None):
 
 
 @params_as_args
-def _profile(client, tokens, message, server, profile, msg, help=None):
+def timezone(client, tokens, message, server, profile, msg, help=None):
     """
-    Display your profile information. Example:
-      • `rpgcd profile` Displays your profile information
-      • `rpgcd p timezone <timezone>` Sets your timezone to the provided timzone.
-         (This only effects the time displayed in `rpgcd cd`; notification functionality
+    Set your timezone. Example:
+      • `rpgcd timezone <timezone>` Sets your timezone to the provided timzone.
+        (This only effects the time displayed in `rpgcd cd`; notification functionality
          is not effected.)
     """
-    if tokens[0] not in {"profile", "p"}:
+    command = tokens[0]
+    if command not in {"timezone", "tz"}:
         return None
-    if help and len(tokens) == 1:
-        return {"msg": HelpMessage(_profile.__doc__)}
-    elif len(tokens) > 1:
-        if len(tokens) == 2 or tokens[1] not in {"timezone", "tz"}:
-            return {"error": 1}
-        if len(tokens) == 3:
-            # need case sensitive tokens
-            tokens = tokenize(message.content[:250], preserve_case=True)[1:]
-            tz = tokens[2]
-            if tokens[2] not in set(map(lambda x: x[0], Profile.TIMEZONE_CHOICES)):
-                return {"msg": ErrorMessage(f"{tz} is not a valid timezone.")}
-            else:
-                profile.update(timezone=tz)
-                return {"msg": SuccessMessage(f"**{message.author.name}'s** timezone has been set to **{tz}**.")}
-    msg = ""
-    msg += f"`{'nickname':12}` =>   {profile.last_known_nickname}\n"
-    msg += f"`{'timezone':12}` =>   {profile.timezone}\n"
-    for k, v in model_to_dict(profile).items():
-        if isinstance(v, bool):
-            msg += f"`{k:12}` =>   {':ballot_box_with_check:' if v else ':x:'}\n"
-    return {"msg": NormalMessage(msg)}
+    if len(tokens) == 2:
+        # need case sensitive tokens to get correct timezone name,
+        # need case insensitive tokens to get relative position in of
+        # tz|timezone token from user input
+        tokens = tokenize(message.content[:250], preserve_case=True)[1:]
+        itokens = tokenize(message.content[:250], preserve_case=False)[1:]
+        # get the case-preserved token which follows tz|timezone in the token list
+        tz = tokens[itokens.index(command) + 1]
+        if tz not in set(map(lambda x: x[0], Profile.TIMEZONE_CHOICES)):
+            return {"msg": ErrorMessage(f"{tz} is not a valid timezone.")}
+        else:
+            profile.update(timezone=tz)
+            return {"msg": SuccessMessage(f"**{message.author.name}'s** timezone has been set to **{tz}**.")}
 
 
 @params_as_args
@@ -375,6 +417,7 @@ command_pipeline = execution_pipeline(
         on,
         off,
         _profile,
+        timezone,
         cd,
         whocan,
     ],
@@ -385,7 +428,8 @@ command_pipeline = execution_pipeline(
 @command_pipeline
 def handle_rpcd_message(client, tokens, message, server, profile, msg, help=None, error=None):
     if (error and not isinstance(error, str)) or not msg:
-        return ErrorMessage(f"`rpgcd {' '.join(tokens)}` could not be parsed as a valid command.")
+        original_tokens = tokenize(message.content[:250], preserve_case=True)
+        return ErrorMessage(f"`{' '.join(original_tokens)}` could not be parsed as a valid command.")
     elif error:
         return ErrorMessage(error)
     return msg

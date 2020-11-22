@@ -185,7 +185,7 @@ LOGGING = {
     },
     "handlers": {
         "console": {
-            "level": "INFO",
+            "level": "INFO",  # Change to DEBUG for SQL logging
             "filters": ["require_debug_true"],
             "class": "logging.StreamHandler",
         },
@@ -210,7 +210,7 @@ LOGGING = {
     "loggers": {
         "django": {
             "handlers": ["console", "mail_admins", "console_on_not_debug"],
-            "level": "INFO",
+            "level": "DEBUG",
         },
         "django.server": {
             "handlers": ["django.server"],

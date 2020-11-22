@@ -43,6 +43,7 @@ class Profile(UpdateAble, models.Model):
     timezone = models.CharField(
         choices=TIMEZONE_CHOICES, max_length=max(map(len, pytz.common_timezones)), default="America/Chicago"
     )
+    # time_format = models.CharField(max_length=50, default='%I:%M:%S %p, %m/%d')
 
     notify = models.BooleanField(default=False)
     daily = models.BooleanField(default=True)
@@ -77,7 +78,7 @@ class CoolDown(models.Model):
 
     COOLDOWN_TYPE_CHOICES = (
         ("daily", "Time for your daily! :sun_with_face:"),
-        ("weekly", "Looks like it's that time of the week... :newspaper"),
+        ("weekly", "Looks like it's that time of the week... :newspaper:"),
         ("lootbox", "Lootbox! :moneybag:"),
         ("vote", "You can vote again. :ballot_box:"),
         ("hunt", "is on the hunt! :crossed_swords:"),
