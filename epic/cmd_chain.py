@@ -163,7 +163,6 @@ def _profile(client, tokens, message, server, profile, msg, help=None):
         • `rpgcd p notify hunt on` Turns on hunt notifications for your profile.
         • `rpgcd p hunt on` Turns on hunt notifications for your profile.
     """
-    print(tokens)
     if tokens[0] not in {"profile", "p"}:
         return None
     if help and len(tokens) == 1:
@@ -314,18 +313,21 @@ def timezone(client, tokens, message, server, profile, msg, help=None):
 @params_as_args
 def cd(client, tokens, message, server, profile, msg, help=None):
     """
-    Display when your cooldowns are expected to be done. Example:
-      • `rpgcd cd`
-      • `rcd`
+    Display when your cooldowns are expected to be done.
+    Usage:
+        • `rpgcd cd [<cooldown_types> [...<cooldown_types>]]`
+    Example:
+        • `rpgcd cd`
+        • `rcd`
+        • `rcd daily weekly`
     """
     nickname = message.author.name
+    cooldown_filter = lambda x: True  # show all filters by default
     if tokens[0] != "cd":
         return None
     if help and len(tokens) == 1:
         return {"msg": HelpMessage(cd.__doc__)}
     elif len(tokens) > 1:
-        if len(tokens) != 2:
-            return {"error": 1}
         maybe_user_id = re.match(r"<@!?(?P<user_id>\d+)>", tokens[1])
         if maybe_user_id:
             user_id = int(
@@ -341,7 +343,7 @@ def cd(client, tokens, message, server, profile, msg, help=None):
             )
             nickname = profile.last_known_nickname
         else:
-            return {"error": 1}
+            cooldown_filter = lambda x: x in set(tokens[1:])
     profile_tz = pytz.timezone(profile.timezone)
     now, default = datetime.datetime.now(tz=datetime.timezone.utc), datetime.datetime(
         1790, 1, 1, tzinfo=datetime.timezone.utc
@@ -352,7 +354,8 @@ def cd(client, tokens, message, server, profile, msg, help=None):
         for _cd in CoolDown.objects.filter(profile_id=profile.pk).order_by("after").values_list("type", "after")
     }
     all_cooldown_types = sorted(
-        map(lambda c: c[0], CoolDown.COOLDOWN_TYPE_CHOICES), key=lambda x: cooldowns[x] if x in cooldowns else default
+        filter(cooldown_filter, map(lambda c: c[0], CoolDown.COOLDOWN_TYPE_CHOICES)),
+        key=lambda x: cooldowns[x] if x in cooldowns else default,
     )
     for cooldown_type in all_cooldown_types:
         after = cooldowns.get(cooldown_type, None)
