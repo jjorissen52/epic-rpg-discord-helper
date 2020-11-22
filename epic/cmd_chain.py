@@ -98,6 +98,7 @@ def _help(client, tokens, message, server, profile, msg, help=None, error=None):
         • `rpgcd off`
         • `rpgcd profile|p [timzone|tz <timezone>]`
         • `rpgcd notify|n <command_type> on|off`
+        • `rpgcd whocan <command_type>`
         • `rpgcd cd` or `rcd`
 
     This bot attempts to determine the cooldowns of your EPIC RPG commands
@@ -324,6 +325,48 @@ def cd(client, tokens, message, server, profile, msg, help=None):
     return {"msg": NormalMessage(msg, title=f"**{nickname}'s** Cooldowns ({profile.timezone})")}
 
 
+@params_as_args
+def whocan(client, tokens, message, server, profile, msg, help=None):
+    """
+    Determine who in your server can use a particular command. Example:
+      • `rpgcd whocan dungeon`
+      • `rpgcd w dungeon`
+    """
+    if tokens[0] not in {"whocan", "w"}:
+        return None
+    if help or len(tokens) == 1:
+        return {"msg": HelpMessage(whocan.__doc__)}
+
+    rpg_command = " ".join(tokens[1:])
+    if tokens[1] not in CoolDown.COMMAND_RESOLUTION_MAP:
+        return {
+            "msg": ErrorMessage(
+                "`rpgcd whocan` should work with any group command "
+                "that you can use with EPIC RPG. If you think this "
+                "error is a mistake, let me know.",
+                title=f"Invalid Command Type `{rpg_command}`",
+            )
+        }
+
+    cooldown_type_func = CoolDown.COMMAND_RESOLUTION_MAP[tokens[1]]
+    if len(tokens) > 2:
+        cooldown_type = cooldown_type_func(" ".join(tokens[2:]))
+    else:
+        cooldown_type = cooldown_type_func(None)
+
+    ats = [
+        f"<@{uid}>"
+        for uid in set(
+            Profile.objects.exclude(uid=profile.uid).exclude(cooldown__type=cooldown_type).values_list("uid", flat=True)
+        )
+    ]
+    if ats:
+        msg = f"All of these players can `{rpg_command}`: \n\n" + "\n\t".join(ats)
+        msg += f"\n\nExample: \n\n```rpg {rpg_command} {' '.join(ats)}\n\n```"
+        return {"msg": SuccessMessage(msg, title=f"They can **{rpg_command.title()}**")}
+    return {"msg": NormalMessage("Sorry, no one can do that right now.")}
+
+
 command_pipeline = execution_pipeline(
     pre=[
         _help,
@@ -333,6 +376,7 @@ command_pipeline = execution_pipeline(
         off,
         _profile,
         cd,
+        whocan,
     ],
 )
 

@@ -17,6 +17,7 @@ class ServerAdmin(admin.ModelAdmin):
 @admin.register(Profile)
 class ProfileAdmin(admin.ModelAdmin):
     search_fields = ("last_known_nickname", "uid")
+    list_filter = ("notify",)
 
 
 @admin.register(CoolDown)
