@@ -98,7 +98,7 @@ def _help(client, tokens, message, server, profile, msg, help=None, error=None):
         • `rpgcd off`
         • `rpgcd profile|p [timzone|tz <timezone>]`
         • `rpgcd notify|n <command_type> on|off`
-        • `rpgcd whocan <command_type>`
+        • `rpgcd whocan|w <command_type>`
         • `rpgcd cd` or `rcd`
 
     This bot attempts to determine the cooldowns of your EPIC RPG commands
