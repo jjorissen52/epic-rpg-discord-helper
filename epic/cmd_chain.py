@@ -110,11 +110,78 @@ def _help(client, tokens, message, server, profile, msg, help=None, error=None):
         • The cooldown duration for an observed EPIC RPG command is added to the current time. A notification is scheduled for this time.
         • The output of `rpg cd` is extracted and used to schedule notifications for all commands currently on cooldown.
     """
-    if not tokens or (tokens[0] in {"help", "h"} and len(tokens) == 1):
-        return {"msg": HelpMessage(_help.__doc__)}
+    if not tokens:
+        # default command is now cd instead of help
+        return {"tokens": ["cd"]}
     if tokens[0] not in {"help", "h"}:
         return
+    if len(tokens) == 1:
+        return {"msg": HelpMessage(_help.__doc__)}
     return {"help": True, "tokens": tokens[1:]}
+
+
+@params_as_args
+def cd(client, tokens, message, server, profile, msg, help=None):
+    """
+    Display when your cooldowns are expected to be done.
+    Usage:
+        • `rpgcd cd [<cooldown_types> [...<cooldown_types>]]`
+    Example:
+        • `rpgcd cd`
+        • `rcd`
+        • `rcd daily weekly`
+    """
+    implicit_invocation = False
+    if tokens[0] in CoolDown.COOLDOWN_MAP:
+        # allow implicit invocation of cd
+        tokens, implicit_invocation = ["cd", *tokens], True
+    nickname = message.author.name
+    cooldown_filter = lambda x: True  # show all filters by default
+    if tokens[0] != "cd":
+        return None
+    if help and len(tokens) == 1:
+        return {"msg": HelpMessage(cd.__doc__)}
+    elif len(tokens) > 1:
+        maybe_user_id = re.match(r"<@!?(?P<user_id>\d+)>", tokens[1])
+        if maybe_user_id:
+            user_id = int(
+                maybe_user_id.groupdict()["user_id"],
+            )
+            profile, _ = Profile.objects.get_or_create(
+                uid=user_id,
+                defaults={
+                    "last_known_nickname": client.get_user(user_id).name,
+                    "server": server,
+                    "channel": message.channel.id,
+                },
+            )
+            nickname = profile.last_known_nickname
+        else:
+            cooldown_filter = lambda x: x in set(tokens[1:])
+    profile_tz = pytz.timezone(profile.timezone)
+    now, default = datetime.datetime.now(tz=datetime.timezone.utc), datetime.datetime(
+        1790, 1, 1, tzinfo=datetime.timezone.utc
+    )
+    msg = ""
+    cooldowns = {
+        _cd[0]: _cd[1]
+        for _cd in CoolDown.objects.filter(profile_id=profile.pk).order_by("after").values_list("type", "after")
+    }
+    all_cooldown_types = sorted(
+        filter(cooldown_filter, map(lambda c: c[0], CoolDown.COOLDOWN_TYPE_CHOICES)),
+        key=lambda x: cooldowns[x] if x in cooldowns else default,
+    )
+    for cooldown_type in all_cooldown_types:
+        after = cooldowns.get(cooldown_type, None)
+        if after:
+            if after > now:
+                cooldown_after = cooldowns[cooldown_type].astimezone(profile_tz)
+                msg += f":clock2: `{cooldown_type:12} {cooldown_after.strftime('%I:%M:%S %p, %m/%d'):>20}`\n"
+        else:
+            msg += f":white_check_mark: `{cooldown_type:12} {'Ready!':>20}` \n"
+    if not msg:
+        msg = "Please use `rpg cd` or an EPIC RPG command to populate your cooldowns.\n"
+    return {"msg": NormalMessage(msg, title=f"**{nickname}'s** Cooldowns ({profile.timezone})")}
 
 
 @params_as_args
@@ -174,7 +241,8 @@ def _profile(client, tokens, message, server, profile, msg, help=None):
             *("notify", "n"),
             "on",
             "off",
-            "cd",
+            # allow implicit command type commands to be namespaced by `rcd p`
+            *CoolDown.COOLDOWN_MAP.keys(),
         }:
             return {"tokens": tokens[1:]}
         return {"error": 1}
@@ -216,15 +284,17 @@ def notify(client, tokens, message, server, profile, msg, help=None):
         • `arena`
         • `dungeon`
     """
-    if tokens[0] in CoolDown.COOLDOWN_MAP:
-        # allow naked invocation of notify
+    if tokens[0] in CoolDown.COOLDOWN_MAP and tokens[-1] in {"on", "off"}:
+        # allow implicit invocation of notify
         tokens = ["notify", *tokens]
-    if tokens[0] not in {"notify", "n"}:
+        # make sure all passed tokens are valid cooldown type
+        for token in {*tokens[1:-1]}:
+            if token not in CoolDown.COOLDOWN_MAP:
+                return {"error": 1}
+    if tokens[0] not in {"notify", "n"} or len(tokens) == 2:
         return None
     if help or len(tokens) == 1:
         return {"msg": HelpMessage(notify.__doc__)}
-    if len(tokens) != 3:
-        return {"error": 1}
     _, command_type, toggle = tokens
     if (command_type in CoolDown.COOLDOWN_MAP or command_type == "all") and toggle in {"on", "off"}:
         on = toggle == "on"
@@ -311,66 +381,6 @@ def timezone(client, tokens, message, server, profile, msg, help=None):
 
 
 @params_as_args
-def cd(client, tokens, message, server, profile, msg, help=None):
-    """
-    Display when your cooldowns are expected to be done.
-    Usage:
-        • `rpgcd cd [<cooldown_types> [...<cooldown_types>]]`
-    Example:
-        • `rpgcd cd`
-        • `rcd`
-        • `rcd daily weekly`
-    """
-    nickname = message.author.name
-    cooldown_filter = lambda x: True  # show all filters by default
-    if tokens[0] != "cd":
-        return None
-    if help and len(tokens) == 1:
-        return {"msg": HelpMessage(cd.__doc__)}
-    elif len(tokens) > 1:
-        maybe_user_id = re.match(r"<@!?(?P<user_id>\d+)>", tokens[1])
-        if maybe_user_id:
-            user_id = int(
-                maybe_user_id.groupdict()["user_id"],
-            )
-            profile, _ = Profile.objects.get_or_create(
-                uid=user_id,
-                defaults={
-                    "last_known_nickname": client.get_user(user_id).name,
-                    "server": server,
-                    "channel": message.channel.id,
-                },
-            )
-            nickname = profile.last_known_nickname
-        else:
-            cooldown_filter = lambda x: x in set(tokens[1:])
-    profile_tz = pytz.timezone(profile.timezone)
-    now, default = datetime.datetime.now(tz=datetime.timezone.utc), datetime.datetime(
-        1790, 1, 1, tzinfo=datetime.timezone.utc
-    )
-    msg = ""
-    cooldowns = {
-        _cd[0]: _cd[1]
-        for _cd in CoolDown.objects.filter(profile_id=profile.pk).order_by("after").values_list("type", "after")
-    }
-    all_cooldown_types = sorted(
-        filter(cooldown_filter, map(lambda c: c[0], CoolDown.COOLDOWN_TYPE_CHOICES)),
-        key=lambda x: cooldowns[x] if x in cooldowns else default,
-    )
-    for cooldown_type in all_cooldown_types:
-        after = cooldowns.get(cooldown_type, None)
-        if after:
-            if after > now:
-                cooldown_after = cooldowns[cooldown_type].astimezone(profile_tz)
-                msg += f":clock2: `{cooldown_type:12} {cooldown_after.strftime('%I:%M:%S %p, %m/%d'):>20}`\n"
-        else:
-            msg += f":white_check_mark: `{cooldown_type:12} {'Ready!':>20}` \n"
-    if not msg:
-        msg = "Please use `rpg cd` or an EPIC RPG command to populate your cooldowns.\n"
-    return {"msg": NormalMessage(msg, title=f"**{nickname}'s** Cooldowns ({profile.timezone})")}
-
-
-@params_as_args
 def whocan(client, tokens, message, server, profile, msg, help=None):
     """
     Determine who in your server can use a particular command. Example:
@@ -414,15 +424,18 @@ def whocan(client, tokens, message, server, profile, msg, help=None):
 
 command_pipeline = execution_pipeline(
     pre=[
-        _help,
-        register,
-        notify,
+        _help,  # needs to be first to pass "help" param to those that follow
+        whocan,
+        # most commands that follow can be invoked as profile subcommand
+        _profile,
+        notify,  # notify must be before cd so `rcd hunt on` works
+        # cd allows arbitrary arguments so it must follow
+        # all other commands that can be invoked implicitly
+        cd,
         on,
         off,
-        _profile,
         timezone,
-        cd,
-        whocan,
+        register,  # called rarely, should be last.
     ],
 )
 

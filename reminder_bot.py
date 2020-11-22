@@ -36,7 +36,7 @@ class Client(discord.Client):
 
         if content.startswith("rpgcd") or content.startswith("rcd"):
             if content.startswith("rcd"):
-                tokens = ["cd", *tokenize(message.content[3:])]
+                tokens = tokenize(message.content[3:])
             else:
                 tokens = tokenize(message.content[5:])
             msg = await handle_rpcd_message(self, tokens, message, server, None, None)
