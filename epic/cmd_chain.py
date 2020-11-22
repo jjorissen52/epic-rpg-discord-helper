@@ -284,7 +284,7 @@ def cd(client, tokens, message, server, profile, msg, help=None):
     elif len(tokens) > 1:
         if len(tokens) != 2:
             return {"error": 1}
-        maybe_user_id = re.match(r"<@!(?P<user_id>\d+)>", tokens[1])
+        maybe_user_id = re.match(r"<@!?(?P<user_id>\d+)>", tokens[1])
         if maybe_user_id:
             user_id = int(
                 maybe_user_id.groupdict()["user_id"],
@@ -317,9 +317,9 @@ def cd(client, tokens, message, server, profile, msg, help=None):
         if after:
             if after > now:
                 cooldown_after = cooldowns[cooldown_type].astimezone(profile_tz)
-                msg += f":clock2: `{cooldown_type:12} {cooldown_after.strftime('%I:%M:%S %p, %m/%d'):>35}`\n"
+                msg += f":clock2: `{cooldown_type:12} {cooldown_after.strftime('%I:%M:%S %p, %m/%d'):>20}`\n"
         else:
-            msg += f":white_check_mark: `{cooldown_type:12} {'Ready!':>35}` \n"
+            msg += f":white_check_mark: `{cooldown_type:12} {'Ready!':>20}` \n"
     if not msg:
         msg = "Please use `rpg cd` or an EPIC RPG command to populate your cooldowns.\n"
     return {"msg": NormalMessage(msg, title=f"**{nickname}'s** Cooldowns ({profile.timezone})")}

@@ -177,7 +177,7 @@ class CoolDown(models.Model):
             return None, None
         # zero argument commands will just return whether or not the command matched
         if len(tokens) == 1:
-            resolved = CoolDown.COMMAND_RESOLUTION_MAP.get(tokens[0], lambda x: None)(None)
+            resolved = CoolDown.COMMAND_RESOLUTION_MAP.get(tokens[0], lambda x: None)("")
         else:
             cmd, *args = tokens
             # mutli-arguments must be resolved in the basis of other args
