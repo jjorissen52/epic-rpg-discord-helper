@@ -1,3 +1,4 @@
+import re
 import pytz
 import discord
 import datetime
@@ -46,7 +47,7 @@ class SuccessMessage(RpgCdMessage):
 
 
 def params_as_args(func):
-    arg_names = ["tokens", "message", "server", "profile", "msg", "help"]
+    arg_names = ["client", "tokens", "message", "server", "profile", "msg", "help"]
 
     @functools.wraps(func)
     def wrapper(params):
@@ -84,7 +85,7 @@ def params_as_args(func):
 
 
 @params_as_args
-def _help(tokens, message, server, profile, msg, help=None, error=None):
+def _help(client, tokens, message, server, profile, msg, help=None, error=None):
     """
 
     Call `help` on an available command to see it's usage. Example:
@@ -112,7 +113,7 @@ def _help(tokens, message, server, profile, msg, help=None, error=None):
 
 
 @params_as_args
-def register(tokens, message, server, profile, msg, help=None, error=None):
+def register(client, tokens, message, server, profile, msg, help=None, error=None):
     """
         Register your server for use with Epic Reminder.
     Compute resources are limited, so invite codes will be doled out sparingly.
@@ -140,7 +141,7 @@ def register(tokens, message, server, profile, msg, help=None, error=None):
 
 
 @params_as_args
-def notify(tokens, message, server, profile, msg, help=None):
+def notify(client, tokens, message, server, profile, msg, help=None):
     """
         Manage your notification settings. Here you can specify which types of
     epic rpg commands you would like to receive reminders for. For example, you can
@@ -199,7 +200,7 @@ def notify(tokens, message, server, profile, msg, help=None):
 
 
 @params_as_args
-def on(tokens, message, server, profile, msg, help=None):
+def on(client, tokens, message, server, profile, msg, help=None):
     """
     Toggle your profile notifications **on**. Example:
       • `rpgcd on`
@@ -216,7 +217,7 @@ def on(tokens, message, server, profile, msg, help=None):
 
 
 @params_as_args
-def off(tokens, message, server, profile, msg, help=None):
+def off(client, tokens, message, server, profile, msg, help=None):
     """
     Toggle your profile notifications **off**. Example:
       • `rpgcd off`
@@ -233,7 +234,7 @@ def off(tokens, message, server, profile, msg, help=None):
 
 
 @params_as_args
-def _profile(tokens, message, server, profile, msg, help=None):
+def _profile(client, tokens, message, server, profile, msg, help=None):
     """
     Display your profile information. Example:
       • `rpgcd profile` Displays your profile information
@@ -267,18 +268,36 @@ def _profile(tokens, message, server, profile, msg, help=None):
 
 
 @params_as_args
-def cd(tokens, message, server, profile, msg, help=None):
+def cd(client, tokens, message, server, profile, msg, help=None):
     """
     Display when your cooldowns are expected to be done. Example:
       • `rpgcd cd`
       • `rcd`
     """
+    nickname = message.author.name
     if tokens[0] != "cd":
         return None
     if help and len(tokens) == 1:
         return {"msg": HelpMessage(cd.__doc__)}
-    elif len(tokens) != 1:
-        return {"error": 1}
+    elif len(tokens) > 1:
+        if len(tokens) != 2:
+            return {"error": 1}
+        maybe_user_id = re.match(r"<@!(?P<user_id>\d+)>", tokens[1])
+        if maybe_user_id:
+            user_id = int(
+                maybe_user_id.groupdict()["user_id"],
+            )
+            profile, _ = Profile.objects.get_or_create(
+                uid=user_id,
+                defaults={
+                    "last_known_nickname": client.get_user(user_id).name,
+                    "server": server,
+                    "channel": message.channel.id,
+                },
+            )
+            nickname = profile.last_known_nickname
+        else:
+            return {"error": 1}
     profile_tz = pytz.timezone(profile.timezone)
     now, default = datetime.datetime.now(tz=datetime.timezone.utc), datetime.datetime(
         1790, 1, 1, tzinfo=datetime.timezone.utc
@@ -298,10 +317,10 @@ def cd(tokens, message, server, profile, msg, help=None):
                 cooldown_after = cooldowns[cooldown_type].astimezone(profile_tz)
                 msg += f":clock2: `{cooldown_type:12} {cooldown_after.strftime('%I:%M:%S %p, %Y-%m-%d'):>35}`\n"
         else:
-            msg += f":white_check_mark: `{cooldown_type:12} {'is ready!':>35}` \n"
+            msg += f":white_check_mark: `{cooldown_type:12} {'Ready!':>35}` \n"
     if not msg:
         msg = "Please use `rpg cd` or an EPIC RPG command to populate your cooldowns.\n"
-    return {"msg": NormalMessage(msg, title=f"**{message.author.name}'s** Cooldowns ({profile.timezone})")}
+    return {"msg": NormalMessage(msg, title=f"**{nickname}'s** Cooldowns ({profile.timezone})")}
 
 
 command_pipeline = execution_pipeline(
@@ -319,7 +338,7 @@ command_pipeline = execution_pipeline(
 
 @sync_to_async
 @command_pipeline
-def handle_rpcd_message(tokens, message, server, profile, msg, help=None, error=None):
+def handle_rpcd_message(client, tokens, message, server, profile, msg, help=None, error=None):
     if (error and not isinstance(error, str)) or not msg:
         return ErrorMessage(f"`rpgcd {' '.join(tokens)}` could not be parsed as a valid command.")
     elif error:

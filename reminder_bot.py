@@ -36,10 +36,10 @@ class Client(discord.Client):
 
         if content.startswith("rpgcd") or content.startswith("rcd"):
             if content.startswith("rcd"):
-                tokens = ["cd"]
+                tokens = ["cd", *tokenize(message.content[3:])]
             else:
                 tokens = tokenize(message.content[5:])
-            msg = await handle_rpcd_message(tokens, message, server, None, None)
+            msg = await handle_rpcd_message(self, tokens, message, server, None, None)
             embed = msg.to_embed()
             await message.channel.send(embed=embed)
         elif content.startswith("rcd"):
