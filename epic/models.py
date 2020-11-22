@@ -78,7 +78,7 @@ class CoolDown(models.Model):
         ("quest", "quest"),
         ("training", "training"),
         ("duel", "duel"),
-        ("mine", "work"),  # call it mining because that's in the CD message
+        ("work", "work"),
         ("horse", "horse"),
         ("arena", "arena"),
         ("dungeon", "dungeon"),
@@ -95,7 +95,6 @@ class CoolDown(models.Model):
         "training": datetime.timedelta(minutes=15),
         "duel": datetime.timedelta(hours=2),
         "work": datetime.timedelta(minutes=5),
-        "mine": datetime.timedelta(minutes=5),
         "horse": datetime.timedelta(hours=24),
         "arena": datetime.timedelta(hours=24),
         "dungeon": datetime.timedelta(hours=12),
@@ -148,18 +147,19 @@ class CoolDown(models.Model):
     @staticmethod
     def cd_from_command(cmd):
         resolved = None
-        split = tokenize(cmd)
-        if not split:
+        tokens = tokenize(cmd)
+        if not tokens:
             return None, None
         # zero argument commands will just return whether or not the command matched
-        if len(split) == 1:
-            resolved = CoolDown.COMMAND_RESOLUTION_MAP.get(split[0], lambda x: None)(None)
+        if len(tokens) == 1:
+            resolved = CoolDown.COMMAND_RESOLUTION_MAP.get(tokens[0], lambda x: None)(None)
         else:
-            cmd, *args = split
+            cmd, *args = tokens
             # mutli-arguments must be resolved in the basis of other args
             resolved = CoolDown.COMMAND_RESOLUTION_MAP.get(cmd, lambda x: None)(" ".join(args))
         if not resolved:
             return None, None
+        print(resolved)
         return resolved, datetime.datetime.now(tz=datetime.timezone.utc) + CoolDown.COOLDOWN_MAP[resolved]
 
     @staticmethod
@@ -186,6 +186,13 @@ class CoolDown(models.Model):
                             )
                             cd_types.remove(cd_type)
                             break
+                    # special case
+                    if "mine" in field_name.lower():
+                        cooldowns.append(
+                            CoolDown(
+                                profile=profile, type="work", after=start + datetime.timedelta(**time_delta_params)
+                            )
+                        )
         return cooldowns
 
 
@@ -244,9 +251,9 @@ def bulk_delete(model_class, **kwargs):
 def get_cooldown_messages():
     now = datetime.datetime.now(tz=datetime.timezone.utc)
     results = []
-    for cooldown_type, cooldown_name in CoolDown.COOLDOWN_TYPE_CHOICES:
+    for cooldown_type, _ in CoolDown.COOLDOWN_TYPE_CHOICES:
         results.extend(
-            Profile.objects.command_type_enabled(cooldown_name)
+            Profile.objects.command_type_enabled(cooldown_type)
             .filter(cooldown__after__lte=now, cooldown__type=cooldown_type)
             .values_list("cooldown__id", "cooldown__type", "channel", "uid")
         )

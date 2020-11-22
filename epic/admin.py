@@ -21,4 +21,4 @@ class ProfileAdmin(admin.ModelAdmin):
 
 @admin.register(CoolDown)
 class CoolDownAdmin(admin.ModelAdmin):
-    pass
+    search_fields = ("profile__last_known_nickname", "type")

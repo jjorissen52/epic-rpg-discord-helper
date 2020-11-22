@@ -68,8 +68,9 @@ def params_as_args(func):
 @params_as_args
 def _help(tokens, message, server, profile, msg, help=None, error=None):
     """
-        Call `help` on an available command to see it's usage. Example:
-        `rpgcd help register`
+
+    Call `help` on an available command to see it's usage. Example:
+    `rpgcd help register`
 
     Available Commands:
         - `rpgcd register`
@@ -78,6 +79,14 @@ def _help(tokens, message, server, profile, msg, help=None, error=None):
         - `rpgcd profile`
         - `rpgcd notify <command_type> on|off`
         - `rpgcd cd`
+
+    This bot attempts to determine the cooldowns of your EPIC RPG commands
+    and will notify you when it thinks your commands are available again.
+    Cooldowns are determined in two ways:
+      - The cooldown duration for an observed EPIC RPG command
+        is added to the current time. A notification is scheduled for this time.
+      - The output of `rpg cd` is extracted and used to schedule notifications
+        for all commands currently on cooldown.
     """
     if not tokens or (tokens[0] == "help" and len(tokens) == 1):
         return {"msg": NormalMessage(_help.__doc__)}
