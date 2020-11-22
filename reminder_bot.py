@@ -49,24 +49,30 @@ class Client(discord.Client):
         # we want to pull the results of Epic RPG's cooldown message
         if str(message.author) == "EPIC RPG#4117":
             for embed in message.embeds:
-                if not getattr(embed.author, "name", None) or not "cooldowns" in embed.author.name:
-                    return
-                # the user mentioned
-                user_id = embed.author.icon_url.strip("https://cdn.discordapp.com/avatars/").split("/")[0]
-                user = self.get_user(int(user_id))
-                profile, _ = await get_instance(
-                    Profile,
-                    uid=user_id,
-                    defaults={
-                        "last_known_nickname": user.name,
-                        "server": server,
-                        "channel": message.channel.id,
-                    },
-                )
-                if profile.server_id != server.id or profile.channel != message.channel.id:
-                    profile = await update_instance(profile, server_id=server.id, channel=message.channel.id)
-                if profile:
-                    await upsert_cooldowns(CoolDown.from_cd(profile, [field.value for field in embed.fields]))
+                if getattr(embed.author, "name", None) and "cooldown" in embed.author.name:
+                    # the user mentioned
+                    user_id = embed.author.icon_url.strip("https://cdn.discordapp.com/avatars/").split("/")[0]
+                    user = self.get_user(int(user_id))
+                    profile, _ = await get_instance(
+                        Profile,
+                        uid=user_id,
+                        defaults={
+                            "last_known_nickname": user.name,
+                            "server": server,
+                            "channel": message.channel.id,
+                        },
+                    )
+                    if profile.server_id != server.id or profile.channel != message.channel.id:
+                        profile = await update_instance(profile, server_id=server.id, channel=message.channel.id)
+                    # is the cooldowns list
+                    if "cooldowns" in embed.author.name:
+                        await upsert_cooldowns(CoolDown.from_cd(profile, [field.value for field in embed.fields]))
+                    elif "cooldown" in embed.author.name:
+                        for cue, cooldown_type in CoolDown.COOLDOWN_RESPONSE_CUE_MAP.items():
+                            if cue in str(embed.title):
+                                await upsert_cooldowns(
+                                    CoolDown.from_cooldown_reponse(profile, embed.title, cooldown_type)
+                                )
             return
 
         if content.startswith("rpg"):

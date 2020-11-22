@@ -10,7 +10,7 @@ from .utils import Enum
 
 @sync_to_async
 def upsert_cooldowns(cooldowns):
-    q = Q()
+    q = Q(id=-1)
     cooldown_dict = {}
     # search for existing and update if they already exist
     for cooldown in cooldowns:

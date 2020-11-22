@@ -58,6 +58,7 @@ class Profile(UpdateAble, models.Model):
     horse = models.BooleanField(default=True)
     arena = models.BooleanField(default=True)
     dungeon = models.BooleanField(default=True)
+    guild = models.BooleanField(default=True)
 
     objects = ProfileManager()
 
@@ -70,7 +71,7 @@ class CoolDown(models.Model):
         unique_together = ("profile", "type")
 
     time_regex = re.compile(
-        r"\(\*\*(?P<days>\d{1}d)?\s*(?P<hours>\d{1,2}h)?\s*(?P<minutes>\d{1,2}m)?\s*(?P<seconds>\d{1,2}s)\*\*\)"
+        r"(?P<days>\d{1}d)?\s*(?P<hours>\d{1,2}h)?\s*(?P<minutes>\d{1,2}m)?\s*(?P<seconds>\d{1,2}s)"
     )
     field_regex = re.compile(r":clock4: ~-~ \*\*`(?P<field_name>[^`]*)`\*\*")
 
@@ -88,6 +89,7 @@ class CoolDown(models.Model):
         ("horse", "Pie-O-My! :horse_racing:"),
         ("arena", "Heeyyyy lets go hurt each other. :circus_tent:"),
         ("dungeon", "can you reach the next area? :exclamation:"),
+        ("guild", "Hey, those people are different! Get 'em! :shield:"),
     )
     COOLDOWN_TEXT_MAP = {c[0]: c[1] for c in COOLDOWN_TYPE_CHOICES}
     COOLDOWN_MAP = {
@@ -104,6 +106,23 @@ class CoolDown(models.Model):
         "horse": datetime.timedelta(hours=24),
         "arena": datetime.timedelta(hours=24),
         "dungeon": datetime.timedelta(hours=12),
+        "guild": datetime.timedelta(hours=2),
+    }
+    COOLDOWN_RESPONSE_CUE_MAP = {
+        "have claimed your daily": "daily",
+        "have claimed your weekly": "weekly",
+        "have already bought a lootbox": "lootbox",
+        # "": "vote", response does not give a cue
+        "have already looked around": "hunt",
+        "have already been in an adventure": "adventure",
+        "have already claimed a quest": "quest",
+        "have trained already": "training",
+        "have been in a duel recently": "duel",
+        "have already got some resources": "work",
+        "have used this command recently": "horse",
+        "have started an arena recently": "arena",
+        "have been in a fight with a boss": "dungeon",
+        "guild has already raided": "guild",
     }
     COMMAND_RESOLUTION_MAP = {
         "daily": lambda x: "daily",
@@ -140,6 +159,7 @@ class CoolDown(models.Model):
         "big": lambda x: "arena" if "arena" in x else None,
         "dungeon": lambda x: "dungeon",
         "miniboss": lambda x: "dungeon",
+        "guild": lambda x: "guild" if "raid" in x else None,
     }
 
     profile = models.ForeignKey(Profile, on_delete=models.CASCADE)
@@ -198,3 +218,16 @@ class CoolDown(models.Model):
                             )
                         )
         return cooldowns
+
+    @staticmethod
+    def from_cooldown_reponse(profile, title, _type):
+        start = datetime.datetime.now(tz=datetime.timezone.utc)
+        time_match = CoolDown.time_regex.search(title)
+        if time_match:
+            time_match = time_match.groupdict()
+            time_delta_params = {
+                key: int(time_match[key][:-1]) if time_match[key] else 0
+                for key in ["days", "hours", "minutes", "seconds"]
+            }
+            return [CoolDown(profile=profile, type=_type, after=start + datetime.timedelta(**time_delta_params))]
+        return []
