@@ -89,20 +89,20 @@ def _help(client, tokens, message, server, profile, msg, help=None, error=None):
     """
 
     Call `help` on an available command to see it's usage. Example:
-    `rpgcd help register`
-    `rpgcd h register`
-    `rpgcd h notify`
+    `rcd help register`
+    `rcd h register`
+    `rcd h notify`
 
     Available Commands:
-        • `rpgcd register`
-        • `rpgcd profile|p [<profile_command>]`
-        • `rpgcd on`
-        • `rpgcd off`
-        • `rpgcd timezone|tz <timezone>`
-        • `rpgcd <command_type> on|off`
-        • `rpgcd [notify|n] <command_type> on|off`
-        • `rpgcd whocan|w <command_type>`
-        • `rpgcd cd` or `rcd`
+        • `rcd register`
+        • `rcd profile|p [<profile_command>]`
+        • `rcd on`
+        • `rcd off`
+        • `rcd timezone|tz <timezone>`
+        • `rcd <command_type> on|off`
+        • `rcd [notify|n] <command_type> on|off`
+        • `rcd whocan|w <command_type>`
+        • `rcd cd` or `rcd`
 
     This bot attempts to determine the cooldowns of your EPIC RPG commands
     and will notify you when it thinks your commands are available again.
@@ -125,9 +125,9 @@ def cd(client, tokens, message, server, profile, msg, help=None):
     """
     Display when your cooldowns are expected to be done.
     Usage:
-        • `rpgcd cd [<cooldown_types> [...<cooldown_types>]]`
+        • `rcd cd [<cooldown_types> [...<cooldown_types>]]`
     Example:
-        • `rpgcd cd`
+        • `rcd cd`
         • `rcd`
         • `rcd daily weekly`
     """
@@ -193,7 +193,7 @@ def register(client, tokens, message, server, profile, msg, help=None, error=Non
         Register your server for use with Epic Reminder.
     Compute resources are limited, so invite codes will be doled out sparingly.
     Example:
-        • `rpgcd register asdf` attempts to register the server using the join code `asdf`
+        • `rcd register asdf` attempts to register the server using the join code `asdf`
     """
     if tokens[0] != "register":
         return None
@@ -218,20 +218,20 @@ def register(client, tokens, message, server, profile, msg, help=None, error=Non
 @params_as_args
 def _profile(client, tokens, message, server, profile, msg, help=None):
     """
-    When called without any arguments, e.g. `rpgcd profile` this will display
+    When called without any arguments, e.g. `rcd profile` this will display
     profile-related information. Otherwise, it will treat your input as a profile related sub-command.
 
     Available Commands:
-        • `rpgcd profile|p`
-        • `rpgcd profile|p timezone|tz <timezone>`
-        • `rpgcd profile|p on|off`
-        • `rpgcd profile|p [notify|n] <cooldown_type> on|off`
+        • `rcd profile|p`
+        • `rcd profile|p timezone|tz <timezone>`
+        • `rcd profile|p on|off`
+        • `rcd profile|p [notify|n] <cooldown_type> on|off`
     Examples:
-        • `rpgcd profile` Displays your profile information
-        • `rpgcd p tz <timezone>` Sets your timezone to the provided timezone.
-        • `rpgcd p on` Enables notifications for your profile.
-        • `rpgcd p notify hunt on` Turns on hunt notifications for your profile.
-        • `rpgcd p hunt on` Turns on hunt notifications for your profile.
+        • `rcd profile` Displays your profile information
+        • `rcd p tz <timezone>` Sets your timezone to the provided timezone.
+        • `rcd p on` Enables notifications for your profile.
+        • `rcd p notify hunt on` Turns on hunt notifications for your profile.
+        • `rcd p hunt on` Turns on hunt notifications for your profile.
     """
     if tokens[0] not in {"profile", "p"}:
         return None
@@ -265,11 +265,11 @@ def notify(client, tokens, message, server, profile, msg, help=None):
     epic rpg commands you would like to receive reminders for. For example, you can
     enable or disable showing a reminder for when `rpg hunt` should be available. All reminders
     are enabled by defailt. Example usage:
-        • `rpgcd notify hunt on` Will turn on cd notifcations for `rpg hunt`.
-        • `rpgcd daily on` Will turn on cd notifcations for `rpg hunt`.
-        • `rpgcd n hunt off` Will turn off notifications for `rpg hunt`
-        • `rpgcd n weekly on` Will turn on notifications for `rpg weekly`
-        • `rpgcd n all off` Will turn off all notifications (but `profile.notify == True`)
+        • `rcd notify hunt on` Will turn on cd notifcations for `rpg hunt`.
+        • `rcd daily on` Will turn on cd notifcations for `rpg hunt`.
+        • `rcd n hunt off` Will turn off notifications for `rpg hunt`
+        • `rcd n weekly on` Will turn on notifications for `rpg weekly`
+        • `rcd n all off` Will turn off all notifications (but `profile.notify == True`)
 
     Command Types:
         • `all`
@@ -313,7 +313,7 @@ def notify(client, tokens, message, server, profile, msg, help=None):
                 "msg": NormalMessage(
                     f"Notifications for `{command_type}` are now {toggle} for **{message.author.name}** "
                     "but you will need to turn on notifications before you can receive any. "
-                    "Try `rpgcd on` to start receiving notifcations."
+                    "Try `rcd on` to start receiving notifcations."
                 )
             }
         return {
@@ -327,7 +327,7 @@ def notify(client, tokens, message, server, profile, msg, help=None):
 def on(client, tokens, message, server, profile, msg, help=None):
     """
     Toggle your profile notifications **on**. Example:
-      • `rpgcd on`
+      • `rcd on`
     """
     if tokens[0] != "on":
         return None
@@ -344,7 +344,7 @@ def on(client, tokens, message, server, profile, msg, help=None):
 def off(client, tokens, message, server, profile, msg, help=None):
     """
     Toggle your profile notifications **off**. Example:
-      • `rpgcd off`
+      • `rcd off`
     """
     if tokens[0] != "off":
         return None
@@ -361,8 +361,8 @@ def off(client, tokens, message, server, profile, msg, help=None):
 def timezone(client, tokens, message, server, profile, msg, help=None):
     """
     Set your timezone. Example:
-      • `rpgcd timezone <timezone>` Sets your timezone to the provided timzone.
-        (This only effects the time displayed in `rpgcd cd`; notification functionality
+      • `rcd timezone <timezone>` Sets your timezone to the provided timzone.
+        (This only effects the time displayed in `rcd cd`; notification functionality
          is not effected.)
     """
     command = tokens[0]
@@ -387,8 +387,8 @@ def timezone(client, tokens, message, server, profile, msg, help=None):
 def whocan(client, tokens, message, server, profile, msg, help=None):
     """
     Determine who in your server can use a particular command. Example:
-      • `rpgcd whocan dungeon`
-      • `rpgcd w dungeon`
+      • `rcd whocan dungeon`
+      • `rcd w dungeon`
     """
     if tokens[0] not in {"whocan", "w"}:
         return None
@@ -399,7 +399,7 @@ def whocan(client, tokens, message, server, profile, msg, help=None):
     if tokens[1] not in CoolDown.COMMAND_RESOLUTION_MAP:
         return {
             "msg": ErrorMessage(
-                "`rpgcd whocan` should work with any group command "
+                "`rcd whocan` should work with any group command "
                 "that you can use with EPIC RPG. If you think this "
                 "error is a mistake, let me know.",
                 title=f"Invalid Command Type `{rpg_command}`",
