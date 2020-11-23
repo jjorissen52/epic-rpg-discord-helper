@@ -13,36 +13,47 @@ from epic.models import CoolDown, Profile, Server, JoinCode
 from epic.utils import tokenize
 
 
-class RpgCdMessage:
+class RCDMessage:
     color = 0x8C8A89
     title = None
+    footer = None
+    fields = []
 
-    def __init__(self, msg, title=None):
+    def __init__(self, msg, title=None, footer=None, fields=None):
         self.msg = msg
         if title:
             self.title = title
+        if footer:
+            self.footer = footer
+        if fields:
+            self.fields = fields
 
     def to_embed(self):
         kwargs = {"color": self.color, "description": self.msg}
         if self.title:
             kwargs["title"] = self.title
-        return discord.Embed(**kwargs)
+        embed = discord.Embed(**kwargs)
+        for field in self.fields:
+            embed.add_field(name=field[0], value=field[1], inline=False)
+        if self.footer:
+            embed.set_footer(text=self.footer)
+        return embed
 
 
-class ErrorMessage(RpgCdMessage):
+class ErrorMessage(RCDMessage):
     title = "Error"
     color = 0xEB4034
 
 
-class NormalMessage(RpgCdMessage):
+class NormalMessage(RCDMessage):
     color = 0x4381CC
 
 
-class HelpMessage(RpgCdMessage):
+class HelpMessage(RCDMessage):
     title = "Help"
 
 
-class SuccessMessage(RpgCdMessage):
+class SuccessMessage(RCDMessage):
     color = 0x628F47
 
 
@@ -99,6 +110,7 @@ def _help(client, tokens, message, server, profile, msg, help=None, error=None):
         • `rcd on`
         • `rcd off`
         • `rcd timezone|tz <timezone>`
+        • `rcd timeformat|tf "<format_string>"`
         • `rcd <command_type> on|off`
         • `rcd [notify|n] <command_type> on|off`
         • `rcd whocan|w <command_type>`
@@ -179,7 +191,7 @@ def cd(client, tokens, message, server, profile, msg, help=None):
         if after:
             if after > now:
                 cooldown_after = cooldowns[cooldown_type].astimezone(profile_tz)
-                msg += f":clock2: `{cooldown_type:12} {cooldown_after.strftime('%I:%M:%S %p, %m/%d'):>20}`\n"
+                msg += f":clock2: `{cooldown_type:12} {cooldown_after.strftime(profile.time_format):>20}`\n"
         else:
             msg += f":white_check_mark: `{cooldown_type:12} {'Ready!':>20}` \n"
     if not msg:
@@ -224,6 +236,7 @@ def _profile(client, tokens, message, server, profile, msg, help=None):
     Available Commands:
         • `rcd profile|p`
         • `rcd profile|p timezone|tz <timezone>`
+        • `rcd profile|p timeformat|tf "<format_string>"`
         • `rcd profile|p on|off`
         • `rcd profile|p [notify|n] <cooldown_type> on|off`
     Examples:
@@ -241,6 +254,7 @@ def _profile(client, tokens, message, server, profile, msg, help=None):
         # allow other commands to be namespaced by profile if that's how the user calls it
         if tokens[1] in {
             *("timezone", "tz"),
+            *("timeformat", "tf"),
             *("notify", "n"),
             "on",
             "off",
@@ -249,13 +263,21 @@ def _profile(client, tokens, message, server, profile, msg, help=None):
         }:
             return {"tokens": tokens[1:]}
         return {"error": 1}
-    msg = ""
-    msg += f"`{'nickname':12}` =>   {profile.last_known_nickname}\n"
-    msg += f"`{'timezone':12}` =>   {profile.timezone}\n"
+    notifications = ""
     for k, v in model_to_dict(profile).items():
         if isinstance(v, bool):
-            msg += f"`{k:12}` =>   {':ballot_box_with_check:' if v else ':x:'}\n"
-    return {"msg": NormalMessage(msg)}
+            notifications += f"{':ballot_box_with_check:' if v else ':x:'} `{k:25}`\n"
+    return {
+        "msg": NormalMessage(
+            "",
+            fields=(
+                ("Nickname", profile.last_known_nickname),
+                ("Timezone", f"`{profile.timezone}`"),
+                ("Time Format", f"`{profile.time_format}`"),
+                ("Notications Enabled", notifications),
+            ),
+        )
+    }
 
 
 @params_as_args
@@ -361,26 +383,130 @@ def off(client, tokens, message, server, profile, msg, help=None):
 def timezone(client, tokens, message, server, profile, msg, help=None):
     """
     Set your timezone. Example:
-      • `rcd timezone <timezone>` Sets your timezone to the provided timzone.
-        (This only effects the time displayed in `rcd cd`; notification functionality
-         is not effected.)
+        • `rcd timezone <timezone>` Sets your timezone to the provided timzone.
+          (This only effects the time displayed in `rcd cd`; notification functionality
+          is not effected.)
+        • `rcd tz default` Sets your timezone back to the default.
     """
     command = tokens[0]
     if command not in {"timezone", "tz"}:
         return None
+    current_time = datetime.datetime.now().astimezone(pytz.timezone(profile.timezone))
+    if help or len(tokens) == 1:
+        return {
+            "msg": HelpMessage(
+                timezone.__doc__,
+                fields=[
+                    (
+                        "Info",
+                        f"Current time with your time format `{profile.time_format}` "
+                        f"in your timezone `{profile.timezone}` is {current_time.strftime(profile.time_format)}. \n"
+                        f"[Visit this page to see a list of timezones.](https://en.wikipedia.org/wiki/List_of_tz_database_time_zones)",
+                    )
+                ],
+            )
+        }
     if len(tokens) == 2:
         # need case sensitive tokens to get correct timezone name,
         # need case insensitive tokens to get relative position in of
         # tz|timezone token from user input
-        tokens = tokenize(message.content[:250], preserve_case=True)[1:]
-        itokens = tokenize(message.content[:250], preserve_case=False)[1:]
-        # get the case-preserved token which follows tz|timezone in the token list
-        tz = tokens[itokens.index(command) + 1]
-        if tz not in set(map(lambda x: x[0], Profile.TIMEZONE_CHOICES)):
+        tokens = tokenize(message.content[:250], preserve_case=True)
+        tz = tokens[-1]
+        if tz.lower() == "default":
+            tz = Profile.DEFAULT_TIMEZONE
+        elif tz not in set(map(lambda x: x[0], Profile.TIMEZONE_CHOICES)):
             return {"msg": ErrorMessage(f"{tz} is not a valid timezone.")}
         else:
             profile.update(timezone=tz)
-            return {"msg": SuccessMessage(f"**{message.author.name}'s** timezone has been set to **{tz}**.")}
+            return {
+                "msg": SuccessMessage(
+                    f"**{message.author.name}'s** timezone has been set to **{tz}**.",
+                    fields=[
+                        (
+                            "Info",
+                            f"Current time with your time format `{profile.time_format}` "
+                            f"in your timezone `{profile.timezone}` is {current_time.strftime(profile.time_format)}. ",
+                        )
+                    ],
+                )
+            }
+
+
+@params_as_args
+def timeformat(client, tokens, message, server, profile, msg, help=None):
+    """
+    Set the time format for the output of rcd using Python
+    `strftime` notation. Defaults to `%I:%M:%S %p, %m/%d`. If
+    you don't know what that means, see the linked resource below.
+
+    Usage:
+        • `rcd timeformat|tf "<format_string>"`
+    Examples:
+        • `rcd timeformat "%I:%M:%S %p, %m/%d"` **Notice the quotes.** Very important!
+        • `rcd tf "%Y-%m-%d %H:%M:%S"`
+        • `rcd tf default` Restore your time format to default.
+
+    Don't worry, you will not be able to save an invalid time format.
+    """
+
+    command = tokens[0]
+    if command not in {"timeformat", "tf"}:
+        return None
+    itokens = tokenize(message.content[:250], preserve_case=True)
+    current_time = datetime.datetime.now().astimezone(pytz.timezone(profile.timezone)).strftime(profile.time_format)
+    if help or len(tokens) == 1:
+        return {
+            "msg": HelpMessage(
+                timeformat.__doc__,
+                fields=[
+                    (
+                        "Info",
+                        f"Current time with your time format `{profile.time_format}` "
+                        f"in your timezone `{profile.timezone}` is {current_time}. \n"
+                        "[Visit here for documentation on time format strings.]"
+                        "(https://docs.python.org/3/library/datetime.html#strftime-and-strptime-format-codes)",
+                    )
+                ],
+            )
+        }
+    elif len(tokens) != 2:
+        return {
+            "msg": ErrorMessage(
+                f"Could not parse {' '.join(itokens)} as a valid timeformat command; "
+                "your input had more arguments than epected. "
+                "Did you make sure to quote your format string?",
+                title="Parse Error",
+            )
+        }
+    # ensure tokens and itokens are the same lenth.
+    time_format = itokens[-1]
+    if len(time_format) > Profile.MAX_TIME_FORMAT_LENGTH:
+        return {
+            "msg": ErrorMessage(
+                f"Your specified time format `{timeformat}` is too long. "
+                f"It should have {len(time_format) - Profile.MAX_TIME_FORMAT_LENGTH} "
+                "fewer characters.",
+                title="Are you being naughty?",
+            )
+        }
+    if time_format.lower() == "default":
+        time_format = Profile.DEFAULT_TIME_FORMAT
+    try:
+        current_time = datetime.datetime.now().astimezone(pytz.timezone(profile.timezone)).strftime(time_format)
+        profile.update(time_format=time_format)
+        return {
+            "msg": SuccessMessage(
+                f"Great! You set your time format to `{time_format}`. " f"The current time is {current_time}",
+                title="Good job!",
+            )
+        }
+    except Exception as e:
+        # I honestly am not sure if this is possible
+        return {
+            "msg": ErrorMessage(
+                f"Great... Your time format `{time_format}` broke something; " f"err = {e}", "Oh boy Oh geez"
+            )
+        }
 
 
 @params_as_args
@@ -441,6 +567,7 @@ command_pipeline = execution_pipeline(
         on,
         off,
         timezone,
+        timeformat,
         register,  # called rarely, should be last.
     ],
 )

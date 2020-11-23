@@ -33,7 +33,9 @@ class Server(models.Model):
 
 
 class Profile(UpdateAble, models.Model):
+    DEFAULT_TIMEZONE = "America/Chicago"
     TIMEZONE_CHOICES = tuple(zip(pytz.common_timezones, pytz.common_timezones))
+    DEFAULT_TIME_FORMAT, MAX_TIME_FORMAT_LENGTH = "%I:%M:%S %p, %m/%d", 50
 
     uid = models.CharField(max_length=50, primary_key=True)
 
@@ -41,9 +43,9 @@ class Profile(UpdateAble, models.Model):
     channel = models.PositiveBigIntegerField()
     last_known_nickname = models.CharField(max_length=250)
     timezone = models.CharField(
-        choices=TIMEZONE_CHOICES, max_length=max(map(len, pytz.common_timezones)), default="America/Chicago"
+        choices=TIMEZONE_CHOICES, max_length=max(map(len, pytz.common_timezones)), default=DEFAULT_TIMEZONE
     )
-    # time_format = models.CharField(max_length=50, default='%I:%M:%S %p, %m/%d')
+    time_format = models.CharField(max_length=MAX_TIME_FORMAT_LENGTH, default=DEFAULT_TIME_FORMAT)
 
     notify = models.BooleanField(default=False)
     daily = models.BooleanField(default=True)

@@ -1,4 +1,5 @@
 import re
+import shlex
 
 
 class Enum(set):
@@ -11,7 +12,6 @@ class Enum(set):
 def tokenize(cmd, preserve_case=False):
     if not cmd:
         return cmd
-    cmd = re.sub(r"\s+", " ", cmd).strip()
     if not preserve_case:
         cmd = cmd.lower()
-    return cmd.split()
+    return shlex.split(cmd)
