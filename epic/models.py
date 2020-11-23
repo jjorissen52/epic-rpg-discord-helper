@@ -74,7 +74,8 @@ class CoolDown(models.Model):
     time_regex = re.compile(
         r"(?P<days>\d{1}d)?\s*(?P<hours>\d{1,2}h)?\s*(?P<minutes>\d{1,2}m)?\s*(?P<seconds>\d{1,2}s)"
     )
-    field_regex = re.compile(r":clock4: ~-~ \*\*`(?P<field_name>[^`]*)`\*\*")
+    on_cooldown_regex = re.compile(r":clock4: ~-~ \*\*`(?P<field_name>[^`]*)`\*\*")
+    off_cooldown_regex = re.compile(r":white_check_mark: ~-~ \*\*`(?P<field_name>[^`]*)`\*\*")
 
     COOLDOWN_TYPE_CHOICES = (
         ("daily", "Time for your daily! :sun_with_face:"),
@@ -190,35 +191,37 @@ class CoolDown(models.Model):
     @staticmethod
     def from_cd(profile, fields):
         start = datetime.datetime.now(tz=datetime.timezone.utc)
-        cooldowns = []
+        cooldown_updates, cooldown_evictions = [], []
         cd_types = set(c[0] for c in CoolDown.COOLDOWN_TYPE_CHOICES)
         for field in fields:
-            field_matches = CoolDown.field_regex.findall(field)
-            if field_matches:
+            fields_on_cooldown = CoolDown.on_cooldown_regex.findall(field)
+            fields_off_cooldown = CoolDown.off_cooldown_regex.findall(field)
+            if fields_on_cooldown:
                 time_matches = CoolDown.time_regex.findall(field)
-                for i, field_name in enumerate(field_matches):
+                for i, field_on_cooldown in enumerate(fields_on_cooldown):
                     time_delta_params = {
                         key: int(time_matches[i][j][:-1]) if time_matches[i][j] else 0
                         for j, key in enumerate(["days", "hours", "minutes", "seconds"])
                     }
-
+                    after = start + datetime.timedelta(**time_delta_params)
                     for cd_type in cd_types:
-                        if cd_type in field_name.lower():
-                            cooldowns.append(
-                                CoolDown(
-                                    profile=profile, type=cd_type, after=start + datetime.timedelta(**time_delta_params)
-                                )
-                            )
+                        if cd_type in field_on_cooldown.lower():
+                            cooldown_updates.append(CoolDown(profile=profile, type=cd_type, after=after))
                             cd_types.remove(cd_type)
                             break
                     # special case
-                    if "mine" in field_name.lower():
-                        cooldowns.append(
-                            CoolDown(
-                                profile=profile, type="work", after=start + datetime.timedelta(**time_delta_params)
-                            )
-                        )
-        return cooldowns
+                    if "mine" in field_on_cooldown.lower():
+                        cooldown_updates.append(CoolDown(profile=profile, type="work", after=after))
+            if fields_off_cooldown:
+                for field_off_cooldown in fields_off_cooldown:
+                    for cd_type in cd_types:
+                        if cd_type in field_off_cooldown.lower():
+                            cooldown_evictions.append({"profile": profile, "type": cd_type})
+                            cd_types.remove(cd_type)
+                            break
+                    if "mine" in field_off_cooldown.lower():
+                        cooldown_evictions.append({"profile": profile, "type": "mine"})
+        return cooldown_updates, cooldown_evictions
 
     @staticmethod
     def from_cooldown_reponse(profile, title, _type):

@@ -132,7 +132,7 @@ def cd(client, tokens, message, server, profile, msg, help=None):
         • `rcd daily weekly`
     """
     implicit_invocation = False
-    if tokens[0] in CoolDown.COOLDOWN_MAP:
+    if tokens[0] in CoolDown.COOLDOWN_MAP or re.match(r"<@!?(?P<user_id>\d+)>", tokens[0]):
         # allow implicit invocation of cd
         tokens, implicit_invocation = ["cd", *tokens], True
     nickname = message.author.name
@@ -156,12 +156,15 @@ def cd(client, tokens, message, server, profile, msg, help=None):
                 },
             )
             nickname = profile.last_known_nickname
+        # means there are cooldown type arguments to filter on
+        if maybe_user_id and len(tokens) > 2:
+            cooldown_filter = lambda x: x in set(tokens[2:])
         else:
             cooldown_filter = lambda x: x in set(tokens[1:])
+
     profile_tz = pytz.timezone(profile.timezone)
-    now, default = datetime.datetime.now(tz=datetime.timezone.utc), datetime.datetime(
-        1790, 1, 1, tzinfo=datetime.timezone.utc
-    )
+    now = datetime.datetime.now(tz=datetime.timezone.utc)
+    default = datetime.datetime(1790, 1, 1, tzinfo=datetime.timezone.utc)
     msg = ""
     cooldowns = {
         _cd[0]: _cd[1]
@@ -284,12 +287,12 @@ def notify(client, tokens, message, server, profile, msg, help=None):
         • `arena`
         • `dungeon`
     """
-    if tokens[0] in CoolDown.COOLDOWN_MAP and tokens[-1] in {"on", "off"}:
+    if (tokens[0] in CoolDown.COOLDOWN_MAP or tokens[0] == "all") and tokens[-1] in {"on", "off"}:
         # allow implicit invocation of notify
         tokens = ["notify", *tokens]
         # make sure all passed tokens are valid cooldown type
         for token in {*tokens[1:-1]}:
-            if token not in CoolDown.COOLDOWN_MAP:
+            if token not in CoolDown.COOLDOWN_MAP and token != "all":
                 return {"error": 1}
     if tokens[0] not in {"notify", "n"} or len(tokens) == 2:
         return None
@@ -412,7 +415,10 @@ def whocan(client, tokens, message, server, profile, msg, help=None):
     ats = [
         f"<@{uid}>"
         for uid in set(
-            Profile.objects.exclude(uid=profile.uid).exclude(cooldown__type=cooldown_type).values_list("uid", flat=True)
+            Profile.objects.exclude(uid=profile.uid)
+            .exclude(cooldown__type=cooldown_type)
+            .filter(server_id=message.channel.guild.id)
+            .values_list("uid", flat=True)
         )
     ]
     if ats:

@@ -66,7 +66,9 @@ class Client(discord.Client):
                         profile = await update_instance(profile, server_id=server.id, channel=message.channel.id)
                     # is the cooldowns list
                     if "cooldowns" in embed.author.name:
-                        await upsert_cooldowns(CoolDown.from_cd(profile, [field.value for field in embed.fields]))
+                        update, delete = CoolDown.from_cd(profile, [field.value for field in embed.fields])
+                        await upsert_cooldowns(update)
+                        await bulk_delete(CoolDown, delete)
                     elif "cooldown" in embed.author.name:
                         for cue, cooldown_type in CoolDown.COOLDOWN_RESPONSE_CUE_MAP.items():
                             if cue in str(embed.title):

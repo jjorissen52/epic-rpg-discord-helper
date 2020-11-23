@@ -55,8 +55,16 @@ def query_filter(model_class, **kwargs):
 
 
 @sync_to_async
-def bulk_delete(model_class, **kwargs):
-    return model_class.objects.filter(**kwargs).delete()
+def bulk_delete(model_class, kwargs_list=None, **kwargs):
+    if kwargs_list and kwargs:
+        raise ValueError("bulk_delete accepts either a list of dicts or some kwargs to filter on")
+    q = Q(id=-1)
+    if kwargs_list:
+        for _kwargs in kwargs_list:
+            q |= Q(**_kwargs)
+        return model_class.objects.filter(q).delete()
+    if kwargs:
+        return model_class.objects.filter(**kwargs).delete()
 
 
 @sync_to_async
