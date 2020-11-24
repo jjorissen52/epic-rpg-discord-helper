@@ -95,18 +95,23 @@ def get_guild_cooldown_messages():
     now = datetime.datetime.now(tz=datetime.timezone.utc)
     flavor_map = CoolDown.COOLDOWN_TEXT_MAP
     messages = []
-    for channel, uid, raid_dibbs_name, raid_dibbs_uid in (
-        Guild.objects.filter(after__lte=now, profile__notify=True)
+    for channel, uid, raid_dibbs_name, raid_dibbs_uid, notify in (
+        Guild.objects.filter(after__lte=now, after__isnull=False)
         .exclude(profile__guild=False)
-        .values_list("profile__channel", "profile__uid", "raid_dibbs__last_known_nickname", "raid_dibbs__uid")
+        .values_list(
+            "profile__channel", "profile__uid", "raid_dibbs__last_known_nickname", "raid_dibbs__uid", "profile__notify"
+        )
     ):
-        if raid_dibbs_uid and uid != raid_dibbs_uid:
-            messages.append((f"<@{uid}> {flavor_map['guild']} (**Guild**) [{raid_dibbs_name} has dibbs!!]", channel))
-        elif raid_dibbs_uid:
-            messages.append((f"<@{uid}> {flavor_map['guild']} (**Guild**) [YOU HAVE DIBBS!!]", channel))
-        else:
-            messages.append((f"<@{uid}> {flavor_map['guild']} (**Guild**)", channel))
-    Guild.objects.filter(after__lte=now).update(after=None)
+        if notify:
+            if raid_dibbs_uid and uid != raid_dibbs_uid:
+                messages.append(
+                    (f"<@{uid}> {flavor_map['guild']} (**Guild**) [{raid_dibbs_name} has dibbs!!]", channel)
+                )
+            elif raid_dibbs_uid:
+                messages.append((f"<@{uid}> {flavor_map['guild']} (**Guild**) [YOU HAVE DIBBS!!]", channel))
+            else:
+                messages.append((f"<@{uid}> {flavor_map['guild']} (**Guild**)", channel))
+    Guild.objects.filter(after__lte=now).update(after=None, raid_dibbs=None)
     return messages
 
 
