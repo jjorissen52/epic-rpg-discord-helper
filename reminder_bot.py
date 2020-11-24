@@ -14,7 +14,15 @@ from django.core.wsgi import get_wsgi_application
 get_wsgi_application()
 
 from epic.models import CoolDown, Profile, Server, JoinCode
-from epic.query import get_instance, update_instance, upsert_cooldowns, bulk_delete, get_cooldown_messages
+from epic.query import (
+    get_instance,
+    update_instance,
+    upsert_cooldowns,
+    bulk_delete,
+    get_cooldown_messages,
+    get_guild_cooldown_messages,
+    set_guild_cd,
+)
 from epic.utils import tokenize
 
 from epic.cmd_chain import handle_rpcd_message
@@ -72,9 +80,10 @@ class Client(discord.Client):
                     elif "cooldown" in embed.author.name:
                         for cue, cooldown_type in CoolDown.COOLDOWN_RESPONSE_CUE_MAP.items():
                             if cue in str(embed.title):
-                                await upsert_cooldowns(
-                                    CoolDown.from_cooldown_reponse(profile, embed.title, cooldown_type)
-                                )
+                                cooldowns = CoolDown.from_cooldown_reponse(profile, embed.title, cooldown_type)
+                                if cooldowns and cooldown_type == "guild":
+                                    return await set_guild_cd(profile, cooldowns[0].after)
+                                await upsert_cooldowns(cooldowns)
             return
 
         if content.startswith("rpg"):
@@ -92,6 +101,8 @@ class Client(discord.Client):
             )
             if profile.server_id != server.id or profile.channel != message.channel.id:
                 profile = await update_instance(profile, server_id=server.id, channel=message.channel.id)
+            if cooldown_type == "guild":
+                return await set_guild_cd(profile)
             await upsert_cooldowns([CoolDown(profile=profile, type=cooldown_type, after=after)])
 
 
@@ -103,13 +114,13 @@ if __name__ == "__main__":
     async def notify():
         await bot.wait_until_ready()
         while not bot.is_closed():
-            cooldown_cleanup = []
-            cooldown_messages = await get_cooldown_messages()
-            for _id, cd_type, channel, uid in cooldown_messages:
+            cooldown_messages = [
+                *await get_cooldown_messages(),
+                *await get_guild_cooldown_messages(),
+            ]
+            for message, channel in cooldown_messages:
                 _channel = await bot.fetch_channel(channel)
-                await _channel.send(f"<@{uid}> {CoolDown.COOLDOWN_TEXT_MAP[cd_type]} (**{cd_type.title()}**)")
-                cooldown_cleanup.append(_id)
-            await bulk_delete(CoolDown, id__in=cooldown_cleanup)
+                await _channel.send(message)
             await asyncio.sleep(5)  # task runs every 5 seconds
 
     bot.loop.create_task(notify())

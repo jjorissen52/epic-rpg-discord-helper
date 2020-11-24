@@ -154,7 +154,7 @@ def cd(client, tokens, message, server, profile, msg, help=None):
     if help and len(tokens) == 1:
         return {"msg": HelpMessage(cd.__doc__)}
     elif len(tokens) > 1:
-        maybe_user_id = re.match(r"<@!?(?P<user_id>\d+)>", tokens[1])
+        maybe_user_id = Profile.user_id_regex.match(tokens[1])
         if maybe_user_id:
             cd_args = set(tokens[2:])
             user_id = int(
@@ -183,11 +183,16 @@ def cd(client, tokens, message, server, profile, msg, help=None):
         _cd[0]: _cd[1]
         for _cd in CoolDown.objects.filter(profile_id=profile.pk).order_by("after").values_list("type", "after")
     }
-    all_cooldown_types = sorted(
-        filter(cooldown_filter, map(lambda c: c[0], CoolDown.COOLDOWN_TYPE_CHOICES)),
+    all_cooldown_types = set([c[0] for c in CoolDown.COOLDOWN_TYPE_CHOICES])
+    if not profile.player_guild:
+        all_cooldown_types = all_cooldown_types - {"guild"}
+    else:
+        cooldowns["guild"] = profile.player_guild.after
+    selected_cooldown_types = sorted(
+        filter(cooldown_filter, all_cooldown_types),
         key=lambda x: cooldowns[x] if x in cooldowns else default,
     )
-    for cooldown_type in all_cooldown_types:
+    for cooldown_type in selected_cooldown_types:
         after = cooldowns.get(cooldown_type, None)
         if after:
             if after > now:

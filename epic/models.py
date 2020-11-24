@@ -32,21 +32,30 @@ class Server(models.Model):
         return f"{self.name}({self.id}) joined with {self.code}"
 
 
+class Guild(UpdateAble, models.Model):
+    name = models.CharField(max_length=50, primary_key=True)
+    after = models.DateTimeField(null=True, blank=True)
+    # player has dibbs on the next guild event
+    raid_dibbs = models.ForeignKey(
+        "epic.Profile", null=True, blank=True, on_delete=models.SET_NULL, related_name="has_raid_dibbs_for"
+    )
+
+
 class Profile(UpdateAble, models.Model):
     DEFAULT_TIMEZONE = "America/Chicago"
     TIMEZONE_CHOICES = tuple(zip(pytz.common_timezones, pytz.common_timezones))
     DEFAULT_TIME_FORMAT, MAX_TIME_FORMAT_LENGTH = "%I:%M:%S %p, %m/%d", 50
+    user_id_regex = re.compile(r"<@!?(?P<user_id>\d+)>")
 
     uid = models.CharField(max_length=50, primary_key=True)
-
     server = models.ForeignKey(Server, on_delete=models.CASCADE)
     channel = models.PositiveBigIntegerField()
+    player_guild = models.ForeignKey(Guild, on_delete=models.SET_NULL, null=True, blank=True)
     last_known_nickname = models.CharField(max_length=250)
     timezone = models.CharField(
         choices=TIMEZONE_CHOICES, max_length=max(map(len, pytz.common_timezones)), default=DEFAULT_TIMEZONE
     )
     time_format = models.CharField(max_length=MAX_TIME_FORMAT_LENGTH, default=DEFAULT_TIME_FORMAT)
-
     notify = models.BooleanField(default=False)
     daily = models.BooleanField(default=True)
     weekly = models.BooleanField(default=True)

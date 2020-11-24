@@ -3,8 +3,9 @@ import datetime
 from asgiref.sync import sync_to_async
 
 from django.db.models import Q
+from django.db import transaction
 
-from .models import CoolDown, Profile
+from .models import CoolDown, Profile, Guild
 from .utils import Enum
 
 
@@ -68,18 +69,53 @@ def bulk_delete(model_class, kwargs_list=None, **kwargs):
 
 
 @sync_to_async
+@transaction.atomic
 def get_cooldown_messages():
     now = datetime.datetime.now(tz=datetime.timezone.utc)
-    results = []
-    for cooldown_type, _ in CoolDown.COOLDOWN_TYPE_CHOICES:
-        results.extend(
-            Profile.objects.command_type_enabled(cooldown_type)
-            .filter(cooldown__after__lte=now, cooldown__type=cooldown_type)
-            .values_list("cooldown__id", "cooldown__type", "channel", "uid")
-        )
-    return results
+    flavor_map = CoolDown.COOLDOWN_TEXT_MAP
+    messages, cleanup = [], []
+    # get cooldowns minus special cases
+
+    for cd_type in set(c[0] for c in CoolDown.COOLDOWN_TYPE_CHOICES) - {"guild"}:
+        for _id, channel, uid in (
+            Profile.objects.command_type_enabled(cd_type)
+            .filter(cooldown__after__lte=now, cooldown__type=cd_type)
+            .values_list("cooldown__id", "channel", "uid")
+        ):
+            messages.append((f"<@{uid}> {flavor_map[cd_type]} (**{cd_type.title()}**)", channel))
+            cleanup.append(_id)
+    CoolDown.objects.filter(id__in=cleanup).delete()
+    cleanup.clear()
+    return messages
+
+
+@sync_to_async
+@transaction.atomic
+def get_guild_cooldown_messages():
+    now = datetime.datetime.now(tz=datetime.timezone.utc)
+    flavor_map = CoolDown.COOLDOWN_TEXT_MAP
+    messages = []
+    for channel, uid, raid_dibbs_name, raid_dibbs_uid in (
+        Guild.objects.filter(after__lte=now, profile__notify=True)
+        .exclude(profile__guild=False)
+        .values_list("profile__channel", "profile__uid", "raid_dibbs__last_known_nickname", "raid_dibbs__uid")
+    ):
+        if raid_dibbs_uid and uid != raid_dibbs_uid:
+            messages.append((f"<@{uid}> {flavor_map['guild']} (**Guild**) [{raid_dibbs_name} has dibbs!!]", channel))
+        elif raid_dibbs_uid:
+            messages.append((f"<@{uid}> {flavor_map['guild']} (**Guild**) [YOU HAVE DIBBS!!]", channel))
+        else:
+            messages.append((f"<@{uid}> {flavor_map['guild']} (**Guild**)", channel))
+    Guild.objects.filter(after__lte=now).update(after=None)
+    return messages
 
 
 @sync_to_async
 def cleanup_old_cooldowns():
     return CoolDown.objects.filter(after__lt=datetime.datetime.now(tz=datetime.timezone.utc)).delete()
+
+
+@sync_to_async
+def set_guild_cd(profile, after=None):
+    after = datetime.datetime.now(tz=datetime.timezone.utc) if not after else after
+    Guild.objects.filter(profile__uid=profile.uid).update(after=after)
