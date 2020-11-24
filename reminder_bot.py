@@ -22,6 +22,7 @@ from epic.query import (
     get_cooldown_messages,
     get_guild_cooldown_messages,
     set_guild_cd,
+    set_guild_membership,
 )
 from epic.utils import tokenize
 
@@ -57,7 +58,7 @@ class Client(discord.Client):
         # we want to pull the results of Epic RPG's cooldown message
         if str(message.author) == "EPIC RPG#4117":
             rpg_cd_rd_cues, cooldown_cue = ["cooldowns", "ready"], "cooldown"
-            cues = ["cooldown", *rpg_cd_rd_cues]
+            cues = [*rpg_cd_rd_cues, cooldown_cue]
             for embed in message.embeds:
                 if getattr(embed.author, "name", None) and any([cue in embed.author.name for cue in cues]):
                     # the user mentioned
@@ -107,11 +108,37 @@ class Client(discord.Client):
                 return await set_guild_cd(profile)
             await upsert_cooldowns([CoolDown(profile=profile, type=cooldown_type, after=after)])
 
+    async def on_message_edit(self, before, after):
+        guild_name_regex = re.compile(r"\*\*(?P<guild_name>[^\*]+)\*\* members")
+        player_name_regex = re.compile(r"\*\*(?P<player_name>[^\*]+)\*\*")
+        guild_membership = {}
+        guild_id_map = {}
+        for embed in after.embeds:
+            for field in embed.fields:
+                name_match = guild_name_regex.match(field.name)
+                if name_match:
+                    guild_membership[name_match.group(1)] = player_name_regex.findall(field.value)
+                break
+            break
+        for guild, membership_set in guild_membership.items():
+            guild_id_map[guild] = []
+            for member in membership_set:
+                # careful in case name contains multiple #
+                split_name = member.split("#")
+                name, discriminator = "#".join(split_name[:-1]), split_name[-1]
+                user = discord.utils.get(self.get_all_members(), name=name, discriminator=discriminator)
+                if user:
+                    guild_id_map[guild].append(user.id)
+        await set_guild_membership(guild_id_map)
+
 
 if __name__ == "__main__":
     from django.conf import settings
 
-    bot = Client()
+    intents = discord.Intents.default()
+    intents.members = True
+
+    bot = Client(intents=intents)
 
     async def notify():
         await bot.wait_until_ready()

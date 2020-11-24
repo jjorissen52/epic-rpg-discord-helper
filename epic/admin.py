@@ -22,7 +22,8 @@ class GuildAdmin(admin.ModelAdmin):
 @admin.register(Profile)
 class ProfileAdmin(admin.ModelAdmin):
     search_fields = ("last_known_nickname", "uid")
-    list_filter = ("notify",)
+    list_display = ("last_known_nickname", "uid", "player_guild")
+    list_filter = ("notify", "player_guild")
 
 
 @admin.register(CoolDown)

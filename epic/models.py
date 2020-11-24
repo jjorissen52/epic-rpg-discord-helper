@@ -40,6 +40,9 @@ class Guild(UpdateAble, models.Model):
         "epic.Profile", null=True, blank=True, on_delete=models.SET_NULL, related_name="has_raid_dibbs_for"
     )
 
+    def __str__(self):
+        return self.name
+
 
 class Profile(UpdateAble, models.Model):
     DEFAULT_TIMEZONE = "America/Chicago"

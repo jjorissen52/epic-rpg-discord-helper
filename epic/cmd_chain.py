@@ -187,7 +187,7 @@ def cd(client, tokens, message, server, profile, msg, help=None):
     if not profile.player_guild:
         all_cooldown_types = all_cooldown_types - {"guild"}
     else:
-        cooldowns["guild"] = profile.player_guild.after
+        cooldowns["guild"] = profile.player_guild.after if profile.player_guild.after else default
     selected_cooldown_types = sorted(
         filter(cooldown_filter, all_cooldown_types),
         key=lambda x: cooldowns[x] if x in cooldowns else default,

@@ -119,3 +119,10 @@ def cleanup_old_cooldowns():
 def set_guild_cd(profile, after=None):
     after = datetime.datetime.now(tz=datetime.timezone.utc) if not after else after
     Guild.objects.filter(profile__uid=profile.uid).update(after=after)
+
+
+@sync_to_async
+def set_guild_membership(guild_membership_dict):
+    for guild_name, member_id_list in guild_membership_dict.items():
+        guild, _ = Guild.objects.get_or_create(name=guild_name)
+        Profile.objects.filter(uid__in=member_id_list).update(player_guild=guild)
