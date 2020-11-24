@@ -156,6 +156,7 @@ def cd(client, tokens, message, server, profile, msg, help=None):
     elif len(tokens) > 1:
         maybe_user_id = re.match(r"<@!?(?P<user_id>\d+)>", tokens[1])
         if maybe_user_id:
+            cd_args = set(tokens[2:])
             user_id = int(
                 maybe_user_id.groupdict()["user_id"],
             )
@@ -168,11 +169,11 @@ def cd(client, tokens, message, server, profile, msg, help=None):
                 },
             )
             nickname = profile.last_known_nickname
-        # means there are cooldown type arguments to filter on
-        if maybe_user_id and len(tokens) > 2:
-            cooldown_filter = lambda x: x in set(tokens[2:])
         else:
-            cooldown_filter = lambda x: x in set(tokens[1:])
+            cd_args = set(tokens[1:])
+        # means there are cooldown type arguments to filter on
+        if cd_args:
+            cooldown_filter = lambda x: x in cd_args
 
     profile_tz = pytz.timezone(profile.timezone)
     now = datetime.datetime.now(tz=datetime.timezone.utc)
