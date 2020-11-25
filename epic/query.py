@@ -122,7 +122,8 @@ def cleanup_old_cooldowns():
 
 @sync_to_async
 def set_guild_cd(profile, after=None):
-    after = datetime.datetime.now(tz=datetime.timezone.utc) if not after else after
+    now = datetime.datetime.now(tz=datetime.timezone.utc)
+    after = now + CoolDown.COOLDOWN_MAP["guild"] if not after else after
     Guild.objects.filter(profile__uid=profile.uid).update(after=after)
 
 
