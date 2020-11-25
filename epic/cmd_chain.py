@@ -109,12 +109,13 @@ def _help(client, tokens, message, server, profile, msg, help=None, error=None):
         • `rcd profile|p [<profile_command>]`
         • `rcd on`
         • `rcd off`
+        • `rcd cd` or `rcd`
         • `rcd timezone|tz <timezone>`
         • `rcd timeformat|tf "<format_string>"`
-        • `rcd <command_type> on|off`
-        • `rcd [notify|n] <command_type> on|off`
+        • `rcd notify|n <command_type> on|off`
+        • `rcd <command_type> on|off` (e.g. `rcd hunt on` same as `rcd notify hunt on`)
         • `rcd whocan|w <command_type>`
-        • `rcd cd` or `rcd`
+        • `rcd dibbs|d`
 
     This bot attempts to determine the cooldowns of your EPIC RPG commands
     and will notify you when it thinks your commands are available again.
@@ -294,7 +295,7 @@ def notify(client, tokens, message, server, profile, msg, help=None):
     enable or disable showing a reminder for when `rpg hunt` should be available. All reminders
     are enabled by defailt. Example usage:
         • `rcd notify hunt on` Will turn on cd notifcations for `rpg hunt`.
-        • `rcd daily on` Will turn on cd notifcations for `rpg hunt`.
+        • `rcd daily on` Will turn on cd notifcations for `rpg daily`.
         • `rcd n hunt off` Will turn off notifications for `rpg hunt`
         • `rcd n weekly on` Will turn on notifications for `rpg weekly`
         • `rcd n all off` Will turn off all notifications (but `profile.notify == True`)
@@ -560,6 +561,50 @@ def whocan(client, tokens, message, server, profile, msg, help=None):
     return {"msg": NormalMessage("Sorry, no one can do that right now.")}
 
 
+@params_as_args
+def dibbs(client, tokens, message, server, profile, msg, help=None):
+    """
+    Call "dibbs" on the guild raid.
+    Usage:
+        • `rcd dibbs|d[?]`
+    Example:
+        • `rcd dibbs` Call dibbs on next guild raid
+        • `rcd dibbs?` Find out if anyone has dibbs without claiming it
+    """
+    if tokens[0] not in {"dibbs", "dibbs?", "d", "d?"}:
+        return None
+    if help:
+        return {"msg": HelpMessage(dibbs.__doc__)}
+    if not profile.player_guild:
+        return {"msg": ErrorMessage(":disappointed: You aren't part of a guild.")}
+    elif not profile.player_guild.after:
+        return {
+            "msg": ErrorMessage(
+                "I don't know when the next guild raid is. Run `rpg guild raid` "
+                "in a channel that I can see and try again."
+            )
+        }
+    tz, tf = pytz.timezone(profile.timezone), profile.time_format
+    after = profile.player_guild.after.astimezone(tz).strftime(tf)
+    raid_dibbs = profile.player_guild.raid_dibbs
+    if tokens[0][-1] == "?":
+        if raid_dibbs:
+            player_with_dibbs = client.get_user(int(raid_dibbs.uid))
+            return {"msg": NormalMessage(f"**{player_with_dibbs}** has dibbs on the next guild raid at `{after}`.")}
+        else:
+            return {"msg": NormalMessage(f"No one has dibbs on the next guild raid at `{after}`.")}
+    if not raid_dibbs:
+        profile.player_guild.update(raid_dibbs=profile)
+        return {"msg": SuccessMessage(f"Okay! You've got dibbs on the next guild raid at `{after}`!", title="Dibbsed!")}
+    elif raid_dibbs == profile:
+        return {
+            "msg": NormalMessage(f"You've already got dibbs on the next guild raid at `{after}`!", title="Dibbsed!")
+        }
+    else:
+        player_with_dibbs = client.get_user(int(raid_dibbs.uid))
+        return {"msg": NormalMessage(f"Sorry, **{player_with_dibbs}** already has dibbs.", title="Not this time!")}
+
+
 command_pipeline = execution_pipeline(
     pre=[
         _help,  # needs to be first to pass "help" param to those that follow
@@ -572,6 +617,7 @@ command_pipeline = execution_pipeline(
         cd,
         on,
         off,
+        dibbs,
         timezone,
         timeformat,
         register,  # called rarely, should be last.
