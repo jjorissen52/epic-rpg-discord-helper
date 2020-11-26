@@ -9,7 +9,7 @@ from pipeline import execution_pipeline
 
 from django.forms.models import model_to_dict
 
-from epic.models import CoolDown, Profile, Server, JoinCode
+from epic.models import CoolDown, Profile, Server, JoinCode, Gamble
 from epic.utils import tokenize
 
 
@@ -116,6 +116,7 @@ def _help(client, tokens, message, server, profile, msg, help=None, error=None):
         • `rcd <command_type> on|off` (e.g. `rcd hunt on` same as `rcd notify hunt on`)
         • `rcd whocan|w <command_type>`
         • `rcd dibbs|d`
+        • `rcd gamling|g [@player]`
 
     This bot attempts to determine the cooldowns of your EPIC RPG commands
     and will notify you when it thinks your commands are available again.
@@ -155,20 +156,10 @@ def cd(client, tokens, message, server, profile, msg, help=None):
     if help and len(tokens) == 1:
         return {"msg": HelpMessage(cd.__doc__)}
     elif len(tokens) > 1:
-        maybe_user_id = Profile.user_id_regex.match(tokens[1])
-        if maybe_user_id:
+        mentioned_profile = Profile.from_tag(tokens[1], client, server, message)
+        if mentioned_profile:
+            profile = mentioned_profile
             cd_args = set(tokens[2:])
-            user_id = int(
-                maybe_user_id.groupdict()["user_id"],
-            )
-            profile, _ = Profile.objects.get_or_create(
-                uid=user_id,
-                defaults={
-                    "last_known_nickname": client.get_user(user_id).name,
-                    "server": server,
-                    "channel": message.channel.id,
-                },
-            )
             nickname = profile.last_known_nickname
         else:
             cd_args = set(tokens[1:])
@@ -246,6 +237,7 @@ def _profile(client, tokens, message, server, profile, msg, help=None):
         • `rcd profile|p timeformat|tf "<format_string>"`
         • `rcd profile|p on|off`
         • `rcd profile|p [notify|n] <cooldown_type> on|off`
+        • `rcd profile|p gamling|g [@player]`
     Examples:
         • `rcd profile` Displays your profile information
         • `rcd p tz <timezone>` Sets your timezone to the provided timezone.
@@ -263,6 +255,7 @@ def _profile(client, tokens, message, server, profile, msg, help=None):
             *("timezone", "tz"),
             *("timeformat", "tf"),
             *("notify", "n"),
+            *("gambling", "g"),
             "on",
             "off",
             # allow implicit command type commands to be namespaced by `rcd p`
@@ -605,6 +598,40 @@ def dibbs(client, tokens, message, server, profile, msg, help=None):
         return {"msg": NormalMessage(f"Sorry, **{player_with_dibbs}** already has dibbs.", title="Not this time!")}
 
 
+@params_as_args
+def stats(client, tokens, message, server, profile, msg, help=None):
+    """
+    This command shows the output of stats that the helper bot has managed to collect.
+    Usage:
+        • `rcd gambling|g  [@player]`
+    Examples:
+        • `rcd gambling` show your own gambling stats
+        • `rcd g @player` show a player's gambling stats
+    """
+    TEMPLATE = """
+
+    """
+    if tokens[0] not in {"gambling", "g"}:
+        return None
+    if help:
+        return {"msg": HelpMessage(stats.__doc__)}
+    if len(tokens) > 1:
+        mentioned_profile = Profile.from_tag(tokens[-1], client, server, message)
+        if not mentioned_profile:
+            return {
+                "msg": ErrorMessage(
+                    f"`{tokens[-1]}`` is an invalid argument for `rcd stats`. " "Example usage: `rcd stats @player`",
+                    title="Usage Error",
+                )
+            }
+        profile = mentioned_profile
+
+    user = client.get_user(int(profile.uid))
+    return {
+        "msg": NormalMessage("", fields=Gamble.objects.stats(profile.uid), title=f"{user.name}'s Gambling Addiction")
+    }
+
+
 command_pipeline = execution_pipeline(
     pre=[
         _help,  # needs to be first to pass "help" param to those that follow
@@ -615,6 +642,7 @@ command_pipeline = execution_pipeline(
         # cd allows arbitrary arguments so it must follow
         # all other commands that can be invoked implicitly
         cd,
+        stats,
         on,
         off,
         dibbs,

@@ -9,7 +9,7 @@ from django.db import models
 
 from .mixins import UpdateAble
 from .utils import tokenize
-from .managers import ProfileManager
+from .managers import ProfileManager, GamblingStatsManager
 
 
 class JoinCode(models.Model):
@@ -81,6 +81,21 @@ class Profile(UpdateAble, models.Model):
 
     def __str__(self):
         return f"{self.last_known_nickname}({self.uid})"
+
+    @staticmethod
+    def from_tag(tag, client, server, message):
+        maybe_user_id = Profile.user_id_regex.match(tag)
+        if maybe_user_id:
+            user_id = int(maybe_user_id.group(1))
+            profile, _ = Profile.objects.get_or_create(
+                uid=user_id,
+                defaults={
+                    "last_known_nickname": client.get_user(user_id).name,
+                    "server": server,
+                    "channel": message.channel.id,
+                },
+            )
+            return profile
 
 
 class CoolDown(models.Model):
@@ -276,6 +291,8 @@ class Gamble(models.Model):
     game = models.CharField(choices=GAME_TYPE_CHOICES, max_length=5)
     outcome = models.CharField(choices=OUTCOME_CHOICES, max_length=4)
     net = models.IntegerField()
+
+    objects = GamblingStatsManager()
 
     def __str__(self):
         name = self.profile.last_known_nickname if self.profile else "Anonymous"
