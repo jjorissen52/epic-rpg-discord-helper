@@ -30,6 +30,51 @@ from epic.utils import tokenize
 from epic.cmd_chain import handle_rpcd_message
 
 
+async def process_rpg_messages(client, server, message):
+    rpg_cd_rd_cues, cooldown_cue = ["cooldowns", "ready"], "cooldown"
+    gambling_cues = set(Gamble.GAME_CUE_MAP.keys())
+    cues = [*rpg_cd_rd_cues, *gambling_cues, cooldown_cue]
+    if "found and killed" in message.content:
+        hunt_result = Hunt.save_hunt_result(message)
+        if hunt_result:
+            name, *other = hunt_result
+            possible_userids = [str(m.id) for m in client.get_all_members() if name == m.name]
+            return await update_hunt_results(other, possible_userids)
+    for embed in message.embeds:
+        if getattr(embed.author, "name", None) and any([cue in embed.author.name for cue in cues]):
+            # the user mentioned
+            user_id = embed.author.icon_url.strip("https://cdn.discordapp.com/avatars/").split("/")[0]
+            user = client.get_user(int(user_id))
+            profile, _ = await get_instance(
+                Profile,
+                uid=user_id,
+                defaults={
+                    "last_known_nickname": user.name,
+                    "server": server,
+                    "channel": message.channel.id,
+                },
+            )
+            if profile.server_id != server.id or profile.channel != message.channel.id:
+                profile = await update_instance(profile, server_id=server.id, channel=message.channel.id)
+            # is the cooldowns list
+            if any([cue in embed.author.name for cue in rpg_cd_rd_cues]):
+                update, delete = CoolDown.from_cd(profile, [field.value for field in embed.fields])
+                await upsert_cooldowns(update)
+                await bulk_delete(CoolDown, delete)
+            elif cooldown_cue in embed.author.name:
+                for cue, cooldown_type in CoolDown.COOLDOWN_RESPONSE_CUE_MAP.items():
+                    if cue in str(embed.title):
+                        cooldowns = CoolDown.from_cooldown_reponse(profile, embed.title, cooldown_type)
+                        if cooldowns and cooldown_type == "guild":
+                            return await set_guild_cd(profile, cooldowns[0].after)
+                        await upsert_cooldowns(cooldowns)
+            elif any([cue in embed.author.name for cue in gambling_cues]):
+                gamble = Gamble.from_results_screen(profile, embed)
+                if gamble:
+                    await gamble.asave()
+    return
+
+
 class Client(discord.Client):
     async def on_ready(self):
         print("Logged on as {0}!".format(self.user))
@@ -58,48 +103,7 @@ class Client(discord.Client):
 
         # we want to pull the results of Epic RPG's cooldown message
         if str(message.author) == "EPIC RPG#4117":
-            rpg_cd_rd_cues, cooldown_cue = ["cooldowns", "ready"], "cooldown"
-            gambling_cues = set(Gamble.GAME_CUE_MAP.keys())
-            cues = [*rpg_cd_rd_cues, *gambling_cues, cooldown_cue]
-            if "found and killed" in message.content:
-                hunt_result = Hunt.save_hunt_result(message)
-                if hunt_result:
-                    name, *other = hunt_result
-                    possible_userids = [str(m.id) for m in self.get_all_members() if name == m.name]
-                    return await update_hunt_results(other, possible_userids)
-            for embed in message.embeds:
-                if getattr(embed.author, "name", None) and any([cue in embed.author.name for cue in cues]):
-                    # the user mentioned
-                    user_id = embed.author.icon_url.strip("https://cdn.discordapp.com/avatars/").split("/")[0]
-                    user = self.get_user(int(user_id))
-                    profile, _ = await get_instance(
-                        Profile,
-                        uid=user_id,
-                        defaults={
-                            "last_known_nickname": user.name,
-                            "server": server,
-                            "channel": message.channel.id,
-                        },
-                    )
-                    if profile.server_id != server.id or profile.channel != message.channel.id:
-                        profile = await update_instance(profile, server_id=server.id, channel=message.channel.id)
-                    # is the cooldowns list
-                    if any([cue in embed.author.name for cue in rpg_cd_rd_cues]):
-                        update, delete = CoolDown.from_cd(profile, [field.value for field in embed.fields])
-                        await upsert_cooldowns(update)
-                        await bulk_delete(CoolDown, delete)
-                    elif cooldown_cue in embed.author.name:
-                        for cue, cooldown_type in CoolDown.COOLDOWN_RESPONSE_CUE_MAP.items():
-                            if cue in str(embed.title):
-                                cooldowns = CoolDown.from_cooldown_reponse(profile, embed.title, cooldown_type)
-                                if cooldowns and cooldown_type == "guild":
-                                    return await set_guild_cd(profile, cooldowns[0].after)
-                                await upsert_cooldowns(cooldowns)
-                    elif any([cue in embed.author.name for cue in gambling_cues]):
-                        gamble = Gamble.from_results_screen(profile, embed)
-                        if gamble:
-                            await gamble.asave()
-            return
+            return await process_rpg_messages(self, server, message)
 
         if content.startswith("rpg"):
             cooldown_type, after = CoolDown.cd_from_command(message.content[3:])
