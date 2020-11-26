@@ -1,6 +1,6 @@
 from django.contrib import admin
 
-from .models import Profile, CoolDown, Server, JoinCode, Guild, Gamble
+from .models import Profile, CoolDown, Server, JoinCode, Guild, Gamble, Hunt
 
 
 @admin.register(JoinCode)
@@ -40,3 +40,10 @@ class GambleAdmin(admin.ModelAdmin):
 
     def event(self, obj):
         return str(obj)
+
+
+@admin.register(Hunt)
+class HuntAdmin(admin.ModelAdmin):
+    list_display = ["profile", "target", "money", "xp", "loot"]
+    search_fields = ["profile__last_known_nickname", "target"]
+    list_filter = ["loot"]

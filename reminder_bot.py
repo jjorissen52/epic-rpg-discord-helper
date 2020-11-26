@@ -13,7 +13,7 @@ from django.core.wsgi import get_wsgi_application
 
 get_wsgi_application()
 
-from epic.models import CoolDown, Profile, Server, JoinCode, Gamble
+from epic.models import CoolDown, Profile, Server, JoinCode, Gamble, Hunt
 from epic.query import (
     get_instance,
     update_instance,
@@ -23,6 +23,7 @@ from epic.query import (
     get_guild_cooldown_messages,
     set_guild_cd,
     set_guild_membership,
+    update_hunt_results,
 )
 from epic.utils import tokenize
 
@@ -60,6 +61,12 @@ class Client(discord.Client):
             rpg_cd_rd_cues, cooldown_cue = ["cooldowns", "ready"], "cooldown"
             gambling_cues = set(Gamble.GAME_CUE_MAP.keys())
             cues = [*rpg_cd_rd_cues, *gambling_cues, cooldown_cue]
+            if "found and killed" in message.content:
+                hunt_result = Hunt.save_hunt_result(message)
+                if hunt_result:
+                    name, *other = hunt_result
+                    possible_userids = [str(m.id) for m in self.get_all_members() if name == m.name]
+                    return await update_hunt_results(other, possible_userids)
             for embed in message.embeds:
                 if getattr(embed.author, "name", None) and any([cue in embed.author.name for cue in cues]):
                     # the user mentioned
@@ -111,6 +118,8 @@ class Client(discord.Client):
                 profile = await update_instance(profile, server_id=server.id, channel=message.channel.id)
             if cooldown_type == "guild":
                 return await set_guild_cd(profile)
+            elif cooldown_type == "hunt":
+                _, _ = await get_instance(Hunt, profile_id=profile.uid, target=None, defaults={"target": None})
             await upsert_cooldowns([CoolDown(profile=profile, type=cooldown_type, after=after)])
 
     async def on_message_edit(self, before, after):

@@ -109,3 +109,8 @@ class GamblingStatsManager(models.Manager):
             ("Biggest Net", biggest_net),
             ("Lifetime Winnins", lifetime),
         )
+
+
+class HuntManager(models.Manager):
+    def open_hunts(self, profile_ids):
+        return self.get_queryset().filter(target__isnull=True, profile_id__in=profile_ids)

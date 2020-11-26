@@ -5,7 +5,7 @@ from asgiref.sync import sync_to_async
 from django.db.models import Q
 from django.db import transaction
 
-from .models import CoolDown, Profile, Guild
+from .models import CoolDown, Profile, Guild, Hunt
 from .utils import Enum
 
 
@@ -132,3 +132,20 @@ def set_guild_membership(guild_membership_dict):
     for guild_name, member_id_list in guild_membership_dict.items():
         guild, _ = Guild.objects.get_or_create(name=guild_name)
         Profile.objects.filter(uid__in=member_id_list).update(player_guild=guild)
+
+
+@sync_to_async
+@transaction.atomic
+def update_hunt_results(hunt_result, possible_userids):
+    now = datetime.datetime.now(tz=datetime.timezone.utc)
+    expiration = now - datetime.timedelta(seconds=10)
+    target, money, xp, loot = hunt_result
+    # delete open hunts that have expired
+    Hunt.objects.open_hunts(possible_userids).filter(created__lt=expiration).delete()
+    if possible_userids:
+        open_hunts = Hunt.objects.open_hunts(possible_userids)
+        # just have to do best effort in the
+        # case of nickname collision
+        open_hunt = open_hunts.first()
+        if open_hunt:
+            open_hunt.update(target=target, money=money, xp=xp, loot=loot)

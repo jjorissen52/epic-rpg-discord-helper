@@ -10,7 +10,7 @@ from django.utils import timezone
 
 from .mixins import UpdateAble
 from .utils import tokenize
-from .managers import ProfileManager, GamblingStatsManager
+from .managers import ProfileManager, GamblingStatsManager, HuntManager
 
 
 class JoinCode(models.Model):
@@ -337,3 +337,38 @@ class Gamble(models.Model):
     @sync_to_async
     def asave(self, *args, **kwargs):
         return super().save(*args, **kwargs)
+
+
+class Hunt(UpdateAble, models.Model):
+    profile = models.ForeignKey(Profile, on_delete=models.SET_NULL, null=True, related_name="hunts")
+    target = models.CharField(max_length=50, db_index=True, null=True, blank=True)
+    money = models.PositiveBigIntegerField(null=True, blank=True)
+    xp = models.PositiveBigIntegerField(null=True, blank=True)
+    loot = models.CharField(max_length=50, db_index=True, null=True, blank=True)
+
+    objects = HuntManager()
+
+    def __str__(self):
+        name = self.profile.last_known_nickname if self.profile else "Anonymous"
+        return f"{name} killed a {self.target}"
+
+    @staticmethod
+    def save_hunt_result(message):
+        "got a wolf skin"
+        "got a rare lootbox"
+        "got an <:unicornhorn:545329267425149112> unicorn horn"
+        target_regex = re.compile(r"\*\*(?P<name>[^\*]+)\*\* found and killed a [^\*]+\*\*(?P<target>[^\*]+)\*\*")
+        earnings_regex = re.compile(r"Earned (\d+) coins and (\d+) XP")
+        loot_regex = re.compile(r"got an? (\s*<:[^:]+:\d+>\s*)?(?P<loot>[\w ]+)(\s*<:[^:]+:\d+>\s*)?")
+        target_match = target_regex.search(message.content)
+        earnings_match = earnings_regex.search(message.content)
+        loot_match = loot_regex.match(message.content)
+        if target_match and earnings_match:
+            name, target = target_match.group(1), target_match.group(2)
+            money, xp = earnings_match.group(1), earnings_match.group(2)
+            loot = ""
+            if loot_match:
+                loot = loot_match.group(2).strip()
+            return name, target, money, xp, loot
+        else:
+            return
