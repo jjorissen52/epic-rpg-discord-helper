@@ -1,3 +1,5 @@
+import datetime
+
 from types import SimpleNamespace
 
 from django.db import models
@@ -13,11 +15,14 @@ class ProfileManager(models.Manager):
 
 
 class GamblingStatsManager(models.Manager):
-    def stats(self, profile_uid):
+    def stats(self, profile_uid, minutes=None):
         game_case = Case(
             When(game="bj", then=Value("blackjack")), When(game="cf", then=Value("coinflip")), default="game"
         )
         qs = self.get_queryset().filter(profile_id=profile_uid)
+        if minutes:
+            after = datetime.datetime.now(tz=datetime.timezone.utc) - datetime.timedelta(minutes=minutes)
+            qs = qs.filter(created__gt=after)
         earnings = (
             qs.values("game")
             .order_by("game")
@@ -39,6 +44,8 @@ class GamblingStatsManager(models.Manager):
             )
         )
         earnings_results = earnings.values("g", "big_win", "big_loss", "total")
+        if not earnings_results:
+            return (("No Results", "No games were played in that time period."),)
 
         game_col_size, min_col_size = 15, 8
         win_col_size = max(max([len(str(f"{r['big_win']:,}")) for r in earnings_results]), min_col_size)

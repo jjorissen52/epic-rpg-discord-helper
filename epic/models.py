@@ -6,6 +6,7 @@ import itertools
 from asgiref.sync import sync_to_async
 
 from django.db import models
+from django.utils import timezone
 
 from .mixins import UpdateAble
 from .utils import tokenize
@@ -291,6 +292,7 @@ class Gamble(models.Model):
     game = models.CharField(choices=GAME_TYPE_CHOICES, max_length=5)
     outcome = models.CharField(choices=OUTCOME_CHOICES, max_length=4)
     net = models.IntegerField()
+    created = models.DateTimeField(auto_now=True)
 
     objects = GamblingStatsManager()
 

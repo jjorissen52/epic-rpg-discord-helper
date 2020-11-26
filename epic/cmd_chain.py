@@ -116,7 +116,7 @@ def _help(client, tokens, message, server, profile, msg, help=None, error=None):
         • `rcd <command_type> on|off` (e.g. `rcd hunt on` same as `rcd notify hunt on`)
         • `rcd whocan|w <command_type>`
         • `rcd dibbs|d`
-        • `rcd gamling|g [@player]`
+        • `rcd gamling|g [num_minutes] [@player]`
 
     This bot attempts to determine the cooldowns of your EPIC RPG commands
     and will notify you when it thinks your commands are available again.
@@ -603,32 +603,38 @@ def stats(client, tokens, message, server, profile, msg, help=None):
     """
     This command shows the output of stats that the helper bot has managed to collect.
     Usage:
-        • `rcd gambling|g  [@player]`
+        • `rcd gambling|g [num_minutes] [@player]`
     Examples:
         • `rcd gambling` show your own gambling stats
+        • `rcd gambling 3` for the last 3 minutes
         • `rcd g @player` show a player's gambling stats
     """
-    TEMPLATE = """
-
-    """
+    minutes = None
     if tokens[0] not in {"gambling", "g"}:
         return None
     if help:
         return {"msg": HelpMessage(stats.__doc__)}
     if len(tokens) > 1:
         mentioned_profile = Profile.from_tag(tokens[-1], client, server, message)
-        if not mentioned_profile:
+        if mentioned_profile:
+            tokens = tokens[:-1]
+            profile = mentioned_profile
+        if re.match(r"^\d+$", tokens[-1]):
+            minutes = int(tokens[-1])
+        if not mentioned_profile and not minutes:
             return {
                 "msg": ErrorMessage(
-                    f"`{tokens[-1]}`` is an invalid argument for `rcd stats`. " "Example usage: `rcd stats @player`",
+                    f"`rcd {' '.join(tokens)}` is not valid invocation of `rcd gambling`. "
+                    "Example usage: `rcd g 5 @player`",
                     title="Usage Error",
                 )
             }
-        profile = mentioned_profile
 
     user = client.get_user(int(profile.uid))
     return {
-        "msg": NormalMessage("", fields=Gamble.objects.stats(profile.uid), title=f"{user.name}'s Gambling Addiction")
+        "msg": NormalMessage(
+            "", fields=Gamble.objects.stats(profile.uid, minutes), title=f"{user.name}'s Gambling Addiction"
+        )
     }
 
 

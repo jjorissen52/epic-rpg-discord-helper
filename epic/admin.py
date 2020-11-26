@@ -34,5 +34,9 @@ class CoolDownAdmin(admin.ModelAdmin):
 
 @admin.register(Gamble)
 class GambleAdmin(admin.ModelAdmin):
+    list_display = ["event", "created"]
     search_fields = ("game", "outcome", "profile__last_known_nickname")
     list_filter = ("game", "outcome")
+
+    def event(self, obj):
+        return str(obj)
