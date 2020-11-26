@@ -1,6 +1,6 @@
 from django.contrib import admin
 
-from .models import Profile, CoolDown, Server, JoinCode, Guild
+from .models import Profile, CoolDown, Server, JoinCode, Guild, Gamble
 
 
 @admin.register(JoinCode)
@@ -30,3 +30,9 @@ class ProfileAdmin(admin.ModelAdmin):
 class CoolDownAdmin(admin.ModelAdmin):
     search_fields = ("profile__last_known_nickname", "type")
     list_filter = ("type",)
+
+
+@admin.register(Gamble)
+class GambleAdmin(admin.ModelAdmin):
+    search_fields = ("game", "outcome", "profile__last_known_nickname")
+    list_filter = ("game", "outcome")

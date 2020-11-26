@@ -13,7 +13,7 @@ from django.core.wsgi import get_wsgi_application
 
 get_wsgi_application()
 
-from epic.models import CoolDown, Profile, Server, JoinCode
+from epic.models import CoolDown, Profile, Server, JoinCode, Gamble
 from epic.query import (
     get_instance,
     update_instance,
@@ -58,7 +58,8 @@ class Client(discord.Client):
         # we want to pull the results of Epic RPG's cooldown message
         if str(message.author) == "EPIC RPG#4117":
             rpg_cd_rd_cues, cooldown_cue = ["cooldowns", "ready"], "cooldown"
-            cues = [*rpg_cd_rd_cues, cooldown_cue]
+            gambling_cues = set(Gamble.GAME_CUE_MAP.keys())
+            cues = [*rpg_cd_rd_cues, *gambling_cues, cooldown_cue]
             for embed in message.embeds:
                 if getattr(embed.author, "name", None) and any([cue in embed.author.name for cue in cues]):
                     # the user mentioned
@@ -87,6 +88,10 @@ class Client(discord.Client):
                                 if cooldowns and cooldown_type == "guild":
                                     return await set_guild_cd(profile, cooldowns[0].after)
                                 await upsert_cooldowns(cooldowns)
+                    elif any([cue in embed.author.name for cue in gambling_cues]):
+                        gamble = Gamble.from_results_screen(profile, embed)
+                        if gamble:
+                            await gamble.asave()
             return
 
         if content.startswith("rpg"):

@@ -3,6 +3,8 @@ import pytz
 import datetime
 import itertools
 
+from asgiref.sync import sync_to_async
+
 from django.db import models
 
 from .mixins import UpdateAble
@@ -249,3 +251,70 @@ class CoolDown(models.Model):
             }
             return [CoolDown(profile=profile, type=_type, after=start + datetime.timedelta(**time_delta_params))]
         return []
+
+
+class Gamble(models.Model):
+    GAME_TYPE_CHOICES = (
+        ("bj", "Blackjack"),
+        ("cf", "Coinflip"),
+        ("slots", "Slots"),
+        ("dice", "Dice"),
+    )
+    OUTCOME_CHOICES = (
+        # past tense is more convenient
+        ("won", "Win"),
+        ("lost", "Loss"),
+        ("tied", "Tie"),
+    )
+    GAME_CUE_MAP = {
+        "blackjack": "bj",
+        "dice": "dice",
+        "slots": "slots",
+        "coinflip": "cf",
+    }
+    profile = models.ForeignKey(Profile, on_delete=models.SET_NULL, null=True)
+    game = models.CharField(choices=GAME_TYPE_CHOICES, max_length=5)
+    outcome = models.CharField(choices=OUTCOME_CHOICES, max_length=4)
+    net = models.IntegerField()
+
+    def __str__(self):
+        name = self.profile.last_known_nickname if self.profile else "Anonymous"
+        return f"{name} {self.outcome} {abs(self.net)} playing {self.game}"
+
+    @staticmethod
+    def from_results_screen(profile, embed):
+        game_regex = re.compile(r"(blackjack|dice|slots|coinflip)")
+        game_match = game_regex.search(embed.author.name)
+        if not game_match:
+            return None
+        game = game_match.group(1)
+        "it's a tie lmao"
+        outcome_regex = re.compile(r"(?P<outcome>won|lost) (\*{2})?(?P<amount>[0-9,]+)(\*{2})? coins")
+        gamble = None
+        if game in {"blackjack", "dice", "coinflip"}:
+            for field in embed.fields:
+                name_match, value_match = outcome_regex.search(field.name), outcome_regex.search(field.value)
+                if name_match:
+                    outcome, _, amount, _ = name_match.groups()
+                    amount = amount.replace(",", "")
+                    net = -int(amount) if outcome == "lost" else int(amount)
+                    gamble = Gamble(profile=profile, game=Gamble.GAME_CUE_MAP[game], outcome=outcome, net=net)
+                elif value_match:
+                    outcome, _, amount, _ = value_match.groups()
+                    amount = amount.replace(",", "")
+                    net = -int(amount) if outcome == "lost" else int(amount)
+                    gamble = Gamble(profile=profile, game=Gamble.GAME_CUE_MAP[game], outcome=outcome, net=net)
+                elif "it's a tie lmao" in field.name:
+                    gamble = Gamble(profile=profile, game=Gamble.GAME_CUE_MAP[game], outcome="tied", net=0)
+        elif game == "slots":
+            outcome_match = outcome_regex.search(embed.description)
+            if outcome_match:
+                outcome, _, amount, _ = outcome_match.groups()
+                amount = amount.replace(",", "")
+                net = -int(amount) if outcome == "lost" else int(amount)
+                gamble = Gamble(profile=profile, game=Gamble.GAME_CUE_MAP[game], outcome=outcome, net=net)
+        return gamble
+
+    @sync_to_async
+    def asave(self, *args, **kwargs):
+        return super().save(*args, **kwargs)
