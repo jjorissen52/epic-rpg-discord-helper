@@ -349,37 +349,21 @@ def notify(client, tokens, message, server, profile, msg, help=None):
 
 
 @params_as_args
-def on(client, tokens, message, server, profile, msg, help=None):
+def toggle(client, tokens, message, server, profile, msg, help=None):
     """
-    Toggle your profile notifications **on**. Example:
-      • `rcd on`
+    Toggle your profile notifications **{version}**. Example:
+      • `rcd {version}`
     """
-    if tokens[0] != "on":
+    if tokens[0] not in {"on", "off"}:
         return None
+    on_or_off = tokens[0]
     if help and len(tokens) == 1:
-        return {"msg": HelpMessage(on.__doc__)}
+        return {"msg": HelpMessage(toggle.__doc__.format(version=on_or_off))}
     elif len(tokens) != 1:
         return {"error": 1}
 
-    profile.update(notify=True)
-    return {"msg": SuccessMessage(f"Notifications are now **on** for **{message.author.name}**.")}
-
-
-@params_as_args
-def off(client, tokens, message, server, profile, msg, help=None):
-    """
-    Toggle your profile notifications **off**. Example:
-      • `rcd off`
-    """
-    if tokens[0] != "off":
-        return None
-    if help and len(tokens) == 1:
-        return {"msg": HelpMessage(off.__doc__)}
-    elif len(tokens) != 1:
-        return {"error": 1}
-
-    profile.update(notify=False)
-    return {"msg": SuccessMessage(f"Notifications are now **off** for **{message.author.name}**.")}
+    profile.update(notify=on_or_off == "on")
+    return {"msg": SuccessMessage(f"Notifications are now **{on_or_off}** for **{message.author.name}**.")}
 
 
 @params_as_args
@@ -674,8 +658,7 @@ command_pipeline = execution_pipeline(
         # all other commands that can be invoked implicitly
         cd,
         stats,
-        on,
-        off,
+        toggle,
         dibbs,
         timezone,
         timeformat,
