@@ -130,7 +130,7 @@ class Client(discord.Client):
                 profile = await update_instance(profile, server_id=server.id, channel=message.channel.id)
             if cooldown_type == "guild":
                 return await set_guild_cd(profile)
-            elif cooldown_type == "hunt":
+            elif cooldown_type in {"hunt", "adventure"}:
                 _, _ = await get_instance(Hunt, profile_id=profile.uid, target=None, defaults={"target": None})
             await upsert_cooldowns([CoolDown(profile=profile, type=cooldown_type, after=after)])
 

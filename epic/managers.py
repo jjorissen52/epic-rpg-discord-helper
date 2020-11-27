@@ -3,7 +3,7 @@ import datetime
 from types import SimpleNamespace
 
 from django.db import models
-from django.db.models import Case, When, Max, Min, Sum, Count, F, Value
+from django.db.models import Case, When, Max, Min, Sum, Count, F, Value, Q
 
 
 class ProfileManager(models.Manager):
@@ -15,14 +15,18 @@ class ProfileManager(models.Manager):
 
 
 class GamblingStatsManager(models.Manager):
-    def stats(self, profile_uid, minutes=None):
+    def stats(self, profile_uid=None, minutes=None, server_id=None):
         game_case = Case(
             When(game="bj", then=Value("blackjack")), When(game="cf", then=Value("coinflip")), default="game"
         )
-        qs = self.get_queryset().filter(profile_id=profile_uid)
+        qs = self.get_queryset()
+        if profile_uid:
+            qs = qs.filter(profile_id=profile_uid)
         if minutes:
             after = datetime.datetime.now(tz=datetime.timezone.utc) - datetime.timedelta(minutes=minutes)
             qs = qs.filter(created__gt=after)
+        if server_id:
+            qs = qs.filter(profile__server_id=server_id)
         earnings = (
             qs.values("game")
             .order_by("game")
@@ -45,7 +49,7 @@ class GamblingStatsManager(models.Manager):
         )
         earnings_results = earnings.values("g", "big_win", "big_loss", "total")
         if not earnings_results:
-            return (("No Results", "No games were played in that time period."),)
+            return (("No Results", "No games could be found."),)
 
         game_col_size, min_col_size = 15, 8
         win_col_size = max(max([len(str(f"{r['big_win']:,}")) for r in earnings_results]), min_col_size)
@@ -115,6 +119,91 @@ class GamblingStatsManager(models.Manager):
         )
 
 
+class HuntQuerySet(models.QuerySet):
+    def profile_hunts(self, profile_id=None, minutes=None, server_id=None):
+        if server_id:
+            self = self.filter(profile__server_id=server_id)
+        if profile_id:
+            self = self.filter(profile_id=profile_id)
+        if minutes:
+            after = datetime.datetime.now(tz=datetime.timezone.utc) - datetime.timedelta(minutes=minutes)
+            self = self.filter(created__gt=after)
+        return self
+
+
 class HuntManager(models.Manager):
+    def get_queryset(self):
+        return HuntQuerySet(self.model, using=self._db)
+
     def open_hunts(self, profile_ids):
         return self.get_queryset().filter(target__isnull=True, profile_id__in=profile_ids)
+
+    def hunt_stats(self, profile_id=None, minutes=None, server_id=None):
+        qs = self.get_queryset().profile_hunts(profile_id, minutes, server_id)
+        lifetime_hunts = (
+            qs.values("target")
+            .order_by("target")
+            .annotate(
+                hunted=Count("id"),
+                xp=Sum("xp"),
+                drops=Sum(Case(When(loot="", then=0), default=1, output_field=models.IntegerField())),
+            )
+            .order_by("-hunted", "-drops")
+        )
+        if not lifetime_hunts:
+            return (("No Results", "No hunts could be found."),)
+
+        min_col_size = 7
+        target_col_size = max(max([len(str(f"{r['target'][:20]}")) for r in lifetime_hunts]), min_col_size) + 1
+        hunted_col_size = max(max([len(str(f"{r['hunted']:,}")) for r in lifetime_hunts]), min_col_size) + 3
+        xp_col_size = max(max([len(str(f"{r['xp']:,}")) for r in lifetime_hunts]), min_col_size) + 3
+        drop_col_size = max(max([len(str(f"{r['drops']:,}")) for r in lifetime_hunts]), min_col_size) + 3
+
+        header = f"{'Target':<{target_col_size}}{'Hunted':>{hunted_col_size}}{'Exp':>{xp_col_size}}{'Drops':>{drop_col_size}}\n"
+        lifetime_pages = [header]
+        lifetime_page = 0
+        t = SimpleNamespace(hunted=0, xp=0, drops=0)
+        for h in lifetime_hunts:
+            h = SimpleNamespace(**h)
+            h.target = f"{h.target[:17]}..." if len(h.target) > 20 else h.target
+            next_line = f"{h.target:{target_col_size}}{h.hunted:{hunted_col_size},}{h.xp:{xp_col_size},}{h.drops:{drop_col_size},}\n"
+            if not len(lifetime_pages[lifetime_page]) + len(next_line) < 1000:
+                lifetime_pages.append(header)
+                lifetime_page += 1
+            lifetime_pages[lifetime_page] += next_line
+            t.hunted, t.xp, t.drops = t.hunted + h.hunted, t.xp + h.xp, t.drops + h.drops
+        next_line = (
+            f'{"TOTAL":{target_col_size}}{t.hunted:{hunted_col_size},}{t.xp:{xp_col_size},}{t.drops:{drop_col_size},}\n'
+        )
+        if not len(lifetime_pages[lifetime_page]) + len(next_line) < 1000:
+            lifetime_pages.append(header)
+            lifetime_page += 1
+        lifetime_pages[lifetime_page] += next_line
+        return ((f"Hunt Statistics {i+1}", f"```\n{lifetime}```") for i, lifetime in enumerate(lifetime_pages))
+
+    def drop_stats(self, profile_id=None, minutes=None, server_id=None):
+        qs = self.get_queryset().profile_hunts(profile_id, minutes, server_id)
+        lifetime_drops = (
+            qs.exclude(Q(loot__isnull=True) | Q(loot=""))
+            .values("loot")
+            .order_by("loot")
+            .annotate(
+                dropped=Count("id"),
+                sort=Case(When(loot__contains="lootbox", then=1), default=0, output_field=models.IntegerField()),
+            )
+            .order_by("-sort", "-dropped")
+        )
+        if not lifetime_drops:
+            return (("No Results", "No drops could be found."),)
+
+        min_col_size = 8
+        loot_col_size = max(max([len(str(f"{r['loot']}")) for r in lifetime_drops]), min_col_size) + 2
+        dropped_col_size = max(max([len(str(f"{r['dropped']}")) for r in lifetime_drops]), min_col_size) + 2
+        lifetime = f"{'Loot':>{loot_col_size}}  {'Dropped':>{dropped_col_size}}\n"
+        total_dropped = 0
+        for d in lifetime_drops:
+            d = SimpleNamespace(**d)
+            lifetime += f"{d.loot:>{loot_col_size}}  {d.dropped:>{dropped_col_size},}\n"
+            total_dropped += d.dropped
+        lifetime = f"```\n{lifetime}{'Total':>{loot_col_size}}  {total_dropped:>{dropped_col_size},}\n```"
+        return (("Drop Statistics", lifetime),)

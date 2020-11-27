@@ -9,7 +9,7 @@ from pipeline import execution_pipeline
 
 from django.forms.models import model_to_dict
 
-from epic.models import CoolDown, Profile, Server, JoinCode, Gamble
+from epic.models import CoolDown, Profile, Server, JoinCode, Gamble, Hunt
 from epic.utils import tokenize
 
 
@@ -117,6 +117,8 @@ def _help(client, tokens, message, server, profile, msg, help=None, error=None):
         • `rcd whocan|w <command_type>`
         • `rcd dibbs|d`
         • `rcd gamling|g [num_minutes] [@player]`
+        • `rcd drops|dr [num_minutes] [@player]`
+        • `rcd hunts|hu [num_minutes] [@player]`
 
     This bot attempts to determine the cooldowns of your EPIC RPG commands
     and will notify you when it thinks your commands are available again.
@@ -601,19 +603,28 @@ def dibbs(client, tokens, message, server, profile, msg, help=None):
 @params_as_args
 def stats(client, tokens, message, server, profile, msg, help=None):
     """
-    This command shows the output of stats that the helper bot has managed to collect.
+    This command shows the output of {long} stats that the helper bot has managed to collect.
     Usage:
-        • `rcd gambling|g [num_minutes] [@player]`
+        • `rcd {long}|{short} [num_minutes] [@player]`
     Examples:
-        • `rcd gambling` show your own gambling stats
-        • `rcd gambling 3` for the last 3 minutes
-        • `rcd g @player` show a player's gambling stats
+        • `rcd {long}` show your own {long} stats
+        • `rcd {long} 3` for the last 3 minutes
+        • `rcd {short} @player` show a player's {long} stats
     """
-    minutes = None
-    if tokens[0] not in {"gambling", "g"}:
+    minutes, _all = None, False
+    token_map = {
+        "gambling": ("gambling", "g"),
+        "g": ("gambling", "g"),
+        "drops": ("drops", "dr"),
+        "dr": ("drops", "dr"),
+        "hunts": ("hunts", "hu"),
+        "hu": ("hunts", "hu"),
+    }
+    if tokens[0] not in token_map:
         return None
+    long, short = token_map[tokens[0]]
     if help:
-        return {"msg": HelpMessage(stats.__doc__)}
+        return {"msg": HelpMessage(stats.__doc__.format(long=long, short=short))}
     if len(tokens) > 1:
         mentioned_profile = Profile.from_tag(tokens[-1], client, server, message)
         if mentioned_profile:
@@ -621,21 +632,32 @@ def stats(client, tokens, message, server, profile, msg, help=None):
             profile = mentioned_profile
         if re.match(r"^\d+$", tokens[-1]):
             minutes = int(tokens[-1])
-        if not mentioned_profile and not minutes:
+        elif tokens[-1] == "all":
+            _all = True
+        if not mentioned_profile and not minutes and not _all:
             return {
                 "msg": ErrorMessage(
-                    f"`rcd {' '.join(tokens)}` is not valid invocation of `rcd gambling`. "
-                    "Example usage: `rcd g 5 @player`",
-                    title="Usage Error",
+                    f"`rcd {' '.join(tokens)}` is not valid invocation of `rcd {long}`. "
+                    "Example usage: `rcd {short} 5 @player`",
+                    title="Stats Usage Error",
                 )
             }
-
-    user = client.get_user(int(profile.uid))
-    return {
-        "msg": NormalMessage(
-            "", fields=Gamble.objects.stats(profile.uid, minutes), title=f"{user.name}'s Gambling Addiction"
-        )
-    }
+    uid = None if _all else profile.uid
+    name = server.name if _all else client.get_user(int(profile.uid)).name
+    if long == "gambling":
+        return {
+            "msg": NormalMessage(
+                "", fields=Gamble.objects.stats(uid, minutes, server.id), title=f"{name}'s Gambling Addiction"
+            )
+        }
+    elif long == "hunts":
+        return {
+            "msg": NormalMessage("", fields=Hunt.objects.hunt_stats(uid, minutes, server.id), title=f"{name}'s Carnage")
+        }
+    elif long == "drops":
+        return {
+            "msg": NormalMessage("", fields=Hunt.objects.drop_stats(uid, minutes, server.id), title=f"{name}'s Drops")
+        }
 
 
 command_pipeline = execution_pipeline(
