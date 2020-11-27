@@ -2,6 +2,7 @@ import re
 import pytz
 import discord
 import datetime
+import operator
 import functools
 
 from asgiref.sync import sync_to_async
@@ -630,10 +631,12 @@ def stats(client, tokens, message, server, profile, msg, help=None):
         if mentioned_profile:
             tokens = tokens[:-1]
             profile = mentioned_profile
-        if re.match(r"^\d+$", tokens[-1]):
-            minutes = int(tokens[-1])
         elif tokens[-1] == "all":
             _all = True
+            tokens = tokens[:-1]
+        if re.match(r"^([0-9\* ]+)$", tokens[-1]):
+            min_tokens, prod = tokens[-1].replace(" ", "").split("*"), 1
+            minutes = functools.reduce(operator.mul, [int(t) for t in min_tokens], 1)
         if not mentioned_profile and not minutes and not _all:
             return {
                 "msg": ErrorMessage(
