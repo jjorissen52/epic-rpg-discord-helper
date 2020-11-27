@@ -193,6 +193,7 @@ class CoolDown(models.Model):
         "big": lambda x: "arena" if "arena" in x else None,
         "dungeon": lambda x: "dungeon",
         "miniboss": lambda x: "dungeon",
+        "not so mini boss": lambda x: "dungeon" if "join" in x else None,
         "guild": lambda x: "guild" if "raid" in x else None,
     }
 
