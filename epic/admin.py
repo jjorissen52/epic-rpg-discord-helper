@@ -44,6 +44,11 @@ class GambleAdmin(admin.ModelAdmin):
 
 @admin.register(Hunt)
 class HuntAdmin(admin.ModelAdmin):
-    list_display = ["profile", "target", "money", "xp", "loot"]
+    list_display = ["player", "target", "money", "xp", "loot", "created"]
     search_fields = ["profile__last_known_nickname", "target"]
     list_filter = ["loot"]
+
+    def player(self, obj):
+        if not obj.profile:
+            return "Anonymous"
+        return obj.profile.last_known_nickname
