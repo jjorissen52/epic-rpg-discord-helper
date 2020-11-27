@@ -55,12 +55,14 @@ class GamblingStatsManager(models.Manager):
             f"{'Game':<{game_col_size}}     {'Big Win':>{win_col_size}}  {'Big Loss':>{loss_col_size}}\n",
             "",
         )
+        t = SimpleNamespace(big_win=0, big_loss=0, total=0)
         for game in earnings_results:
             g = SimpleNamespace(**game)
             biggest_net += f"{g.g:{game_col_size}} ==> {g.big_win:{win_col_size},}  {g.big_loss:{loss_col_size},}\n"
             lifetime += f"{g.g:{game_col_size}} ==> {g.total:{total_col_size},}\n"
-        biggest_net = f"```\n{biggest_net}```"
-        lifetime = f"```\n{lifetime}```"
+            t.big_win, t.big_loss, t.total = t.big_win + g.big_win, t.big_loss + g.big_loss, t.total + g.total
+        biggest_net = f"```\n{biggest_net}{'Total':{game_col_size}} ==> {t.big_win:{win_col_size},}  {t.big_loss:{loss_col_size},}\n```"
+        lifetime = f"```\n{lifetime}{'Total':{game_col_size}} ==> {t.total:{total_col_size},}```"
 
         games_played = (
             qs.values("game")
@@ -98,11 +100,13 @@ class GamblingStatsManager(models.Manager):
         loss_col_size = max(max([len(str(f"{r['lost']:,}")) for r in games_played_results]), min_col_size)
         tied_col_size = max(max([len(str(f"{r['tied']:,}")) for r in games_played_results]), min_col_size)
         total_col_size = max(max([len(str(f"{r['total']:,}")) for r in games_played_results]), min_col_size)
+        t = SimpleNamespace(wins=0, losses=0, ties=0, total=0)
         games_played = f"{'Game':<{game_col_size}}     {'Wins':>{win_col_size}}  {'Losses':>{loss_col_size}}  {'Ties':>{tied_col_size}}  {'Total':>{total_col_size}}\n"
         for game in games_played_results:
             g = SimpleNamespace(**game)
             games_played += f"{g.g:{game_col_size}} ==> {g.won:{win_col_size},}  {g.lost:{loss_col_size},}  {g.tied:{tied_col_size},}  {g.total:{total_col_size},}\n"
-        games_played = f"```\n{games_played}```"
+            t.wins, t.losses, t.ties, t.total = t.wins + g.won, t.losses + g.lost, t.ties + g.tied, t.total + g.total
+        games_played = f"```\n{games_played}{'Total':{game_col_size}} ==> {t.wins:{win_col_size},}  {t.losses:{loss_col_size},}  {t.ties:{tied_col_size},}  {t.total:{total_col_size},}\n```"
 
         return (
             ("Games Played", games_played),
