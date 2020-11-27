@@ -28,6 +28,7 @@ from epic.query import (
 from epic.utils import tokenize
 
 from epic.cmd_chain import handle_rpcd_message
+from epic.scrape import log_message
 
 
 async def process_rpg_messages(client, server, message):
@@ -92,6 +93,13 @@ class Client(discord.Client):
         if content.startswith("rpgcd") or content.startswith("rcd"):
             if content.startswith("rcd"):
                 tokens = tokenize(message.content[3:])
+                if tokens and tokens[0] == "scrape":
+                    limit = None
+                    if len(tokens) == 2 and tokens[1].isdigit():
+                        limit = int(tokens[1])
+                    async for m in message.channel.history(limit=limit):
+                        logger = await log_message(m)
+                    return await logger.shutdown()
             else:
                 tokens = tokenize(message.content[5:])
             msg = await handle_rpcd_message(self, tokens, message, server, None, None)

@@ -26,7 +26,7 @@ environment_defaults = {
     "INITIAL_ADMIN_PASSWORD": "password123",
     "ALLOWED_HOSTS": ["*"],
     "USE_SQLITE": "1",
-    "DATABASE_NAME": "postgres",
+    "DATABASE_NAME": "epic",
     "DATABASE_USER": "postgres",
     "DATABASE_PASSWORD": "superstrongpassword123",
     "DATABASE_HOST": "127.0.0.1",
@@ -112,7 +112,7 @@ if ENV.USE_SQLITE:
     DATABASES = {
         "default": {
             "ENGINE": "django.db.backends.sqlite3",
-            "NAME": os.path.join(BASE_DIR, "db.sqlite3"),
+            "NAME": os.path.join(BASE_DIR, f"{ENV.DATABASE_NAME}.sqlite3"),
         }
     }
 else:
