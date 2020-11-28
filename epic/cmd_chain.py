@@ -72,7 +72,7 @@ def params_as_args(func):
         if params["profile"] is None:
             message, server, tokens, help = params["message"], params["server"], params["tokens"], params["help"]
             if server is not None:
-                profile, _ = Profile.objects.get_or_create(
+                profile, created = Profile.objects.get_or_create(
                     uid=message.author.id,
                     defaults={
                         "last_known_nickname": message.author.name,
@@ -80,6 +80,8 @@ def params_as_args(func):
                         "channel": message.channel.id,
                     },
                 )
+                if not created and profile.server_id != server.id:
+                    profile.update(server_id=server.id)
                 params["profile"] = profile
             elif not help and tokens and tokens[0] not in {"help", "register"}:
                 params["msg"] = ErrorMessage(
