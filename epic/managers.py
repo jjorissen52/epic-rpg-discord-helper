@@ -121,6 +121,7 @@ class GamblingStatsManager(models.Manager):
 
 class HuntQuerySet(models.QuerySet):
     def profile_hunts(self, profile_id=None, minutes=None, server_id=None):
+        self = self.filter(target__isnull=False)
         if server_id:
             self = self.filter(profile__server_id=server_id)
         if profile_id:
