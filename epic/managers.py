@@ -208,3 +208,19 @@ class HuntManager(models.Manager):
             total_dropped += d.dropped
         lifetime = f"```\n{lifetime}{'Total':>{loot_col_size}}  {total_dropped:>{dropped_col_size},}\n```"
         return (("Drop Statistics", lifetime),)
+
+
+class GroupActivityManager(models.Manager):
+    def delete_stale(self):
+        stale_time = now = datetime.datetime.now(tz=datetime.timezone.utc) - datetime.timedelta(seconds=60)
+        qs = self.get_queryset().filter(created__lt=stale_time).delete()
+
+    def latest_group_activity(self, profile_id_or_nickname, type):
+        qs = self.get_queryset().filter(type=type)
+        if isinstance(profile_id_or_nickname, str) and not profile_id_or_nickname.isdigit():
+            # name conflict must be resolved on a best-effort basis,
+            # which in this case means the newest activity by that profile
+            qs = qs.filter(initiator__last_known_nickname=profile_id_or_nickname)
+        else:
+            qs = qs.filter(initiator_id=profile_id_or_nickname)
+        return qs.order_by("-created").first()

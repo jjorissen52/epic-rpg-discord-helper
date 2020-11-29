@@ -5,12 +5,12 @@ import itertools
 
 from asgiref.sync import sync_to_async
 
-from django.db import models
+from django.db import models, transaction
 from django.utils import timezone
 
 from .mixins import UpdateAble
 from .utils import tokenize
-from .managers import ProfileManager, GamblingStatsManager, HuntManager
+from .managers import ProfileManager, GamblingStatsManager, HuntManager, GroupActivityManager
 
 
 class JoinCode(models.Model):
@@ -97,6 +97,22 @@ class Profile(UpdateAble, models.Model):
                 },
             )
             return profile
+
+    @staticmethod
+    def from_embed_icon(client, server, message, embed):
+        if embed.author and isinstance(embed.author.icon_url, str):
+            user_id = embed.author.icon_url.strip("https://cdn.discordapp.com/avatars/").split("/")[0]
+            user = client.get_user(int(user_id))
+            if user:
+                profile, _ = Profile.objects.get_or_create(
+                    uid=user_id,
+                    defaults={
+                        "last_known_nickname": user.name,
+                        "server": server,
+                        "channel": message.channel.id,
+                    },
+                )
+                return profile
 
 
 class CoolDown(models.Model):
@@ -188,7 +204,7 @@ class CoolDown(models.Model):
         "net": lambda x: "work",
         "boat": lambda x: "work",
         "bigboat": lambda x: "work",
-        "horse": lambda x: "horse" if any([o == x for o in ["training", "breeding", "race"]]) else None,
+        "horse": lambda x: "horse" if any([o in x for o in ["training", "breeding", "race"]]) else None,
         "arena": lambda x: "arena",
         "big": lambda x: "arena" if "arena" in x else None,
         "dungeon": lambda x: "dungeon",
@@ -354,10 +370,7 @@ class Hunt(UpdateAble, models.Model):
         return f"{name} killed a {self.target}"
 
     @staticmethod
-    def save_hunt_result(message):
-        "got a wolf skin"
-        "got a rare lootbox"
-        "got an <:unicornhorn:545329267425149112> unicorn horn"
+    def hunt_result_from_message(message):
         target_regex = re.compile(r"\*\*(?P<name>[^\*]+)\*\* found and killed a [^\*]+\*\*(?P<target>[^\*]+)\*\*")
         earnings_regex = re.compile(r"Earned ([0-9,]+) coins and ([0-9,]+) XP")
         loot_regex = re.compile(r"got an? (\s*<:[^:]+:\d+>\s*)?(?P<loot>[\w ]+)(\s*<:[^:]+:\d+>\s*)?")
@@ -373,3 +386,86 @@ class Hunt(UpdateAble, models.Model):
             return name, target, money, xp, loot
         else:
             return
+
+
+class GroupActivity(UpdateAble, models.Model):
+    ACTIVITY_CHOICES = (
+        ("horse", "horse"),
+        ("dungeon", "dungeon"),
+        ("miniboss", "miniboss"),
+        ("arena", "arena"),
+        ("duel", "duel"),
+    )
+    ACTIVITY_SET = set(a[0] for a in ACTIVITY_CHOICES)
+    REGEX_MAP = {
+        "horse": re.compile(r"\*\*([^\*]+)\*\* got a tier"),
+        "miniboss": re.compile(r"Help \*\*([^\*]+)\*\* defeat"),
+        "duel": re.compile(r"\*\*([^\*]+)\*\* ~-~ :boom: \*\*([^\*]+)\*\*"),
+        "arena": re.compile(r"\*\*([^\*]+)\*\* started an arena event"),
+        "dungeon": re.compile(r"you are in a dungeon! So no, you cant just drink a potion"),
+    }
+
+    initiator = models.ForeignKey(Profile, on_delete=models.CASCADE)
+    type = models.CharField(choices=ACTIVITY_CHOICES, max_length=max([len(c[0]) for c in ACTIVITY_CHOICES]))
+
+    objects = GroupActivityManager()
+
+    def confirm_activity(self, embed):
+        # if we are seeing a dungeon embed, it means the dungon has started.
+        if self.type == "dungeon":
+            if self.REGEX_MAP[self.type].search(str(embed.footer)):
+                return self
+        if isinstance(embed.description, str):
+            match = self.REGEX_MAP[self.type].search(embed.description)
+            print("activity match attempt: ", self.type, embed.description)
+            if match:
+                indicated_nickname = match.group(1)
+                print(f"matched: {self.initiator.last_known_nickname}, {indicated_nickname}")
+                if self.initiator.last_known_nickname == indicated_nickname:
+                    return self
+
+    @staticmethod
+    @transaction.atomic
+    def create_from_tokens(activity, client, profile, server, message, tokens=None):
+        tokens = tokenize(message.content[:250]) if not tokens else tokens
+        invitees = []
+        for token in tokens:
+            invitee = Profile.from_tag(token, client, server, message)
+            if invitee:
+                invitees.append(invitee)
+        activity = GroupActivity.objects.create(initiator=profile, type=activity)
+        if invitees:
+            Invite.objects.bulk_create([Invite(activity=activity, profile=p) for p in invitees])
+        print(activity)
+        return activity
+
+    @transaction.atomic
+    def save_as_cooldowns(self):
+        # shared cooldown type
+        _type = self.type if self.type != "miniboss" else "dungeon"
+        invitees = (
+            Invite.objects.filter(activity_id=self.id)
+            .exclude(profile__cooldown__type=_type)
+            .distinct()
+            .values_list("profile_id", flat=True)
+        )
+        after = datetime.datetime.now(tz=datetime.timezone.utc) + CoolDown.COOLDOWN_MAP[_type]
+        print("invitees: ", invitees)
+        cooldowns = [
+            CoolDown(profile_id=self.initiator.uid, type=_type, after=after),
+            *(CoolDown(profile_id=i, type=_type, after=after) for i in invitees),
+        ]
+        print("cooldowns: ", cooldowns)
+        CoolDown.objects.bulk_create(cooldowns)
+        self.delete()
+
+    def __str__(self):
+        return f"{self.initiator} started {self.type}"
+
+
+class Invite(models.Model):
+    activity = models.ForeignKey(GroupActivity, on_delete=models.CASCADE)
+    profile = models.ForeignKey(Profile, on_delete=models.CASCADE)
+
+    def __str__(self):
+        return f"{self.profile} invited to {self.activity.type}"

@@ -116,11 +116,6 @@ def get_guild_cooldown_messages():
 
 
 @sync_to_async
-def cleanup_old_cooldowns():
-    return CoolDown.objects.filter(after__lt=datetime.datetime.now(tz=datetime.timezone.utc)).delete()
-
-
-@sync_to_async
 def set_guild_cd(profile, after=None):
     now = datetime.datetime.now(tz=datetime.timezone.utc)
     after = now + CoolDown.COOLDOWN_MAP["guild"] if not after else after

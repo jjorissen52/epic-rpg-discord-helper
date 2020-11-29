@@ -13,7 +13,9 @@ from django.core.wsgi import get_wsgi_application
 
 get_wsgi_application()
 
-from epic.models import CoolDown, Profile, Server, JoinCode, Gamble, Hunt
+from asgiref.sync import sync_to_async
+
+from epic.models import CoolDown, Profile, Server, JoinCode, Gamble, Hunt, GroupActivity
 from epic.query import (
     get_instance,
     update_instance,
@@ -34,29 +36,20 @@ from epic.scrape import log_message
 async def process_rpg_messages(client, server, message):
     rpg_cd_rd_cues, cooldown_cue = ["cooldowns", "ready"], "cooldown"
     gambling_cues = set(Gamble.GAME_CUE_MAP.keys())
-    cues = [*rpg_cd_rd_cues, *gambling_cues, cooldown_cue]
+    # arena is special case since it does not show an icon_url
+    group_cues = GroupActivity.ACTIVITY_SET - {"arena"}
+    cues = [*rpg_cd_rd_cues, *gambling_cues, *group_cues, cooldown_cue]
     if "found and killed" in message.content:
-        hunt_result = Hunt.save_hunt_result(message)
+        hunt_result = Hunt.hunt_result_from_message(message)
         if hunt_result:
             name, *other = hunt_result
             possible_userids = [str(m.id) for m in client.get_all_members() if name == m.name]
             return await update_hunt_results(other, possible_userids)
+    profile = None
     for embed in message.embeds:
-        if getattr(embed.author, "name", None) and any([cue in embed.author.name for cue in cues]):
-            # the user mentioned
-            user_id = embed.author.icon_url.strip("https://cdn.discordapp.com/avatars/").split("/")[0]
-            user = client.get_user(int(user_id))
-            profile, _ = await get_instance(
-                Profile,
-                uid=user_id,
-                defaults={
-                    "last_known_nickname": user.name,
-                    "server": server,
-                    "channel": message.channel.id,
-                },
-            )
-            if profile.server_id != server.id or profile.channel != message.channel.id:
-                profile = await update_instance(profile, server_id=server.id, channel=message.channel.id)
+        # the user mentioned
+        profile = await sync_to_async(Profile.from_embed_icon)(client, server, message, embed)
+        if profile and any([cue in embed.author.name for cue in cues]):
             # is the cooldowns list
             if any([cue in embed.author.name for cue in rpg_cd_rd_cues]):
                 update, delete = CoolDown.from_cd(profile, [field.value for field in embed.fields])
@@ -73,6 +66,36 @@ async def process_rpg_messages(client, server, message):
                 gamble = Gamble.from_results_screen(profile, embed)
                 if gamble:
                     await gamble.asave()
+            elif any([cue in embed.author.name for cue in group_cues]):
+                group_activity_type = None
+                for activity_type in group_cues:
+                    if activity_type in embed.author.name:
+                        group_activity_type = activity_type
+                        break
+                else:
+                    return
+                group_activity = await sync_to_async(GroupActivity.objects.latest_group_activity)(
+                    profile.uid, group_activity_type
+                )
+                if group_activity is not None:
+                    print(f"group activity detected {profile.uid} {group_activity_type}")
+                if group_activity:
+                    confirmed_group_activity = await sync_to_async(group_activity.confirm_activity)(embed)
+                    if confirmed_group_activity:
+                        print(f"group activity confirmed for {profile.uid} {group_activity_type}")
+                        await sync_to_async(confirmed_group_activity.save_as_cooldowns)()
+        # special case of GroupActivity
+        arena_match = GroupActivity.REGEX_MAP["arena"].search(str(embed.description))
+        if arena_match:
+            name = arena_match.group(1)
+            group_activity = await sync_to_async(GroupActivity.objects.latest_group_activity)(name, "arena")
+            if group_activity:
+                confirmed_group_activity = group_activity.confirm_activity(embed)
+                if confirmed_group_activity:
+                    await sync_to_async(confirmed_group_activity.save_as_cooldowns)()
+
+    if profile and (profile.server_id != server.id or profile.channel != message.channel.id):
+        profile = await update_instance(profile, server_id=server.id, channel=message.channel.id)
     return
 
 
@@ -125,6 +148,12 @@ class Client(discord.Client):
                 return await set_guild_cd(profile)
             elif cooldown_type in {"hunt", "adventure"}:
                 _, _ = await get_instance(Hunt, profile_id=profile.uid, target=None, defaults={"target": None})
+            elif cooldown_type in GroupActivity.ACTIVITY_SET:
+                # need to know the difference between dungeon and miniboss here
+                cooldown_type = "miniboss" if tokenize(message.content[3:])[0] == "miniboss" else cooldown_type
+                return await sync_to_async(GroupActivity.create_from_tokens)(
+                    cooldown_type, self, profile, server, message
+                )
             await upsert_cooldowns([CoolDown(profile=profile, type=cooldown_type, after=after)])
 
     async def on_message_edit(self, before, after):
@@ -162,6 +191,7 @@ if __name__ == "__main__":
     async def notify():
         await bot.wait_until_ready()
         while not bot.is_closed():
+            await sync_to_async(GroupActivity.objects.delete_stale)()
             cooldown_messages = [
                 *await get_cooldown_messages(),
                 *await get_guild_cooldown_messages(),

@@ -78,8 +78,7 @@ def hunt(file_name="message_dump.json"):
             parsed = json.loads(line)
             h = recursive_namespace(parsed)
             if h.content:
-                # doesn't actually save
-                hunt_result = Hunt.save_hunt_result(h)
+                hunt_result = Hunt.hunt_result_from_message(h)
                 if hunt_result:
                     name, target, money, xp, loot = hunt_result
                     hunts.append(Hunt(profile=all_profiles[name], target=target, money=money, xp=xp, loot=loot))
