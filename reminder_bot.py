@@ -90,7 +90,7 @@ async def process_rpg_messages(client, server, message):
             name = arena_match.group(1)
             group_activity = await sync_to_async(GroupActivity.objects.latest_group_activity)(name, "arena")
             if group_activity:
-                confirmed_group_activity = group_activity.confirm_activity(embed)
+                confirmed_group_activity = sync_to_async(group_activity.confirm_activity)(embed)
                 if confirmed_group_activity:
                     await sync_to_async(confirmed_group_activity.save_as_cooldowns)()
 
