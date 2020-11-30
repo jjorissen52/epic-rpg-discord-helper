@@ -371,7 +371,7 @@ class Hunt(UpdateAble, models.Model):
 
     @staticmethod
     def hunt_result_from_message(message):
-        target_regex = re.compile(r"\*\*(?P<name>[^\*]+)\*\* found and killed a [^\*]+\*\*(?P<target>[^\*]+)\*\*")
+        target_regex = re.compile(r"\*\*(?P<name>[^\*]+)\*\* found and killed an? [^\*]+\*\*(?P<target>[^\*]+)\*\*")
         earnings_regex = re.compile(r"Earned ([0-9,]+) coins and ([0-9,]+) XP")
         loot_regex = re.compile(r"got an? (\s*<:[^:]+:\d+>\s*)?(?P<loot>[\w ]+)(\s*<:[^:]+:\d+>\s*)?")
         target_match = target_regex.search(message.content)
