@@ -456,7 +456,7 @@ class GroupActivity(UpdateAble, models.Model):
             *(CoolDown(profile_id=i, type=_type, after=after) for i in invitees),
         ]
         print("cooldowns: ", cooldowns)
-        CoolDown.objects.bulk_create(cooldowns)
+        CoolDown.objects.bulk_create(cooldowns, ignore_conflicts=True)
         self.delete()
 
     def __str__(self):
