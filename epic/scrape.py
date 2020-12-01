@@ -61,6 +61,7 @@ class DiscordEncoder(json.JSONEncoder):
 async def log_message(message):
     message_basic = {
         "author": get_author(message.author),
+        "created_at": message.created_at,
         "content": str(message.content),
         "channel": get_channel(message.channel),
         "embeds": [
