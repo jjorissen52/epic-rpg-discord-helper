@@ -113,6 +113,7 @@ def _help(client, tokens, message, server, profile, msg, help=None, error=None):
         • `rcd on`
         • `rcd off`
         • `rcd cd` or `rcd`
+        • `rcd rd` or `rrd`
         • `rcd timezone|tz <timezone>`
         • `rcd timeformat|tf "<format_string>"`
         • `rcd notify|n <command_type> on|off`
@@ -144,10 +145,11 @@ def cd(client, tokens, message, server, profile, msg, help=None):
     """
     Display when your cooldowns are expected to be done.
     Usage:
-        • `rcd cd [<cooldown_types> [...<cooldown_types>]]`
+        • `rcd cd [<cooldown_types> [...<cooldown_types>]]` shows all cooldowns
+        • `rcd rd [<cooldown_types> [...<cooldown_types>]]` shows ready cooldowns
     Example:
         • `rcd cd`
-        • `rcd`
+        • `rcd` or `rrd`
         • `rcd daily weekly`
     """
     implicit_invocation = False
@@ -156,7 +158,7 @@ def cd(client, tokens, message, server, profile, msg, help=None):
         tokens, implicit_invocation = ["cd", *tokens], True
     nickname = message.author.name
     cooldown_filter = lambda x: True  # show all filters by default
-    if tokens[0] != "cd":
+    if tokens[0] not in {"rd", "cd"}:
         return None
     if help and len(tokens) == 1:
         return {"msg": HelpMessage(cd.__doc__)}
@@ -191,12 +193,11 @@ def cd(client, tokens, message, server, profile, msg, help=None):
     )
     for cooldown_type in selected_cooldown_types:
         after = cooldowns.get(cooldown_type, None)
-        if after:
-            if after > now:
-                cooldown_after = cooldowns[cooldown_type].astimezone(profile_tz)
-                msg += f":clock2: `{cooldown_type:12} {cooldown_after.strftime(profile.time_format):>20}`\n"
-        else:
+        if not after or after <= now:
             msg += f":white_check_mark: `{cooldown_type:12} {'Ready!':>20}` \n"
+        elif tokens[0] == "cd":  # don't show if "rd" command
+            cooldown_after = cooldowns[cooldown_type].astimezone(profile_tz)
+            msg += f":clock2: `{cooldown_type:12} {cooldown_after.strftime(profile.time_format):>20}`\n"
     if not msg:
         msg = "Please use `rpg cd` or an EPIC RPG command to populate your cooldowns.\n"
     return {"msg": NormalMessage(msg, title=f"**{nickname}'s** Cooldowns ({profile.timezone})")}

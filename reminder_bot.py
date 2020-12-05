@@ -77,12 +77,9 @@ async def process_rpg_messages(client, server, message):
                 group_activity = await sync_to_async(GroupActivity.objects.latest_group_activity)(
                     profile.uid, group_activity_type
                 )
-                if group_activity is not None:
-                    print(f"group activity detected {profile.uid} {group_activity_type}")
                 if group_activity:
                     confirmed_group_activity = await sync_to_async(group_activity.confirm_activity)(embed)
                     if confirmed_group_activity:
-                        print(f"group activity confirmed for {profile.uid} {group_activity_type}")
                         await sync_to_async(confirmed_group_activity.save_as_cooldowns)()
         # special case of GroupActivity
         arena_match = GroupActivity.REGEX_MAP["arena"].search(str(embed.description))
@@ -90,7 +87,7 @@ async def process_rpg_messages(client, server, message):
             name = arena_match.group(1)
             group_activity = await sync_to_async(GroupActivity.objects.latest_group_activity)(name, "arena")
             if group_activity:
-                confirmed_group_activity = sync_to_async(group_activity.confirm_activity)(embed)
+                confirmed_group_activity = await sync_to_async(group_activity.confirm_activity)(embed)
                 if confirmed_group_activity:
                     await sync_to_async(confirmed_group_activity.save_as_cooldowns)()
 
@@ -113,9 +110,18 @@ class Client(discord.Client):
 
         content = message.content[:150].lower()
 
-        if content.startswith("rpgcd") or content.startswith("rcd"):
+        if content.startswith("rpgcd") or content.startswith("rcd") or content.startswith("rrd"):
             if content.startswith("rcd"):
                 tokens = tokenize(message.content[3:])
+                # if tokens and tokens[0] == "scrape":
+                #     limit = None
+                #     if len(tokens) == 2 and tokens[1].isdigit():
+                #         limit = int(tokens[1])
+                #     async for m in message.channel.history(limit=limit):
+                #         logger = await log_message(m)
+                #     return await logger.shutdown()
+            elif content.startswith("rrd"):
+                tokens = ["rd", *tokenize(message.content[3:])]
             else:
                 tokens = tokenize(message.content[5:])
             msg = await handle_rpcd_message(self, tokens, message, server, None, None)
