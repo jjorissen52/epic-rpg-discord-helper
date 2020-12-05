@@ -373,7 +373,7 @@ class Hunt(UpdateAble, models.Model):
     def hunt_result_from_message(message):
         target_regex = re.compile(r"\*\*(?P<name>[^\*]+)\*\* found and killed an? [^\*]+\*\*(?P<target>[^\*]+)\*\*")
         earnings_regex = re.compile(r"Earned ([0-9,]+) coins and ([0-9,]+) XP")
-        loot_regex = re.compile(r"got an? (\s*<:[^:]+:\d+>\s*)?(?P<loot>[\w ]+)(\s*<:[^:]+:\d+>\s*)?")
+        loot_regex = re.compile(r"got an? \*?\*?(\s*<:[^:]+:\d+>\s*)?(?P<loot>[\w ]+)(\s*<:[^:]+:\d+>\s*)?\*?\*?")
         target_match = target_regex.search(message.content)
         earnings_match = earnings_regex.search(message.content)
         loot_match = loot_regex.search(message.content)
@@ -417,10 +417,8 @@ class GroupActivity(UpdateAble, models.Model):
                 return self
         if isinstance(embed.description, str):
             match = self.REGEX_MAP[self.type].search(embed.description)
-            print("activity match attempt: ", self.type, embed.description)
             if match:
                 indicated_nickname = match.group(1)
-                print(f"matched: {self.initiator.last_known_nickname}, {indicated_nickname}")
                 if self.initiator.last_known_nickname == indicated_nickname:
                     return self
 
@@ -436,7 +434,6 @@ class GroupActivity(UpdateAble, models.Model):
         activity = GroupActivity.objects.create(initiator=profile, type=activity)
         if invitees:
             Invite.objects.bulk_create([Invite(activity=activity, profile=p) for p in invitees])
-        print(activity)
         return activity
 
     @transaction.atomic
@@ -450,12 +447,10 @@ class GroupActivity(UpdateAble, models.Model):
             .values_list("profile_id", flat=True)
         )
         after = datetime.datetime.now(tz=datetime.timezone.utc) + CoolDown.COOLDOWN_MAP[_type]
-        print("invitees: ", invitees)
         cooldowns = [
             CoolDown(profile_id=self.initiator.uid, type=_type, after=after),
             *(CoolDown(profile_id=i, type=_type, after=after) for i in invitees),
         ]
-        print("cooldowns: ", cooldowns)
         CoolDown.objects.bulk_create(cooldowns, ignore_conflicts=True)
         self.delete()
 
