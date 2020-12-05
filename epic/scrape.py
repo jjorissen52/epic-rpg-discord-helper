@@ -1,6 +1,7 @@
 import json
 import asyncio
 import discord
+import datetime
 
 from aiologger.loggers.json import JsonLogger
 from aiologger.handlers.files import AsyncFileHandler
@@ -54,6 +55,8 @@ class DiscordEncoder(json.JSONEncoder):
             return obj.__repr__()
         elif isinstance(obj, discord.embeds._EmptyEmbed):
             return None
+        elif isinstance(obj, datetime.datetime):
+            return obj.isoformat()
         # Let the base class default method raise the TypeError
         return json.JSONEncoder.default(self, obj)
 
