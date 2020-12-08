@@ -701,7 +701,6 @@ def event(client, tokens, message, server, profile, msg, help=None):
             _event = Event.parse_event(tokens[3:], tokens[2])
             try:
                 _event.save()
-                return {"msg": SuccessMessage(f'Event "{tokens[2]}" successfully modified.', title="Upsert Success")}
             except Exception as e:
                 return {"msg": ErrorMessage(f"Encountered error executing command` {' '.join(tokens)}`; err = {e}")}
         else:
@@ -720,16 +719,16 @@ def event(client, tokens, message, server, profile, msg, help=None):
             return {"msg": ErrorMessage(f"Encountered error executing command` {' '.join(tokens)}`; err = {e}")}
     else:
         _event = Event.parse_event([], tokens[2], upsert=False)
-        fields = [
-            (
-                "Effective (UTC)",
-                f'{_event.start.strftime("%Y-%m-%dT%H:%M")} to {_event.end.strftime("%Y-%m-%dT%H:%M")}',
-            ),
-        ]
-        if _event.cooldown_adjustments:
-            adj = _event.cooldown_adjustments
-            fields.append(("Cooldowns (in Seconds)", "\n".join([f"{k:25} => {adj[k]:15}" for k in adj.keys()])))
-        return {"msg": NormalMessage("", title=tokens[2], fields=fields)}
+    fields = [
+        (
+            "Effective (UTC)",
+            f'{_event.start.strftime("%Y-%m-%dT%H:%M")} to {_event.end.strftime("%Y-%m-%dT%H:%M")}',
+        ),
+    ]
+    if _event.cooldown_adjustments:
+        adj = _event.cooldown_adjustments
+        fields.append(("Cooldowns (in Seconds)", "\n".join([f"{k:25} => {adj[k]:15}" for k in adj.keys()])))
+    return {"msg": NormalMessage("", title=f'{tokens[1]} "{tokens[2]}"', fields=fields)}
 
 
 @params_as_args
