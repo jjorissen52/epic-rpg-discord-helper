@@ -3,6 +3,7 @@ import pytz
 import discord
 import datetime
 import operator
+import inspect
 import functools
 
 from asgiref.sync import sync_to_async
@@ -12,6 +13,7 @@ from django.forms.models import model_to_dict
 
 from epic.models import CoolDown, Profile, Server, JoinCode, Gamble, Hunt, Event
 from epic.utils import tokenize
+from epic.scrape import scrape_history
 
 
 class RCDMessage:
@@ -63,7 +65,7 @@ def params_as_args(func):
 
     @functools.wraps(func)
     def wrapper(params):
-        if params["msg"] or params.get("error", None):
+        if params["msg"] or params.get("error", None) or params.get("coro", None):
             # short-circuit to prevent running
             # the rest of the command chain
             return params
@@ -100,16 +102,16 @@ def params_as_args(func):
 
 def admin_protected(func):
     @functools.wraps(func)
-    def wrapper(client, tokens, message, server, profile, msg, help=None, **kwargs):
-        if tokens[0] in {"admin", "event"} and not profile.admin_user:
+    def wrapper(client, tokens, message, server, profile, msg, help=None):
+        if tokens[0] in {"admin", "event", "scrape"} and not profile.admin_user:
             return {"msg": ErrorMessage("Sorry, only administrative users can use this command.")}
-        return func(client, tokens, message, server, profile, msg, help=None, **kwargs)
+        return func(client, tokens, message, server, profile, msg, help)
 
     return wrapper
 
 
 @params_as_args
-def _help(client, tokens, message, server, profile, msg, help=None, **kwargs):
+def _help(client, tokens, message, server, profile, msg, help=None):
     """
 
     Call `help` on an available command to see it's usage. Example:
@@ -151,7 +153,7 @@ def _help(client, tokens, message, server, profile, msg, help=None, **kwargs):
 
 
 @params_as_args
-def cd(client, tokens, message, server, profile, msg, help=None, **kwargs):
+def cd(client, tokens, message, server, profile, msg, help=None):
     """
     Display when your cooldowns are expected to be done.
     Usage:
@@ -214,7 +216,7 @@ def cd(client, tokens, message, server, profile, msg, help=None, **kwargs):
 
 
 @params_as_args
-def register(client, tokens, message, server, profile, msg, help=None, error=None, **kwargs):
+def register(client, tokens, message, server, profile, msg, help=None):
     """
         Register your server for use with Epic Reminder.
     Compute resources are limited, so invite codes will be doled out sparingly.
@@ -242,7 +244,7 @@ def register(client, tokens, message, server, profile, msg, help=None, error=Non
 
 
 @params_as_args
-def _profile(client, tokens, message, server, profile, msg, help=None, **kwargs):
+def _profile(client, tokens, message, server, profile, msg, help=None):
     """
     When called without any arguments, e.g. `rcd profile` this will display
     profile-related information. Otherwise, it will treat your input as a profile related sub-command.
@@ -297,7 +299,7 @@ def _profile(client, tokens, message, server, profile, msg, help=None, **kwargs)
 
 
 @params_as_args
-def notify(client, tokens, message, server, profile, msg, help=None, **kwargs):
+def notify(client, tokens, message, server, profile, msg, help=None):
     """
         Manage your notification settings. Here you can specify which types of
     epic rpg commands you would like to receive reminders for. For example, you can
@@ -362,7 +364,7 @@ def notify(client, tokens, message, server, profile, msg, help=None, **kwargs):
 
 
 @params_as_args
-def toggle(client, tokens, message, server, profile, msg, help=None, **kwargs):
+def toggle(client, tokens, message, server, profile, msg, help=None):
     """
     Toggle your profile notifications **{version}**. Example:
       • `rcd {version}`
@@ -380,7 +382,7 @@ def toggle(client, tokens, message, server, profile, msg, help=None, **kwargs):
 
 
 @params_as_args
-def timezone(client, tokens, message, server, profile, msg, help=None, **kwargs):
+def timezone(client, tokens, message, server, profile, msg, help=None):
     """
     Set your timezone. Example:
         • `rcd timezone <timezone>` Sets your timezone to the provided timzone.
@@ -433,7 +435,7 @@ def timezone(client, tokens, message, server, profile, msg, help=None, **kwargs)
 
 
 @params_as_args
-def timeformat(client, tokens, message, server, profile, msg, help=None, **kwargs):
+def timeformat(client, tokens, message, server, profile, msg, help=None):
     """
     Set the time format for the output of rcd using Python
     `strftime` notation. Defaults to `%I:%M:%S %p, %m/%d`. If
@@ -510,7 +512,7 @@ def timeformat(client, tokens, message, server, profile, msg, help=None, **kwarg
 
 
 @params_as_args
-def whocan(client, tokens, message, server, profile, msg, help=None, **kwargs):
+def whocan(client, tokens, message, server, profile, msg, help=None):
     """
     Determine who in your server can use a particular command. Example:
       • `rcd whocan dungeon`
@@ -555,7 +557,7 @@ def whocan(client, tokens, message, server, profile, msg, help=None, **kwargs):
 
 
 @params_as_args
-def dibbs(client, tokens, message, server, profile, msg, help=None, **kwargs):
+def dibbs(client, tokens, message, server, profile, msg, help=None):
     """
     Call "dibbs" on the guild raid.
     Usage:
@@ -599,7 +601,7 @@ def dibbs(client, tokens, message, server, profile, msg, help=None, **kwargs):
 
 
 @params_as_args
-def stats(client, tokens, message, server, profile, msg, help=None, **kwargs):
+def stats(client, tokens, message, server, profile, msg, help=None):
     """
     This command shows the output of {long} stats that the helper bot has managed to collect.
     Usage:
@@ -662,22 +664,23 @@ def stats(client, tokens, message, server, profile, msg, help=None, **kwargs):
 
 @params_as_args
 @admin_protected
-def admin(client, tokens, message, server, profile, msg, help=None, **kwargs):
+def admin(client, tokens, message, server, profile, msg, help=None):
     """
-    Commands only available to administrative users.
+    Commands only available to administrative users. Use `rcd help admin [command]` for usage.
     • `rcd admin event`
+    • `rcd admin scrape`
     """
     if tokens[0] != "admin":
         return None
-    if help:
-        if len(tokens) > 1:
-            return {"tokens": tokens[1:]}
+    if len(tokens) > 1:
+        return {"tokens": tokens[1:]}
+    elif help:
         return {"msg": HelpMessage(admin.__doc__, title="Admin Help")}
 
 
 @params_as_args
 @admin_protected
-def event(client, tokens, message, server, profile, msg, help=None, **kwargs):
+def event(client, tokens, message, server, profile, msg, help=None):
     """
     Create and activate an event that has cooldown modifications. This will be active
     for all users.
@@ -729,6 +732,30 @@ def event(client, tokens, message, server, profile, msg, help=None, **kwargs):
         return {"msg": NormalMessage("", title=tokens[2], fields=fields)}
 
 
+@params_as_args
+@admin_protected
+def scrape(client, tokens, message, server, profile, msg, help=None):
+    """
+    Scrape the contents of this channel for future refence.
+    Usage:
+        • `rcd admin scrape [limit]`
+    """
+    if tokens[0] != "scrape":
+        return None
+    if help:
+        return {"msg": HelpMessage(scrape.__doc__)}
+    limit = None
+    if len(tokens) > 1:
+        if not tokens[1].isdigit():
+            return {"msg": ErrorMessage(f"scrape limit must be an integer, got {tokens[1]}.")}
+        limit = tokens[1]
+    scope = "all" if not limit else f"last {limit}"
+    return {
+        "msg": SuccessMessage(f"Beginning Scrape of {scope} messages in this channel."),
+        "coro": (scrape_history, (message, limit)),
+    }
+
+
 command_pipeline = execution_pipeline(
     pre=[
         _help,  # needs to be first to pass "help" param to those that follow
@@ -747,16 +774,20 @@ command_pipeline = execution_pipeline(
         register,  # called rarely, should be last.
         admin,
         event,
+        scrape,
     ],
 )
 
 
 @sync_to_async
 @command_pipeline
-def handle_rpcd_message(client, tokens, message, server, profile, msg, help=None, error=None):
+def handle_rpcd_message(client, tokens, message, server, profile, msg, help=None, error=None, coro=None):
+    _msg, _coro = msg, None
     if (error and not isinstance(error, str)) or not msg:
         original_tokens = tokenize(message.content[:250], preserve_case=True)
-        return ErrorMessage(f"`{' '.join(original_tokens)}` could not be parsed as a valid command.")
+        _msg = ErrorMessage(f"`{' '.join(original_tokens)}` could not be parsed as a valid command.")
     elif error:
-        return ErrorMessage(error)
-    return msg
+        _msg = ErrorMessage(error)
+    if coro and inspect.iscoroutinefunction(coro[0]):
+        _coro = coro
+    return (_msg, _coro)

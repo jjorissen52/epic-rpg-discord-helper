@@ -113,20 +113,17 @@ class Client(discord.Client):
         if content.startswith("rpgcd") or content.startswith("rcd") or content.startswith("rrd"):
             if content.startswith("rcd"):
                 tokens = tokenize(message.content[3:])
-                # if tokens and tokens[0] == "scrape":
-                #     limit = None
-                #     if len(tokens) == 2 and tokens[1].isdigit():
-                #         limit = int(tokens[1])
-                #     async for m in message.channel.history(limit=limit):
-                #         logger = await log_message(m)
-                #     return await logger.shutdown()
             elif content.startswith("rrd"):
                 tokens = ["rd", *tokenize(message.content[3:])]
             else:
                 tokens = tokenize(message.content[5:])
-            msg = await handle_rpcd_message(self, tokens, message, server, None, None)
+            msg, coro = await handle_rpcd_message(self, tokens, message, server, None, None)
             embed = msg.to_embed()
             await message.channel.send(embed=embed)
+            if coro:
+                coroutine_func, args = coro
+                completed_message = await coroutine_func(*args)
+                await message.channel.send(completed_message)
 
         if not server:
             return

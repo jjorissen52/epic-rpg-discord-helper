@@ -80,3 +80,11 @@ async def log_message(message):
     }
     await logger.info(json.dumps(message_basic, cls=DiscordEncoder))
     return logger
+
+
+async def scrape_history(message, limit=None):
+    limit = int(limit) if limit and limit.isdigit() else None
+    async for m in message.channel.history(limit=limit):
+        logger = await log_message(m)
+    await logger.shutdown()
+    return f"<@!{message.author.id}> Your scrape has completed."
