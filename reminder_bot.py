@@ -136,7 +136,7 @@ class Client(discord.Client):
             return await process_rpg_messages(self, server, message)
 
         if content.startswith("rpg"):
-            cooldown_type, after = CoolDown.cd_from_command(message.content[3:])
+            cooldown_type, after = await sync_to_async(CoolDown.cd_from_command)(message.content[3:])
             if not cooldown_type:
                 return
             profile, _ = await get_instance(

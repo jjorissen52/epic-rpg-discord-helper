@@ -1,6 +1,6 @@
 from django.contrib import admin
 
-from .models import Profile, CoolDown, Server, JoinCode, Guild, Gamble, Hunt
+from .models import Profile, CoolDown, Server, JoinCode, Guild, Gamble, Hunt, GroupActivity, Invite, Event
 
 
 @admin.register(JoinCode)
@@ -22,8 +22,11 @@ class GuildAdmin(admin.ModelAdmin):
 @admin.register(Profile)
 class ProfileAdmin(admin.ModelAdmin):
     search_fields = ("last_known_nickname", "uid")
-    list_display = ("last_known_nickname", "uid", "player_guild")
+    list_display = ("last_known_nickname", "uid", "player_guild", "admin_user")
     list_filter = ("notify", "player_guild")
+
+    def is_admin_user(self, obj):
+        return bool(self.admin_user)
 
 
 @admin.register(CoolDown)
@@ -52,3 +55,17 @@ class HuntAdmin(admin.ModelAdmin):
         if not obj.profile:
             return "Anonymous"
         return obj.profile.last_known_nickname
+
+
+@admin.register(GroupActivity)
+class GroupActivityAdmin(admin.ModelAdmin):
+    list_display = ("initiator", "type")
+
+    @property
+    def participants(self, obj):
+        return ",".join(Invite.objects.filter(activity=obj).values("profile__last_known_nickname"))
+
+
+@admin.register(Event)
+class EventAdmin(admin.ModelAdmin):
+    list_display = ("event_name",)

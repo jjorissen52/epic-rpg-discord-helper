@@ -10,7 +10,7 @@ from pipeline import execution_pipeline
 
 from django.forms.models import model_to_dict
 
-from epic.models import CoolDown, Profile, Server, JoinCode, Gamble, Hunt
+from epic.models import CoolDown, Profile, Server, JoinCode, Gamble, Hunt, Event
 from epic.utils import tokenize
 
 
@@ -98,8 +98,18 @@ def params_as_args(func):
     return wrapper
 
 
+def admin_protected(func):
+    @functools.wraps(func)
+    def wrapper(client, tokens, message, server, profile, msg, help=None, **kwargs):
+        if tokens[0] in {"admin", "event"} and not profile.admin_user:
+            return {"msg": ErrorMessage("Sorry, only administrative users can use this command.")}
+        return func(client, tokens, message, server, profile, msg, help=None, **kwargs)
+
+    return wrapper
+
+
 @params_as_args
-def _help(client, tokens, message, server, profile, msg, help=None, error=None):
+def _help(client, tokens, message, server, profile, msg, help=None, **kwargs):
     """
 
     Call `help` on an available command to see it's usage. Example:
@@ -141,7 +151,7 @@ def _help(client, tokens, message, server, profile, msg, help=None, error=None):
 
 
 @params_as_args
-def cd(client, tokens, message, server, profile, msg, help=None):
+def cd(client, tokens, message, server, profile, msg, help=None, **kwargs):
     """
     Display when your cooldowns are expected to be done.
     Usage:
@@ -204,7 +214,7 @@ def cd(client, tokens, message, server, profile, msg, help=None):
 
 
 @params_as_args
-def register(client, tokens, message, server, profile, msg, help=None, error=None):
+def register(client, tokens, message, server, profile, msg, help=None, error=None, **kwargs):
     """
         Register your server for use with Epic Reminder.
     Compute resources are limited, so invite codes will be doled out sparingly.
@@ -232,7 +242,7 @@ def register(client, tokens, message, server, profile, msg, help=None, error=Non
 
 
 @params_as_args
-def _profile(client, tokens, message, server, profile, msg, help=None):
+def _profile(client, tokens, message, server, profile, msg, help=None, **kwargs):
     """
     When called without any arguments, e.g. `rcd profile` this will display
     profile-related information. Otherwise, it will treat your input as a profile related sub-command.
@@ -287,7 +297,7 @@ def _profile(client, tokens, message, server, profile, msg, help=None):
 
 
 @params_as_args
-def notify(client, tokens, message, server, profile, msg, help=None):
+def notify(client, tokens, message, server, profile, msg, help=None, **kwargs):
     """
         Manage your notification settings. Here you can specify which types of
     epic rpg commands you would like to receive reminders for. For example, you can
@@ -352,7 +362,7 @@ def notify(client, tokens, message, server, profile, msg, help=None):
 
 
 @params_as_args
-def toggle(client, tokens, message, server, profile, msg, help=None):
+def toggle(client, tokens, message, server, profile, msg, help=None, **kwargs):
     """
     Toggle your profile notifications **{version}**. Example:
       • `rcd {version}`
@@ -370,7 +380,7 @@ def toggle(client, tokens, message, server, profile, msg, help=None):
 
 
 @params_as_args
-def timezone(client, tokens, message, server, profile, msg, help=None):
+def timezone(client, tokens, message, server, profile, msg, help=None, **kwargs):
     """
     Set your timezone. Example:
         • `rcd timezone <timezone>` Sets your timezone to the provided timzone.
@@ -423,7 +433,7 @@ def timezone(client, tokens, message, server, profile, msg, help=None):
 
 
 @params_as_args
-def timeformat(client, tokens, message, server, profile, msg, help=None):
+def timeformat(client, tokens, message, server, profile, msg, help=None, **kwargs):
     """
     Set the time format for the output of rcd using Python
     `strftime` notation. Defaults to `%I:%M:%S %p, %m/%d`. If
@@ -500,7 +510,7 @@ def timeformat(client, tokens, message, server, profile, msg, help=None):
 
 
 @params_as_args
-def whocan(client, tokens, message, server, profile, msg, help=None):
+def whocan(client, tokens, message, server, profile, msg, help=None, **kwargs):
     """
     Determine who in your server can use a particular command. Example:
       • `rcd whocan dungeon`
@@ -545,7 +555,7 @@ def whocan(client, tokens, message, server, profile, msg, help=None):
 
 
 @params_as_args
-def dibbs(client, tokens, message, server, profile, msg, help=None):
+def dibbs(client, tokens, message, server, profile, msg, help=None, **kwargs):
     """
     Call "dibbs" on the guild raid.
     Usage:
@@ -589,7 +599,7 @@ def dibbs(client, tokens, message, server, profile, msg, help=None):
 
 
 @params_as_args
-def stats(client, tokens, message, server, profile, msg, help=None):
+def stats(client, tokens, message, server, profile, msg, help=None, **kwargs):
     """
     This command shows the output of {long} stats that the helper bot has managed to collect.
     Usage:
@@ -650,6 +660,75 @@ def stats(client, tokens, message, server, profile, msg, help=None):
         }
 
 
+@params_as_args
+@admin_protected
+def admin(client, tokens, message, server, profile, msg, help=None, **kwargs):
+    """
+    Commands only available to administrative users.
+    • `rcd admin event`
+    """
+    if tokens[0] != "admin":
+        return None
+    if help:
+        if len(tokens) > 1:
+            return {"tokens": tokens[1:]}
+        return {"msg": HelpMessage(admin.__doc__, title="Admin Help")}
+
+
+@params_as_args
+@admin_protected
+def event(client, tokens, message, server, profile, msg, help=None, **kwargs):
+    """
+    Create and activate an event that has cooldown modifications. This will be active
+    for all users.
+    Usage:
+    • `rcd admin event upsert|show|delete "NAME" [param=value {param=value ...}]`
+    • `rcd admin event show NAME`
+    Example:
+        The below command will create or update the event XMAS 2020 to start at `2020-12-01T00:00:00` UTC,
+        end at `2020-01-01T00:00:00` UTC, and have cooldown for arena as 7200 seconds for the duration.
+        • `rcd admin event upsert "XMAS 2020" start=2020-12-01T00:00:00 end=2020-01-01T00:00:00 arena=60*60*12`
+    """
+    if not tokens[0] == "event":
+        return None
+    if help or len(tokens) < 3 or tokens[1] not in {"upsert", "show", "delete"}:
+        return {"msg": HelpMessage(event.__doc__, title="Admin Event Help")}
+    if tokens[1] == "upsert":
+        if len(tokens) > 3:
+            _event = Event.parse_event(tokens[3:], tokens[2])
+            try:
+                _event.save()
+                return {"msg": SuccessMessage(f'Event "{tokens[2]}" successfully modified.', title="Upsert Success")}
+            except Exception as e:
+                return {"msg": ErrorMessage(f"Encountered error executing command` {' '.join(tokens)}`; err = {e}")}
+        else:
+            return {
+                "msg": ErrorMessage(
+                    f'`rcd admin event {tokens[1]} "{tokens[2]}"` could not be parsed as a valid command. '
+                    "Did you provide all required arguments?"
+                )
+            }
+    elif tokens[1] == "delete":
+        _event = Event.parse_event([], tokens[2])
+        try:
+            _event.delete()
+            return {"msg": SuccessMessage(f'Event "{tokens[2]}" successfully deleted.', title="Delete Success")}
+        except Exception as e:
+            return {"msg": ErrorMessage(f"Encountered error executing command` {' '.join(tokens)}`; err = {e}")}
+    else:
+        _event = Event.parse_event([], tokens[2], upsert=False)
+        fields = [
+            (
+                "Effective (UTC)",
+                f'{_event.start.strftime("%Y-%m-%dT%H:%M")} to {_event.end.strftime("%Y-%m-%dT%H:%M")}',
+            ),
+        ]
+        if _event.cooldown_adjustments:
+            adj = _event.cooldown_adjustments
+            fields.append(("Cooldowns (in Seconds)", "\n".join([f"{k:25} => {adj[k]:15}" for k in adj.keys()])))
+        return {"msg": NormalMessage("", title=tokens[2], fields=fields)}
+
+
 command_pipeline = execution_pipeline(
     pre=[
         _help,  # needs to be first to pass "help" param to those that follow
@@ -666,6 +745,8 @@ command_pipeline = execution_pipeline(
         timezone,
         timeformat,
         register,  # called rarely, should be last.
+        admin,
+        event,
     ],
 )
 

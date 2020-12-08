@@ -9,7 +9,7 @@ from django.db import models, transaction
 from django.utils import timezone
 
 from .mixins import UpdateAble
-from .utils import tokenize
+from .utils import tokenize, int_from_token
 from .managers import ProfileManager, GamblingStatsManager, HuntManager, GroupActivityManager
 
 
@@ -52,6 +52,7 @@ class Profile(UpdateAble, models.Model):
     TIMEZONE_CHOICES = tuple(zip(pytz.common_timezones, pytz.common_timezones))
     DEFAULT_TIME_FORMAT, MAX_TIME_FORMAT_LENGTH = "%I:%M:%S %p, %m/%d", 50
     user_id_regex = re.compile(r"<@!?(?P<user_id>\d+)>")
+    admin_user = models.ForeignKey("auth.user", null=True, blank=True, on_delete=models.SET_NULL)
 
     uid = models.CharField(max_length=50, primary_key=True)
     server = models.ForeignKey(Server, on_delete=models.CASCADE)
@@ -206,16 +207,28 @@ class CoolDown(models.Model):
         "bigboat": lambda x: "work",
         "horse": lambda x: "horse" if any([o in x for o in ["training", "breeding", "race"]]) else None,
         "arena": lambda x: "arena",
-        "big": lambda x: "arena" if "arena" in x else None,
+        "big": lambda x: "arena" if "arena join" in x else None,
         "dungeon": lambda x: "dungeon",
         "miniboss": lambda x: "dungeon",
-        "not so mini boss": lambda x: "dungeon" if "join" in x else None,
-        "guild": lambda x: "guild" if "raid" in x else None,
+        "not": lambda x: "dungeon" if "so mini boss join" in x else None,
+        "guild": lambda x: "guild" if any([o in x for o in ("raid", "upgrade")]) else None,
     }
 
     profile = models.ForeignKey(Profile, on_delete=models.CASCADE)
     type = models.CharField(choices=COOLDOWN_TYPE_CHOICES, max_length=10)
     after = models.DateTimeField()
+
+    @staticmethod
+    def get_cooldown(cooldown_type, default=None):
+        if not cooldown_type in CoolDown.COOLDOWN_MAP:
+            return None
+        cooldown_map = CoolDown.COOLDOWN_MAP.copy()
+        now = datetime.datetime.now(tz=datetime.timezone.utc)
+        active_events = Event.objects.filter(start__lt=now, end__gt=now)
+        for event in active_events:
+            if event.cooldown_adjustments:
+                cooldown_map.update({k: datetime.timedelta(seconds=v) for k, v in event.cooldown_adjustments.items()})
+        return cooldown_map.get(cooldown_type, default)
 
     def __str__(self):
         return f"{self.profile} can {self.type} after {self.after}"
@@ -235,7 +248,7 @@ class CoolDown(models.Model):
             resolved = CoolDown.COMMAND_RESOLUTION_MAP.get(cmd, lambda x: None)(" ".join(args))
         if not resolved:
             return None, None
-        return resolved, datetime.datetime.now(tz=datetime.timezone.utc) + CoolDown.COOLDOWN_MAP[resolved]
+        return resolved, datetime.datetime.now(tz=datetime.timezone.utc) + CoolDown.get_cooldown(resolved)
 
     @staticmethod
     def from_cd(profile, fields):
@@ -446,7 +459,7 @@ class GroupActivity(UpdateAble, models.Model):
             .distinct()
             .values_list("profile_id", flat=True)
         )
-        after = datetime.datetime.now(tz=datetime.timezone.utc) + CoolDown.COOLDOWN_MAP[_type]
+        after = datetime.datetime.now(tz=datetime.timezone.utc) + CoolDown.get_cooldown(_type)
         cooldowns = [
             CoolDown(profile_id=self.initiator.uid, type=_type, after=after),
             *(CoolDown(profile_id=i, type=_type, after=after) for i in invitees),
@@ -464,3 +477,30 @@ class Invite(models.Model):
 
     def __str__(self):
         return f"{self.profile} invited to {self.activity.type}"
+
+
+class Event(models.Model):
+    event_name = models.CharField(max_length=128)
+    cooldown_adjustments = models.JSONField()
+    start = models.DateTimeField(auto_now_add=True)
+    end = models.DateTimeField()
+
+    @staticmethod
+    def parse_event(tokens, event_name, upsert=True):
+        cooldown_adjustments = {}
+        event = Event.objects.filter(event_name=event_name).first()
+        if not event:
+            event = Event(event_name=event_name)
+        for token in tokens:
+            param, value = token.split("=")
+            if param in CoolDown.COOLDOWN_MAP:
+                cooldown_adjustments[param] = int_from_token(value)
+            elif param in {"start", "end"}:
+                time = datetime.datetime.strptime(value, "%Y-%m-%dt%H:%M").astimezone(datetime.timezone.utc)
+                setattr(event, param, time)
+        if upsert:
+            event.cooldown_adjustments = cooldown_adjustments
+        return event
+
+    def __str__(self):
+        return self.event_name
