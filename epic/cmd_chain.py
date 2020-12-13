@@ -538,7 +538,7 @@ def whocan(client, tokens, message, server, profile, msg, help=None):
     if len(tokens) > 2:
         cooldown_type = cooldown_type_func(" ".join(tokens[2:]))
     else:
-        cooldown_type = cooldown_type_func(None)
+        cooldown_type = cooldown_type_func("")
 
     ats = [
         f"<@{uid}>"
@@ -570,30 +570,28 @@ def dibbs(client, tokens, message, server, profile, msg, help=None):
         return None
     if help:
         return {"msg": HelpMessage(dibbs.__doc__)}
+
     if not profile.player_guild:
         return {"msg": ErrorMessage(":disappointed: You aren't part of a guild.")}
-    elif not profile.player_guild.after:
-        return {
-            "msg": ErrorMessage(
-                "I don't know when the next guild raid is. Run `rpg guild raid` "
-                "in a channel that I can see and try again."
-            )
-        }
     tz, tf = pytz.timezone(profile.timezone), profile.time_format
-    after = profile.player_guild.after.astimezone(tz).strftime(tf)
+    after_message = (
+        f" at `{profile.player_guild.after.astimezone(tz).strftime(tf)}`" if profile.player_guild.after else ""
+    )
     raid_dibbs = profile.player_guild.raid_dibbs
     if tokens[0][-1] == "?":
         if raid_dibbs:
             player_with_dibbs = client.get_user(int(raid_dibbs.uid))
-            return {"msg": NormalMessage(f"**{player_with_dibbs}** has dibbs on the next guild raid at `{after}`.")}
+            return {"msg": NormalMessage(f"**{player_with_dibbs}** has dibbs on the next guild raid{after_message}.")}
         else:
-            return {"msg": NormalMessage(f"No one has dibbs on the next guild raid at `{after}`.")}
+            return {"msg": NormalMessage(f"No one has dibbs on the next guild raid{after_message}.")}
     if not raid_dibbs:
         profile.player_guild.update(raid_dibbs=profile)
-        return {"msg": SuccessMessage(f"Okay! You've got dibbs on the next guild raid at `{after}`!", title="Dibbsed!")}
+        return {
+            "msg": SuccessMessage(f"Okay! You've got dibbs on the next guild raid{after_message}!", title="Dibbsed!")
+        }
     elif raid_dibbs == profile:
         return {
-            "msg": NormalMessage(f"You've already got dibbs on the next guild raid at `{after}`!", title="Dibbsed!")
+            "msg": NormalMessage(f"You've already got dibbs on the next guild raid{after_message}!", title="Dibbsed!")
         }
     else:
         player_with_dibbs = client.get_user(int(raid_dibbs.uid))

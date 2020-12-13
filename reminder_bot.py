@@ -152,11 +152,14 @@ class Client(discord.Client):
             elif cooldown_type in {"hunt", "adventure"}:
                 _, _ = await get_instance(Hunt, profile_id=profile.uid, target=None, defaults={"target": None})
             elif cooldown_type in GroupActivity.ACTIVITY_SET:
-                # need to know the difference between dungeon and miniboss here
-                cooldown_type = "miniboss" if tokenize(message.content[3:])[0] == "miniboss" else cooldown_type
-                return await sync_to_async(GroupActivity.create_from_tokens)(
-                    cooldown_type, self, profile, server, message
-                )
+                tokens = tokenize(message.content[3:])
+                # when a group activity is actually a solo activity...
+                if tuple(tokens[:2]) not in {("big", "arena"), ("horse", "breeding"), ("not", "so")}:
+                    # need to know the difference between dungeon and miniboss here
+                    cooldown_type = "miniboss" if tokens[0] == "miniboss" else cooldown_type
+                    return await sync_to_async(GroupActivity.create_from_tokens)(
+                        cooldown_type, self, profile, server, message
+                    )
             await upsert_cooldowns([CoolDown(profile=profile, type=cooldown_type, after=after)])
 
     async def on_message_edit(self, before, after):

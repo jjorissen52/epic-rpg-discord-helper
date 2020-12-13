@@ -95,12 +95,10 @@ def get_guild_cooldown_messages():
     now = datetime.datetime.now(tz=datetime.timezone.utc)
     flavor_map = CoolDown.COOLDOWN_TEXT_MAP
     messages = []
-    for channel, uid, raid_dibbs_name, raid_dibbs_uid, notify in (
-        Guild.objects.filter(after__lte=now, after__isnull=False)
-        .exclude(profile__guild=False)
-        .values_list(
-            "profile__channel", "profile__uid", "raid_dibbs__last_known_nickname", "raid_dibbs__uid", "profile__notify"
-        )
+    for channel, uid, raid_dibbs_name, raid_dibbs_uid, notify in Guild.objects.filter(
+        after__lte=now, after__isnull=False
+    ).values_list(
+        "profile__channel", "profile__uid", "raid_dibbs__last_known_nickname", "raid_dibbs__uid", "profile__notify"
     ):
         if notify:
             if raid_dibbs_uid and uid != raid_dibbs_uid:
@@ -119,7 +117,11 @@ def get_guild_cooldown_messages():
 def set_guild_cd(profile, after=None):
     now = datetime.datetime.now(tz=datetime.timezone.utc)
     after = now + CoolDown.get_cooldown("guild") if not after else after
-    Guild.objects.filter(profile__uid=profile.uid).update(after=after)
+    guild = Guild.objects.filter(profile__uid=profile.uid).first()
+    if not guild:
+        return
+    raid_dibbs_id = None if guild.raid_dibbs_id == profile.uid else guild.raid_dibbs_id
+    Guild.objects.filter(profile__uid=profile.uid).update(after=after, raid_dibbs_id=raid_dibbs_id)
 
 
 @sync_to_async

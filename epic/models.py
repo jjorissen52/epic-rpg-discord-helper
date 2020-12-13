@@ -400,6 +400,40 @@ class Hunt(UpdateAble, models.Model):
         else:
             return
 
+    @staticmethod
+    def hunt_together_from_message(message):
+        target_regex = re.compile(
+            r"\*\*([^\*]+)\*\* found a <[^>]+> \*\*([^\*]+)\*\*, while \*\*([^\*]+)\*\* found a <[^\>]+> \*\*([^\*]+)\*\*"
+        )
+        earnings_regex = re.compile(
+            r"\*\*([^\*]+)\*\* earned ([0-9\,]+) coins and ([0-9\,]+) XP, while \*\*([^\*]+)\*\* earned ([0-9\,]+) coins and ([0-9\,]+) XP"
+        )
+        loot_regex = re.compile(r"\*\*([^\*]+)\*\* got an? \*?\*?\s*<[^>]+>\s*?([\w ]+)\s*(?:<[^\>]+>)?\s*\*?\*?")
+        target_match = target_regex.search(message.content)
+        earnings_match = earnings_regex.search(message.content)
+        loot_match = loot_regex.search(message.content)
+        if target_match and earnings_match:
+            name1, target1, name2, target2 = target_match.groups()
+            name1, coins1, xp1, name2, coins2, xp2 = earnings_match.groups()
+            coins1, xp1, coins2, xp2 = [item.replace(",", "") for item in (coins1, xp1, coins2, xp2)]
+            loot1, loot2 = "", ""
+            if loot_match:
+                loot_groups = [m.strip() for m in loot_match.groups()]
+                if len(loot_groups) == 2:
+                    if loot_groups[0] == name1:
+                        loot1 = loot_groups[1]
+                    else:
+                        loot2 = loot_groups[1]
+                else:
+                    loot1, loot2 = loot_groups[1], loot_groups[3]
+
+            return (
+                (name1, target1, coins1, xp1, loot1),
+                (name2, target2, coins2, xp2, loot2),
+            )
+        else:
+            return
+
 
 class GroupActivity(UpdateAble, models.Model):
     ACTIVITY_CHOICES = (
