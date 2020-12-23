@@ -206,6 +206,7 @@ if __name__ == "__main__":
                 _channel = await bot.fetch_channel(channel)
                 await _channel.send(message)
             await asyncio.sleep(5)  # task runs every 5 seconds
+        await notify()
 
     bot.loop.create_task(notify())
     bot.run(settings.DISCORD_TOKEN)
