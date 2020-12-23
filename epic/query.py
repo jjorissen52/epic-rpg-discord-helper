@@ -109,7 +109,7 @@ def get_guild_cooldown_messages():
                 messages.append((f"<@{uid}> {flavor_map['guild']} (**Guild**) [YOU HAVE DIBBS!!]", channel))
             else:
                 messages.append((f"<@{uid}> {flavor_map['guild']} (**Guild**)", channel))
-    Guild.objects.filter(after__lte=now).update(after=None, raid_dibbs=None)
+    Guild.objects.filter(after__lte=now).update(after=None)
     return messages
 
 
