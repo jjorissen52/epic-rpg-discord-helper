@@ -1,6 +1,7 @@
 import re
 import pytz
 import discord
+import decimal
 import datetime
 import operator
 import inspect
@@ -10,6 +11,7 @@ from asgiref.sync import sync_to_async
 from pipeline import execution_pipeline
 
 from django.forms.models import model_to_dict
+from django.core.exceptions import ValidationError
 
 from epic.models import CoolDown, Profile, Server, JoinCode, Gamble, Hunt, Event
 from epic.utils import tokenize
@@ -128,6 +130,7 @@ def _help(client, tokens, message, server, profile, msg, help=None):
         • `rcd rd` or `rrd`
         • `rcd timezone|tz <timezone>`
         • `rcd timeformat|tf "<format_string>"`
+        • `rcd multiplier|mp <multiplier>`
         • `rcd notify|n <command_type> on|off`
         • `rcd <command_type> on|off` (e.g. `rcd hunt on` same as `rcd notify hunt on`)
         • `rcd whocan|w <command_type>`
@@ -253,6 +256,7 @@ def _profile(client, tokens, message, server, profile, msg, help=None):
         • `rcd profile|p`
         • `rcd profile|p timezone|tz <timezone>`
         • `rcd profile|p timeformat|tf "<format_string>"`
+        • `rcd profile|p multiplier|mp <multiplier>`
         • `rcd profile|p on|off`
         • `rcd profile|p [notify|n] <cooldown_type> on|off`
         • `rcd profile|p gamling|g [@player]`
@@ -272,6 +276,7 @@ def _profile(client, tokens, message, server, profile, msg, help=None):
         if tokens[1] in {
             *("timezone", "tz"),
             *("timeformat", "tf"),
+            *("multiplier", "mp"),
             *("notify", "n"),
             *("gambling", "g"),
             "on",
@@ -289,9 +294,9 @@ def _profile(client, tokens, message, server, profile, msg, help=None):
         "msg": NormalMessage(
             "",
             fields=(
-                ("Nickname", profile.last_known_nickname),
                 ("Timezone", f"`{profile.timezone}`"),
                 ("Time Format", f"`{profile.time_format}`"),
+                ("Cooldown Multiplier", f"`{profile.cooldown_multiplier}`"),
                 ("Notications Enabled", notifications),
             ),
         )
@@ -509,6 +514,58 @@ def timeformat(client, tokens, message, server, profile, msg, help=None):
                 f"Great... Your time format `{time_format}` broke something; " f"err = {e}", "Oh boy Oh geez"
             )
         }
+
+
+@params_as_args
+def multiplier(client, tokens, message, server, profile, msg, help=None):
+    """
+    Set a multiplier on your cooldowns to extend or reduce their frequency.
+    E.g. if you are a tier 3 donator, you may want to set your multipler
+    to `0.65`.
+
+    Usage:
+        • `rcd multiplier|mp <multiplier>`
+    Examples:
+        • `rcd multiplier 0.65`
+        • `rcd mp 0.85`
+        • `rcd mp default` Restore your multiplier to the default (`None`).
+
+    Multipliers must be from [0 to 10).
+    """
+    command = tokens[0]
+    if command not in {"multiplier", "mp"}:
+        return None
+    if help or len(tokens) == 1:
+        return {
+            "msg": HelpMessage(
+                multiplier.__doc__, fields=[("Info", f"Your current multiplier is `{profile.cooldown_multiplier}`")]
+            )
+        }
+    elif len(tokens) != 2:
+        return {
+            "msg": ErrorMessage(
+                f"Could not parse `rcd {command} {' '.join(tokens)}` as a valid multiplier command; your input has more arguments that expected."
+            )
+        }
+    if tokens[1] == "default":
+        profile.cooldown_multiplier = None
+    else:
+        try:
+            profile.cooldown_multiplier = decimal.Decimal(tokens[1])
+        except:  # noqa
+            return {
+                "msg": ErrorMessage(
+                    f"Could not parse `{tokens[1]}` as a valid multiplier; must be a decimal number or `default`."
+                )
+            }
+    try:
+        profile.full_clean()
+    except ValidationError as e:
+        return {"msg": ErrorMessage(f"Could not validate your multiplier; err={e.args[0]['cooldown_multiplier'][0]}.")}
+    except Exception as e:
+        return {"msg": ErrorMessage(f"Could not validate your multiplier for unknown reasons :(; err={e}.")}
+    profile.save()
+    return {"msg": SuccessMessage(f"Your Cooldown Multiplier is now `{tokens[1]}`.")}
 
 
 @params_as_args
@@ -768,6 +825,7 @@ command_pipeline = execution_pipeline(
         dibbs,
         timezone,
         timeformat,
+        multiplier,
         register,  # called rarely, should be last.
         admin,
         event,

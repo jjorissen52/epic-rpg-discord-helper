@@ -133,7 +133,7 @@ class Client(discord.Client):
             return await process_rpg_messages(self, server, message)
 
         if content.startswith("rpg"):
-            cooldown_type, after = await sync_to_async(CoolDown.cd_from_command)(message.content[3:])
+            cooldown_type, default_duration = await sync_to_async(CoolDown.default_cmd_cd)(message.content[3:])
             if not cooldown_type:
                 return
             profile, _ = await get_instance(
@@ -160,7 +160,9 @@ class Client(discord.Client):
                     return await sync_to_async(GroupActivity.create_from_tokens)(
                         cooldown_type, self, profile, server, message
                     )
-            await upsert_cooldowns([CoolDown(profile=profile, type=cooldown_type, after=after)])
+            await upsert_cooldowns(
+                [CoolDown(profile=profile, type=cooldown_type).calculate_cd(profile=profile, duration=default_duration)]
+            )
 
     async def on_message_edit(self, before, after):
         guild_name_regex = re.compile(r"\*\*(?P<guild_name>[^\*]+)\*\* members")

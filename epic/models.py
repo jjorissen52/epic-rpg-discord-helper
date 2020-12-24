@@ -3,10 +3,13 @@ import pytz
 import datetime
 import itertools
 
+from decimal import Decimal
+
 from asgiref.sync import sync_to_async
 
 from django.db import models, transaction
 from django.utils import timezone
+from django.core.validators import MaxValueValidator, MinValueValidator
 
 from .mixins import UpdateAble
 from .utils import tokenize, int_from_token
@@ -59,6 +62,14 @@ class Profile(UpdateAble, models.Model):
     channel = models.PositiveBigIntegerField()
     player_guild = models.ForeignKey(Guild, on_delete=models.SET_NULL, null=True, blank=True)
     last_known_nickname = models.CharField(max_length=250)
+    cooldown_multiplier = models.DecimalField(
+        decimal_places=2,
+        max_digits=3,
+        blank=True,
+        null=True,
+        validators=[MinValueValidator(Decimal(0.0)), MaxValueValidator(Decimal(9.99))],
+    )
+
     timezone = models.CharField(
         choices=TIMEZONE_CHOICES, max_length=max(map(len, pytz.common_timezones)), default=DEFAULT_TIMEZONE
     )
@@ -234,7 +245,7 @@ class CoolDown(models.Model):
         return f"{self.profile} can {self.type} after {self.after}"
 
     @staticmethod
-    def cd_from_command(cmd):
+    def default_cmd_cd(cmd: str) -> datetime.timedelta:
         resolved = None
         tokens = tokenize(cmd)
         if not tokens:
@@ -248,7 +259,15 @@ class CoolDown(models.Model):
             resolved = CoolDown.COMMAND_RESOLUTION_MAP.get(cmd, lambda x: None)(" ".join(args))
         if not resolved:
             return None, None
-        return resolved, datetime.datetime.now(tz=datetime.timezone.utc) + CoolDown.get_cooldown(resolved)
+        return resolved, CoolDown.get_cooldown(resolved)
+
+    def calculate_cd(self, profile: Profile = None, duration: datetime.timedelta = None) -> datetime.datetime:
+        if not profile or not duration:
+            raise ValueError(f"profile and duration are required.")
+        if profile.cooldown_multiplier:
+            duration = datetime.timedelta(seconds=int(profile.cooldown_multiplier * int(duration.total_seconds())))
+        self.after = datetime.datetime.now(tz=datetime.timezone.utc) + duration
+        return self
 
     @staticmethod
     def from_cd(profile, fields):
