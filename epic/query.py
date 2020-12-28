@@ -25,6 +25,7 @@ def upsert_cooldowns(cooldowns):
         cooldown.save()
 
 
+# does not exist actions
 DNE_ACTIONS = Enum(["NONE", "RAISE"])
 
 

@@ -39,12 +39,23 @@ async def process_rpg_messages(client, server, message):
     # arena is special case since it does not show an icon_url
     group_cues = GroupActivity.ACTIVITY_SET - {"arena"}
     cues = [*rpg_cd_rd_cues, *gambling_cues, *group_cues, cooldown_cue]
-    if "found and killed" in message.content:
-        hunt_result = Hunt.hunt_result_from_message(message)
-        if hunt_result:
-            name, *other = hunt_result
-            possible_userids = [str(m.id) for m in client.get_all_members() if name == m.name]
-            return await update_hunt_results(other, possible_userids)
+    hunt_result = Hunt.hunt_result_from_message(message)
+    if hunt_result:
+        name, *other = hunt_result
+        possible_userids = [str(m.id) for m in client.get_all_members() if name == m.name]
+        return await update_hunt_results(other, possible_userids)
+    else:
+        hunt_together_result = Hunt.hunt_together_from_message(message)
+        if hunt_together_result:
+            all_members = client.get_all_members()
+            (name1, *other1), (name2, *other2) = hunt_together_result
+            possible_userids1 = [str(m.id) for m in all_members if name1 == m.name]
+            possible_userids2 = [str(m.id) for m in all_members if name2 == m.name]
+            await asyncio.gather(
+                update_hunt_results(other1, possible_userids1),
+                update_hunt_results(other2, possible_userids2),
+            )
+
     profile = None
     for embed in message.embeds:
         # the user mentioned
@@ -150,7 +161,7 @@ class Client(discord.Client):
             if cooldown_type == "guild":
                 return await set_guild_cd(profile)
             elif cooldown_type in {"hunt", "adventure"}:
-                _, _ = await get_instance(Hunt, profile_id=profile.uid, target=None, defaults={"target": None})
+                _, _ = await sync_to_async(Hunt.initiated_hunt)(profile.uid, content)
             elif cooldown_type in GroupActivity.ACTIVITY_SET:
                 tokens = tokenize(message.content[3:])
                 # when a group activity is actually a solo activity...

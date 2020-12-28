@@ -285,7 +285,10 @@ def _profile(client, tokens, message, server, profile, msg, help=None):
             *CoolDown.COOLDOWN_MAP.keys(),
         }:
             return {"tokens": tokens[1:]}
-        return {"error": 1}
+        maybe_profile = Profile.from_tag(tokens[1], client, server, message)
+        if not maybe_profile:
+            return {"error": 1}
+        profile = maybe_profile
     notifications = ""
     for k, v in model_to_dict(profile).items():
         if isinstance(v, bool):

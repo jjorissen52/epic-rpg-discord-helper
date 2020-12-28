@@ -1,5 +1,5 @@
 import json
-import asyncio
+import time
 import discord
 import datetime
 
@@ -83,8 +83,9 @@ async def log_message(message):
 
 
 async def scrape_history(message, limit=None):
+    start = time.time()
     limit = int(limit) if limit and limit.isdigit() else None
     async for m in message.channel.history(limit=limit):
         logger = await log_message(m)
     await logger.shutdown()
-    return f"<@!{message.author.id}> Your scrape has completed."
+    return f"<@!{message.author.id}> Your scrape has completed after {int(time.time() - start):,} seconds."

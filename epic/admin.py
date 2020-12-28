@@ -22,7 +22,7 @@ class GuildAdmin(admin.ModelAdmin):
 @admin.register(Profile)
 class ProfileAdmin(admin.ModelAdmin):
     search_fields = ("last_known_nickname", "uid")
-    list_display = ("last_known_nickname", "uid", "player_guild", "admin_user")
+    list_display = ("last_known_nickname", "partner", "uid", "player_guild", "admin_user")
     list_filter = ("notify", "player_guild")
 
     def is_admin_user(self, obj):

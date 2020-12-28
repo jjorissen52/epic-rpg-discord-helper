@@ -64,6 +64,8 @@ def gambling(file_name="message_dump.json"):
                         if profile:
                             gamble = Gamble.from_results_screen(profile, embed)
                             if gamble:
+                                gamble.created = h.created_at
+                                gamble.updated = h.created_at
                                 gambles.append(gamble)
     Gamble.objects.bulk_create(gambles)
 
@@ -81,7 +83,45 @@ def hunt(file_name="message_dump.json"):
                 hunt_result = Hunt.hunt_result_from_message(h)
                 if hunt_result:
                     name, target, money, xp, loot = hunt_result
-                    hunts.append(Hunt(profile=all_profiles[name], target=target, money=money, xp=xp, loot=loot))
+                    hunts.append(
+                        Hunt(
+                            profile=all_profiles[name],
+                            target=target,
+                            money=money,
+                            xp=xp,
+                            loot=loot,
+                            created=h.created_at,
+                            updated=h.created_at,
+                        )
+                    )
+                else:
+                    hunt_together_result = Hunt.hunt_together_from_message(h)
+                    if hunt_together_result:
+                        name, target, money, xp, loot = hunt_together_result[0]
+                        hunts.append(
+                            Hunt(
+                                profile=all_profiles[name],
+                                target=target,
+                                money=money,
+                                xp=xp,
+                                loot=loot,
+                                created=h.created_at,
+                                updated=h.created_at,
+                            )
+                        )
+                        name, target, money, xp, loot = hunt_together_result[1]
+                        hunts.append(
+                            Hunt(
+                                profile=all_profiles[name],
+                                target=target,
+                                money=money,
+                                xp=xp,
+                                loot=loot,
+                                created=h.created_at,
+                                updated=h.created_at,
+                            )
+                        )
+
     Hunt.objects.bulk_create(hunts)
 
 

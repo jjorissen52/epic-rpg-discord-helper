@@ -1,14 +1,12 @@
 import re
 import pytz
 import datetime
-import itertools
 
 from decimal import Decimal
 
 from asgiref.sync import sync_to_async
 
 from django.db import models, transaction
-from django.utils import timezone
 from django.core.validators import MaxValueValidator, MinValueValidator
 
 from .mixins import UpdateAble
@@ -61,6 +59,7 @@ class Profile(UpdateAble, models.Model):
     server = models.ForeignKey(Server, on_delete=models.CASCADE)
     channel = models.PositiveBigIntegerField()
     player_guild = models.ForeignKey(Guild, on_delete=models.SET_NULL, null=True, blank=True)
+    partner = models.ForeignKey("epic.Profile", on_delete=models.SET_NULL, null=True, blank=True)
     last_known_nickname = models.CharField(max_length=250)
     cooldown_multiplier = models.DecimalField(
         decimal_places=2,
@@ -318,7 +317,10 @@ class CoolDown(models.Model):
         return []
 
 
-class Gamble(models.Model):
+class Gamble(UpdateAble, models.Model):
+    class Meta:
+        ordering = ("-created",)
+
     GAME_TYPE_CHOICES = (
         ("bj", "Blackjack"),
         ("cf", "Coinflip"),
@@ -389,6 +391,9 @@ class Gamble(models.Model):
 
 
 class Hunt(UpdateAble, models.Model):
+    class Meta:
+        ordering = ("-created",)
+
     profile = models.ForeignKey(Profile, on_delete=models.SET_NULL, null=True, related_name="hunts")
     target = models.CharField(max_length=50, db_index=True, null=True, blank=True)
     money = models.PositiveBigIntegerField(null=True, blank=True)
@@ -452,6 +457,18 @@ class Hunt(UpdateAble, models.Model):
             )
         else:
             return
+
+    @staticmethod
+    @transaction.atomic
+    def initiated_hunt(profile_id, content):
+        hunt, partner_hunt = Hunt.objects.create(profile_id=profile_id), None
+        if tokenize(content[:75])[-1] in {"t", "together"}:
+            profile = Profile.objects.filter(uid=profile_id).first()
+            if profile:
+                partner = profile.partner
+                if partner:
+                    partner_hunt = Hunt.objects.create(profile_id=partner.uid)
+        return hunt, partner_hunt
 
 
 class GroupActivity(UpdateAble, models.Model):
