@@ -214,7 +214,9 @@ def cd(client, tokens, message, server, profile, msg, help=None):
             cooldown_after = cooldowns[cooldown_type].astimezone(profile_tz)
             msg += f":clock2: `{cooldown_type:12} {cooldown_after.strftime(profile.time_format):>20}`\n"
     if not msg:
-        msg = "Please use `rpg cd` or an EPIC RPG command to populate your cooldowns.\n"
+        msg = (
+            "All commands on cooldown! (You may need to use `rpg cd` to populate your cooldowns for the first time.)\n"
+        )
     return {"msg": NormalMessage(msg, title=f"**{nickname}'s** Cooldowns ({profile.timezone})")}
 
 
