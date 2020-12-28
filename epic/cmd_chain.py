@@ -698,25 +698,28 @@ def stats(client, tokens, message, server, profile, msg, help=None):
             return {
                 "msg": ErrorMessage(
                     f"`rcd {' '.join(tokens)}` is not valid invocation of `rcd {long}`. "
-                    "Example usage: `rcd {short} 5 @player`",
+                    f"Example usage: `rcd {short} 5 @player`",
                     title="Stats Usage Error",
                 )
             }
     uid = None if _all else profile.uid
+    # show all for an individual regardless of which server,
+    # but if _all=True then we want to restrict to current server
+    server_id = server.id if _all else None
     name = server.name if _all else client.get_user(int(profile.uid)).name
     if long == "gambling":
         return {
             "msg": NormalMessage(
-                "", fields=Gamble.objects.stats(uid, minutes, server.id), title=f"{name}'s Gambling Addiction"
+                "", fields=Gamble.objects.stats(uid, minutes, server_id), title=f"{name}'s Gambling Addiction"
             )
         }
     elif long == "hunts":
         return {
-            "msg": NormalMessage("", fields=Hunt.objects.hunt_stats(uid, minutes, server.id), title=f"{name}'s Carnage")
+            "msg": NormalMessage("", fields=Hunt.objects.hunt_stats(uid, minutes, server_id), title=f"{name}'s Carnage")
         }
     elif long == "drops":
         return {
-            "msg": NormalMessage("", fields=Hunt.objects.drop_stats(uid, minutes, server.id), title=f"{name}'s Drops")
+            "msg": NormalMessage("", fields=Hunt.objects.drop_stats(uid, minutes, server_id), title=f"{name}'s Drops")
         }
 
 
