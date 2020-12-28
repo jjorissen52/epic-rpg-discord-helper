@@ -172,7 +172,11 @@ class Client(discord.Client):
                         cooldown_type, self, profile, server, message
                     )
             await upsert_cooldowns(
-                [CoolDown(profile=profile, type=cooldown_type).calculate_cd(profile=profile, duration=default_duration)]
+                [
+                    CoolDown(profile=profile, type=cooldown_type).calculate_cd(
+                        profile=profile, duration=default_duration, type=cooldown_type
+                    )
+                ]
             )
 
     async def on_message_edit(self, before, after):

@@ -260,10 +260,9 @@ class CoolDown(models.Model):
             return None, None
         return resolved, CoolDown.get_cooldown(resolved)
 
-    def calculate_cd(self, profile: Profile = None, duration: datetime.timedelta = None) -> datetime.datetime:
-        if not profile or not duration:
-            raise ValueError(f"profile and duration are required.")
-        if profile.cooldown_multiplier:
+    def calculate_cd(self, profile: Profile, duration: datetime.timedelta, type: str) -> datetime.datetime:
+        #  vote, daily, weekly, duel and lb
+        if profile.cooldown_multiplier and type not in {"vote", "daily", "weekly", "duel", "lootbox"}:
             duration = datetime.timedelta(seconds=int(profile.cooldown_multiplier * int(duration.total_seconds())))
         self.after = datetime.datetime.now(tz=datetime.timezone.utc) + duration
         return self
@@ -343,7 +342,6 @@ class Gamble(UpdateAble, models.Model):
     game = models.CharField(choices=GAME_TYPE_CHOICES, max_length=5)
     outcome = models.CharField(choices=OUTCOME_CHOICES, max_length=4)
     net = models.IntegerField()
-    created = models.DateTimeField(auto_now=True)
 
     objects = GamblingStatsManager()
 
