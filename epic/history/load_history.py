@@ -48,7 +48,7 @@ def recursive_namespace(obj):
     return obj
 
 
-def gambling(file_name="message_dump.json"):
+def gambling(file_name="/tmp/message_dump.json"):
     history_file = get_history_dir() / file_name
     all_profiles = {profile.uid: profile for profile in Profile.objects.all()}
     gambles = []
@@ -70,7 +70,7 @@ def gambling(file_name="message_dump.json"):
     Gamble.objects.bulk_create(gambles)
 
 
-def hunt(file_name="message_dump.json"):
+def hunt(file_name="/tmp/message_dump.json"):
     history_file = get_history_dir() / file_name
     # risk of collision here :shrug:
     all_profiles = {profile.last_known_nickname: profile for profile in Profile.objects.all()}
@@ -128,7 +128,6 @@ def hunt(file_name="message_dump.json"):
 if __name__ == "__main__":
     import os
     import dotenv
-    import sys
     import fire
 
     from django.core.wsgi import get_wsgi_application
@@ -139,7 +138,7 @@ if __name__ == "__main__":
     get_wsgi_application()
 
     from django.conf import settings
-    from epic.models import Gamble, Server, Profile, Hunt
+    from epic.models import Gamble, Profile, Hunt
 
     fire.Fire(
         {

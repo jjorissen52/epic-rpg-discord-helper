@@ -13,9 +13,9 @@ from pipeline import execution_pipeline
 from django.forms.models import model_to_dict
 from django.core.exceptions import ValidationError
 
-from epic.models import CoolDown, Profile, Server, JoinCode, Gamble, Hunt, Event
+from epic.models import Channel, CoolDown, Profile, Server, JoinCode, Gamble, Hunt, Event
 from epic.utils import tokenize
-from epic.scrape import scrape_history
+from epic.history.scrape import scrape as scrape_history
 
 
 class RCDMessage:
@@ -86,6 +86,14 @@ def params_as_args(func):
                 )
                 if not created and profile.server_id != server.id:
                     profile.update(server_id=server.id)
+                # just keeping track of used channels
+                _channel, _ = Channel.objects.get_or_create(
+                    id=message.channel.id,
+                    defaults={
+                        "name_at_creation": message.channel.name,
+                        "server_id": server.id,
+                    },
+                )
                 params["profile"] = profile
             elif not help and tokens and tokens[0] not in {"help", "register"}:
                 params["msg"] = ErrorMessage(

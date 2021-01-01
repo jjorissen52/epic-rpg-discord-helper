@@ -572,3 +572,13 @@ class Event(models.Model):
 
     def __str__(self):
         return self.event_name
+
+
+class Channel(models.Model):
+    """
+    Channels where the bot is active; used strictly for book-keeping
+    """
+
+    id = models.PositiveIntegerField(primary_key=True)
+    server = models.ForeignKey(Server, on_delete=models.CASCADE)
+    name_at_creation = models.CharField(max_length=150, null=True, blank=True)

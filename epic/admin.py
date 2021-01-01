@@ -1,6 +1,6 @@
 from django.contrib import admin
 
-from .models import Profile, CoolDown, Server, JoinCode, Guild, Gamble, Hunt, GroupActivity, Invite, Event
+from .models import Channel, Profile, CoolDown, Server, JoinCode, Guild, Gamble, Hunt, GroupActivity, Invite, Event
 
 
 @admin.register(JoinCode)
@@ -69,3 +69,11 @@ class GroupActivityAdmin(admin.ModelAdmin):
 @admin.register(Event)
 class EventAdmin(admin.ModelAdmin):
     list_display = ("event_name",)
+
+
+@admin.register(Channel)
+class ChannelAdmin(admin.ModelAdmin):
+    list_display = ("id", "name_at_creation", "server_name")
+
+    def server_name(self, obj):
+        return obj.server.name
