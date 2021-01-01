@@ -15,7 +15,7 @@ get_wsgi_application()
 
 from asgiref.sync import sync_to_async
 
-from epic.models import CoolDown, Profile, Server, JoinCode, Gamble, Hunt, GroupActivity
+from epic.models import CoolDown, Profile, Server, Gamble, Hunt, GroupActivity
 from epic.query import (
     get_instance,
     update_instance,
@@ -30,7 +30,6 @@ from epic.query import (
 from epic.utils import tokenize
 
 from epic.cmd_chain import handle_rpcd_message
-from epic.scrape import log_message
 
 
 async def process_rpg_messages(client, server, message):
@@ -47,7 +46,7 @@ async def process_rpg_messages(client, server, message):
     else:
         hunt_together_result = Hunt.hunt_together_from_message(message)
         if hunt_together_result:
-            all_members = client.get_all_members()
+            all_members = set(client.get_all_members())
             (name1, *other1), (name2, *other2) = hunt_together_result
             possible_userids1 = [str(m.id) for m in all_members if name1 == m.name]
             possible_userids2 = [str(m.id) for m in all_members if name2 == m.name]
