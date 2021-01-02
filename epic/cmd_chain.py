@@ -1,4 +1,5 @@
 import re
+import time
 import pytz
 import discord
 import decimal
@@ -15,7 +16,7 @@ from django.core.exceptions import ValidationError
 
 from epic.models import Channel, CoolDown, Profile, Server, JoinCode, Gamble, Hunt, Event
 from epic.utils import tokenize
-from epic.history.scrape import scrape as scrape_history
+from epic.history.scrape import scrape_channels, scrape_channel
 
 
 class RCDMessage:
@@ -113,7 +114,7 @@ def params_as_args(func):
 def admin_protected(func):
     @functools.wraps(func)
     def wrapper(client, tokens, message, server, profile, msg, help=None):
-        if tokens[0] in {"admin", "event", "scrape"} and not profile.admin_user:
+        if tokens[0] in {"admin", "event", "scrape", "import"} and not profile.admin_user:
             return {"msg": ErrorMessage("Sorry, only administrative users can use this command.")}
         return func(client, tokens, message, server, profile, msg, help)
 
@@ -816,14 +817,45 @@ def scrape(client, tokens, message, server, profile, msg, help=None):
         return {"msg": HelpMessage(scrape.__doc__)}
     limit = None
     if len(tokens) > 1:
-        if not tokens[1].isdigit():
-            return {"msg": ErrorMessage(f"scrape limit must be an integer, got {tokens[1]}.")}
-        limit = tokens[1]
+        if not tokens[-1].isdigit() and not tokens[-1] == "all":
+            return {"msg": ErrorMessage(f"scrape limit must be an integer, got {tokens[-1]}.")}
+        elif tokens[-1].isdigit():
+            limit = tokens[-1]
+    channels = [client.get_channel(c.id) for c in Channel.objects.all()] if "all" in tokens else None
     scope = "all" if not limit else f"last {limit}"
-    return {
-        "msg": SuccessMessage(f"Beginning Scrape of {scope} messages in this channel."),
-        "coro": (scrape_history, (message, limit)),
-    }
+    if channels:
+
+        async def _scrape_channels():
+            files, elapsed = await scrape_channels(channels, limit)
+            newline = "\n"
+            return SuccessMessage(
+                f"Scrape completed in {elapsed} seconds.",
+                title="Scrape Completed.",
+                fields=(("Files", f"The following files were generated: ```\n{newline.join(files)}\n```"),),
+            )
+
+        return {
+            "msg": SuccessMessage(f"Beginning Scrape of {scope} messages in all known channels."),
+            "coro": (_scrape_channels, ()),
+        }
+    else:
+
+        async def _scrape_channel():
+            start = int(time.time())
+            file = f"/tmp/{start}_{message.channel.id}_dump.json"
+            file, elapsed = await scrape_channel(message.channel, start, file, limit)
+            return f"<@!{message.author.id}> Your scrape has completed after {elapsed:,} seconds. Results in `{file}`."
+
+        return {
+            "msg": SuccessMessage(f"Beginning Scrape of {scope} messages in this channel."),
+            "coro": (_scrape_channel, ()),
+        }
+
+
+@params_as_args
+@admin_protected
+def _import(client, tokens, message, server, profile, msg, help=None):
+    pass
 
 
 command_pipeline = execution_pipeline(

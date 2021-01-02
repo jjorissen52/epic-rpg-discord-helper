@@ -1,3 +1,4 @@
+import asyncio
 import json
 import time
 import discord
@@ -82,27 +83,19 @@ async def log_message(message, logger=logger):
     return logger
 
 
-async def scrape(message, limit=None):
-    start = time.time()
-    print(start)
+async def scrape_channel(channel, start, file, limit=None):
+    logger = JsonLogger()
+    handler = AsyncFileHandler(filename=file)
+    logger.add_handler(handler)
     limit = int(limit) if limit and limit.isdigit() else None
-    print(limit)
-    async for m in message.channel.history(limit=limit):
-        print(m)
-        logger = await log_message(m)
+    async for m in channel.history(limit=limit):
+        logger = await log_message(m, logger=logger)
     await logger.shutdown()
-    return f"<@!{message.author.id}> Your scrape has completed after {int(time.time() - start):,} seconds."
+    return file, int(time.time() - start)
 
 
 async def scrape_channels(channels, limit=None) -> int:
-    start = time.time()
-    files = [f"/tmp/{c.id}_{start}_dump.json" for c in channels]
-    limit = int(limit) if limit and limit.isdigit() else None
-    for i, c in enumerate(channels):
-        logger = JsonLogger()
-        handler = AsyncFileHandler(filename=files[i])
-        logger.add_handler(handler)
-        async for m in c.history(limit=limit):
-            logger = await log_message(m, logger=logger)
-        await logger.shutdown()
+    start = int(time.time())
+    files = [f"/tmp/{start}_{c.id}_dump.json" for c in channels]
+    await asyncio.gather(*(scrape_channel(c, start, files[i], limit) for i, c in enumerate(channels)))
     return files, int(time.time() - start)

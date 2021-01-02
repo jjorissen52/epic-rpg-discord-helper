@@ -29,7 +29,7 @@ from epic.query import (
 )
 from epic.utils import tokenize
 
-from epic.cmd_chain import handle_rpcd_message
+from epic.cmd_chain import RCDMessage, handle_rpcd_message
 
 
 async def process_rpg_messages(client, server, message):
@@ -133,7 +133,12 @@ class Client(discord.Client):
             if coro:
                 coroutine_func, args = coro
                 completed_message = await coroutine_func(*args)
-                await message.channel.send(completed_message)
+                if isinstance(completed_message, RCDMessage):
+                    await message.channel.send(embed=completed_message.to_embed())
+                elif isinstance(completed_message, str):
+                    await message.channel.send(completed_message)
+                else:
+                    print(f"expected a string or RCDMessage, got {completed_message}")
 
         if not server:
             return
