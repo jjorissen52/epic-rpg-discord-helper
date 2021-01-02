@@ -559,6 +559,9 @@ class Event(models.Model):
         event = Event.objects.filter(event_name=event_name).first()
         if not event:
             event = Event(event_name=event_name)
+            cooldown_adjustments = {}
+        else:
+            cooldown_adjustments = event.cooldown_adjustments.copy()
         for token in tokens:
             param, value = token.split("=")
             if param in CoolDown.COOLDOWN_MAP:
