@@ -12,10 +12,10 @@ class UpdateAble(models.Model):
 
     def save(self, *args, **kwargs):
         now = datetime.datetime.now(tz=datetime.timezone.utc)
-        if not self.pk and not self.created:
+        if not self.created:
             self.created = now
         self.updated = now
-        return super().save(*args, **kwargs)
+        return super(UpdateAble, self).save(*args, **kwargs)
 
     def update(self, **kwargs):
         for k, v in kwargs.items():
