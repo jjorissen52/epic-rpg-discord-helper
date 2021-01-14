@@ -621,7 +621,10 @@ def whocan(client, tokens, message, server, profile, msg, help=None):
         f"<@{uid}>"
         for uid in set(
             Profile.objects.exclude(uid=profile.uid)
-            .exclude(cooldown__type=cooldown_type)
+            .filter(
+                ~Q(cooldown__type=cooldown_type)
+                | Q(cooldown__after__lte=datetime.datetime.now(tz=datetime.timezone.utc), cooldown__type=cooldown_type)
+            )
             .filter(server_id=message.channel.guild.id)
             .values_list("uid", flat=True)
         )
