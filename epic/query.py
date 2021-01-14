@@ -103,9 +103,7 @@ def get_guild_cooldown_messages():
     ):
         if notify:
             if raid_dibbs_uid and uid != raid_dibbs_uid:
-                messages.append(
-                    (f"<@{uid}> {flavor_map['guild']} (**Guild**) [{raid_dibbs_name} has dibbs!!]", channel)
-                )
+                messages.append((f"<@{uid}> {raid_dibbs_name} is doin' a guild raid!! (**Guild**)", channel))
             elif raid_dibbs_uid:
                 messages.append((f"<@{uid}> {flavor_map['guild']} (**Guild**) [YOU HAVE DIBBS!!]", channel))
             else:

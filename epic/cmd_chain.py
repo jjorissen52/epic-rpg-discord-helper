@@ -11,6 +11,7 @@ import functools
 from asgiref.sync import sync_to_async
 from pipeline import execution_pipeline
 
+from django.db.models import Q
 from django.forms.models import model_to_dict
 from django.core.exceptions import ValidationError
 
@@ -201,7 +202,7 @@ def cd(client, tokens, message, server, profile, msg, help=None):
     profile_tz = pytz.timezone(profile.timezone)
     now = datetime.datetime.now(tz=datetime.timezone.utc)
     default = datetime.datetime(1790, 1, 1, tzinfo=datetime.timezone.utc)
-    msg = ""
+    msg, warn = "", False
     cooldowns = {
         _cd[0]: _cd[1]
         for _cd in CoolDown.objects.filter(profile_id=profile.pk).order_by("after").values_list("type", "after")
@@ -210,6 +211,7 @@ def cd(client, tokens, message, server, profile, msg, help=None):
     if not profile.player_guild:
         all_cooldown_types = all_cooldown_types - {"guild"}
     else:
+        warn = True if profile.player_guild.raid_dibbs else False
         cooldowns["guild"] = profile.player_guild.after if profile.player_guild.after else default
     selected_cooldown_types = sorted(
         filter(cooldown_filter, all_cooldown_types),
@@ -218,10 +220,14 @@ def cd(client, tokens, message, server, profile, msg, help=None):
     for cooldown_type in selected_cooldown_types:
         after = cooldowns.get(cooldown_type, None)
         if not after or after <= now:
-            msg += f":white_check_mark: `{cooldown_type:12} {'Ready!':>20}` \n"
+            icon = ":warning:" if warn and cooldown_type == "guild" else ":white_check_mark:"
+            warning = " (dibbs) " if warn and cooldown_type == "guild" else ""
+            msg += f"{icon} `{cooldown_type + warning:15} {'Ready!':>20}` \n"
         elif tokens[0] == "cd":  # don't show if "rd" command
             cooldown_after = cooldowns[cooldown_type].astimezone(profile_tz)
-            msg += f":clock2: `{cooldown_type:12} {cooldown_after.strftime(profile.time_format):>20}`\n"
+            icon = ":warning:" if warn and cooldown_type == "guild" else ":clock2:"
+            warning = " (dibbs) " if warn and cooldown_type == "guild" else ""
+            msg += f"{icon} `{cooldown_type + warning:15} {cooldown_after.strftime(profile.time_format):>20}`\n"
     if not msg:
         msg = (
             "All commands on cooldown! (You may need to use `rpg cd` to populate your cooldowns for the first time.)\n"
