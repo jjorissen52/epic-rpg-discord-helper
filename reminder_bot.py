@@ -33,11 +33,11 @@ from epic.cmd_chain import RCDMessage, handle_rpcd_message
 
 
 async def process_rpg_messages(client, server, message):
-    rpg_cd_rd_cues, cooldown_cue = ["cooldowns", "ready"], "cooldown"
+    rpg_cd_rd_cues, cooldown_cue, pet_screen_cue = ["cooldowns", "ready"], "cooldown", "'s pets"
     gambling_cues = set(Gamble.GAME_CUE_MAP.keys())
     # arena is special case since it does not show an icon_url
     group_cues = GroupActivity.ACTIVITY_SET - {"arena"}
-    cues = [*rpg_cd_rd_cues, *gambling_cues, *group_cues, cooldown_cue]
+    cues = [*rpg_cd_rd_cues, *gambling_cues, *group_cues, cooldown_cue, pet_screen_cue]
     hunt_result = Hunt.hunt_result_from_message(message)
     if hunt_result:
         name, *other = hunt_result
@@ -72,6 +72,10 @@ async def process_rpg_messages(client, server, message):
                         if cooldowns and cooldown_type == "guild":
                             return await set_guild_cd(profile, cooldowns[0].after)
                         await upsert_cooldowns(cooldowns)
+            elif pet_screen_cue in embed.author.name:
+                pet_cooldowns, _ = CoolDown.from_pet_screen(profile, [field.value for field in embed.fields])
+                return await upsert_cooldowns(pet_cooldowns)
+
             elif any([cue in embed.author.name for cue in gambling_cues]):
                 gamble = Gamble.from_results_screen(profile, embed)
                 if gamble:

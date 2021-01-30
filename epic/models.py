@@ -88,6 +88,7 @@ class Profile(UpdateAble, models.Model):
     arena = models.BooleanField(default=True)
     dungeon = models.BooleanField(default=True)
     guild = models.BooleanField(default=True)
+    pet = models.BooleanField(default=True)
 
     objects = ProfileManager()
 
@@ -149,8 +150,9 @@ class CoolDown(models.Model):
         ("work", "Get back to work. :pick:"),
         ("horse", "Pie-O-My! :horse_racing:"),
         ("arena", "Heeyyyy lets go hurt each other. :circus_tent:"),
-        ("dungeon", "can you reach the next area? :exclamation:"),
+        ("dungeon", "Can you reach the next area? :dragon_face:"),
         ("guild", "Hey, those people are different! Get 'em! :shield:"),
+        ("pet", "What's that? Little Timmy fell down a well? :cat2:"),
     )
     COOLDOWN_TEXT_MAP = {c[0]: c[1] for c in COOLDOWN_TYPE_CHOICES}
     COOLDOWN_MAP = {
@@ -168,6 +170,7 @@ class CoolDown(models.Model):
         "arena": datetime.timedelta(hours=24),
         "dungeon": datetime.timedelta(hours=12),
         "guild": datetime.timedelta(hours=2),
+        "pet": datetime.timedelta(hours=4),
     }
     COOLDOWN_RESPONSE_CUE_MAP = {
         "have claimed your daily": "daily",
@@ -222,6 +225,8 @@ class CoolDown(models.Model):
         "miniboss": lambda x: "dungeon",
         "not": lambda x: "dungeon" if "so mini boss join" in x else None,
         "guild": lambda x: "guild" if any([o in x for o in ("raid", "upgrade")]) else None,
+        "pet": lambda x: "pet" if re.match(r"(adv|adventure) [a-z]{1,2} (find|learn|drill)", x) else None,
+        "pets": lambda x: "pet" if re.match(r"(adv|adventure) [a-z]{1,2} (find|learn|drill)", x) else None,
     }
 
     profile = models.ForeignKey(Profile, on_delete=models.CASCADE)
@@ -262,7 +267,7 @@ class CoolDown(models.Model):
 
     def calculate_cd(self, profile: Profile, duration: datetime.timedelta, type: str) -> datetime.datetime:
         #  vote, daily, weekly, duel and lb
-        if profile.cooldown_multiplier and type not in {"vote", "daily", "weekly", "duel", "lootbox"}:
+        if profile.cooldown_multiplier and type not in {"vote", "daily", "weekly", "duel", "lootbox", "pet"}:
             duration = datetime.timedelta(seconds=int(profile.cooldown_multiplier * int(duration.total_seconds())))
         self.after = datetime.datetime.now(tz=datetime.timezone.utc) + duration
         return self
@@ -301,6 +306,31 @@ class CoolDown(models.Model):
                     if "mine" in field_off_cooldown.lower():
                         cooldown_evictions.append({"profile": profile, "type": "mine"})
         return cooldown_updates, cooldown_evictions
+
+    @staticmethod
+    def from_pet_screen(profile, fields):
+        start = datetime.datetime.now(tz=datetime.timezone.utc)
+        matches = [CoolDown.time_regex.findall(field) for field in fields]
+        # remove any empties
+        matches = [match for match in matches if match]
+        if not matches:
+            return [], []
+        # find the soonest timedelta to create a cooldown notification from
+        after = start + min(
+            [
+                datetime.timedelta(
+                    **{
+                        # key days, hours, minutes, seconds from the countdown matches
+                        # to create timedeltas with
+                        key: int(match[0][j][:-1]) if match[0][j] else 0
+                        for j, key in enumerate(["days", "hours", "minutes", "seconds"])
+                    }
+                )
+                for match in matches
+                if match
+            ]
+        )
+        return [CoolDown(profile=profile, type="pet", after=after)], []
 
     @staticmethod
     def from_cooldown_reponse(profile, title, _type):

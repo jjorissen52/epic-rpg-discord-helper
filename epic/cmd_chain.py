@@ -351,6 +351,8 @@ def notify(client, tokens, message, server, profile, msg, help=None):
         • `horse`
         • `arena`
         • `dungeon`
+        • `guild`
+        • `pet`
     """
     if (tokens[0] in CoolDown.COOLDOWN_MAP or tokens[0] == "all") and tokens[-1] in {"on", "off"}:
         # allow implicit invocation of notify
