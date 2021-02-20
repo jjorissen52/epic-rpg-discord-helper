@@ -227,8 +227,8 @@ class CoolDown(models.Model):
         "miniboss": lambda x: "dungeon",
         "not": lambda x: "dungeon" if "so mini boss join" in x else None,
         "guild": lambda x: "guild" if any([o in x for o in ("raid", "upgrade")]) else None,
-        "pet": lambda x: "pet" if re.match(r"(adv|adventure) [a-z]{1,2} (find|learn|drill)", x) else None,
-        "pets": lambda x: "pet" if re.match(r"(adv|adventure) [a-z]{1,2} (find|learn|drill)", x) else None,
+        "pet": lambda x: "pet" if re.match(r"(adv|adventure) (find|learn|drill) [a-z]{1,2}", x) else None,
+        "pets": lambda x: "pet" if re.match(r"(adv|adventure) (find|learn|drill) [a-z]{1,2}", x) else None,
     }
 
     profile = models.ForeignKey(Profile, on_delete=models.CASCADE)
