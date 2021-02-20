@@ -177,7 +177,6 @@ def cd(client, tokens, message, server, profile, msg, help=None):
         • `rcd` or `rrd`
         • `rcd daily weekly`
     """
-    implicit_invocation = False
     if tokens[0] in CoolDown.COOLDOWN_MAP or re.match(r"<@!?(?P<user_id>\d+)>", tokens[0]):
         # allow implicit invocation of cd
         tokens, implicit_invocation = ["cd", *tokens], True
