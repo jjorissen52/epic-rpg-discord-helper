@@ -3,6 +3,9 @@ import re
 import asyncio
 import dotenv
 import discord
+import logging
+
+logger = logging.getLogger(__name__)
 
 dotenv.load_dotenv(override=True)
 
@@ -219,19 +222,27 @@ if __name__ == "__main__":
 
     bot = Client(intents=intents)
 
-    async def notify():
+    async def _notify():
         await bot.wait_until_ready()
         while not bot.is_closed():
-            await sync_to_async(GroupActivity.objects.delete_stale)()
-            cooldown_messages = [
-                *await get_cooldown_messages(),
-                *await get_guild_cooldown_messages(),
-            ]
-            for message, channel in cooldown_messages:
-                _channel = await bot.fetch_channel(channel)
-                await _channel.send(message)
-            await asyncio.sleep(5)  # task runs every 5 seconds
-        await notify()
+            try:
+                await sync_to_async(GroupActivity.objects.delete_stale)()
+                cooldown_messages = [
+                    *await get_cooldown_messages(),
+                    *await get_guild_cooldown_messages(),
+                ]
+                for message, channel in cooldown_messages:
+                    _channel = await bot.fetch_channel(channel)
+                    await _channel.send(message)
+                # coode in here
+            except (Exception, BaseException):
+                logger.exception("could not send reminder message")
+            finally:
+                await asyncio.sleep(5)  # task runs every 5 seconds
+
+    async def notify():
+        while 1:
+            await _notify()
 
     bot.loop.create_task(notify())
     bot.run(settings.DISCORD_TOKEN)
