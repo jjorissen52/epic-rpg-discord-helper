@@ -8,9 +8,17 @@ https://docs.djangoproject.com/en/3.1/howto/deployment/wsgi/
 """
 
 import os
+import dotenv
+
+dotenv.load_dotenv(override=True)
 
 from django.core.wsgi import get_wsgi_application
 
 os.environ.setdefault("DJANGO_SETTINGS_MODULE", "epic_reminder.settings")
 
 application = get_wsgi_application()
+
+
+# modules which import for side-effects have something to call
+# which will please linters
+def noop(): return None

@@ -1,23 +1,12 @@
-import os
 import re
 import asyncio
-import dotenv
 import discord
 import logging
 
-logger = logging.getLogger(__name__)
-
-dotenv.load_dotenv(override=True)
-
-os.environ.setdefault("DJANGO_SETTINGS_MODULE", "epic_reminder.settings")
-
-# django.setup() is called as a side-effect
-from django.core.wsgi import get_wsgi_application
-
-get_wsgi_application()
-
 from asgiref.sync import sync_to_async
 
+# imported for side effects which setup django apps
+from epic_reminder import wsgi # noqa
 from epic.models import CoolDown, Profile, Server, Gamble, Hunt, GroupActivity
 from epic.query import (
     get_instance,
@@ -31,8 +20,9 @@ from epic.query import (
     update_hunt_results,
 )
 from epic.utils import tokenize
-
 from epic.cmd_chain import RCDMessage, handle_rpcd_message
+
+logger = logging.getLogger(__name__)
 
 
 async def process_rpg_messages(client, server, message):
