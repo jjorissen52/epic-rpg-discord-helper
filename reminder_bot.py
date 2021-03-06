@@ -19,8 +19,8 @@ from epic.query import (
     set_guild_membership,
     update_hunt_results,
 )
-from epic.utils import tokenize
-from epic.cmd_chain import RCDMessage, handle_rpcd_message
+from epic.utils import tokenize, RCDMessage
+from epic.cmd_chain import handle_rpcd_message
 
 logger = logging.getLogger(__name__)
 

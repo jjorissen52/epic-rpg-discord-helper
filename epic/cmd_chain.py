@@ -1,7 +1,6 @@
 import re
 import time
 import pytz
-import discord
 import decimal
 import datetime
 import operator
@@ -16,52 +15,22 @@ from django.forms.models import model_to_dict
 from django.core.exceptions import ValidationError
 
 from epic.models import Channel, CoolDown, Profile, Server, JoinCode, Gamble, Hunt, Event
-from epic.utils import tokenize
+from epic.utils import tokenize, ErrorMessage, NormalMessage, HelpMessage, SuccessMessage
 from epic.history.scrape import scrape_channels, scrape_channel
 
 
-class RCDMessage:
-    color = 0x8C8A89
-    title = None
-    footer = None
-    fields = []
+def init_registry(*wrappers):
+    registry = []
 
-    def __init__(self, msg, title=None, footer=None, fields=None):
-        self.msg = msg
-        if title:
-            self.title = title
-        if footer:
-            self.footer = footer
-        if fields:
-            self.fields = fields
+    def _register(cmd):
+        assert callable(cmd), f"{cmd.__name__} is not callable and cannot be registered as a command."
+        for w in wrappers:
+            cmd = w(cmd)
+        registry.append(cmd)
+        return cmd
 
-    def to_embed(self):
-        kwargs = {"color": self.color, "description": self.msg}
-        if self.title:
-            kwargs["title"] = self.title
-        embed = discord.Embed(**kwargs)
-        for field in self.fields:
-            embed.add_field(name=field[0], value=field[1], inline=False)
-        if self.footer:
-            embed.set_footer(text=self.footer)
-        return embed
-
-
-class ErrorMessage(RCDMessage):
-    title = "Error"
-    color = 0xEB4034
-
-
-class NormalMessage(RCDMessage):
-    color = 0x4381CC
-
-
-class HelpMessage(RCDMessage):
-    title = "Help"
-
-
-class SuccessMessage(RCDMessage):
-    color = 0x628F47
+    _register.registry = registry
+    return _register
 
 
 def params_as_args(func):
@@ -122,7 +91,10 @@ def admin_protected(func):
     return wrapper
 
 
-@params_as_args
+register = init_registry(params_as_args)
+
+
+@register
 def _help(client, tokens, message, server, profile, msg, help=None):
     """
 
@@ -165,7 +137,7 @@ def _help(client, tokens, message, server, profile, msg, help=None):
     return {"help": True, "tokens": tokens[1:]}
 
 
-@params_as_args
+@register
 def cd(client, tokens, message, server, profile, msg, help=None):
     """
     Display when your cooldowns are expected to be done.
@@ -234,8 +206,8 @@ def cd(client, tokens, message, server, profile, msg, help=None):
     return {"msg": NormalMessage(msg, title=f"**{nickname}'s** Cooldowns ({profile.timezone})")}
 
 
-@params_as_args
-def register(client, tokens, message, server, profile, msg, help=None):
+@register
+def _register(client, tokens, message, server, profile, msg, help=None):
     """
         Register your server for use with Epic Reminder.
     Compute resources are limited, so invite codes will be doled out sparingly.
@@ -262,7 +234,7 @@ def register(client, tokens, message, server, profile, msg, help=None):
     return {"msg": SuccessMessage(f"Welcome {message.channel.guild.name}!", title="Welcome!")}
 
 
-@params_as_args
+@register
 def _profile(client, tokens, message, server, profile, msg, help=None):
     """
     When called without any arguments, e.g. `rcd profile` this will display
@@ -322,7 +294,7 @@ def _profile(client, tokens, message, server, profile, msg, help=None):
     }
 
 
-@params_as_args
+@register
 def notify(client, tokens, message, server, profile, msg, help=None):
     """
         Manage your notification settings. Here you can specify which types of
@@ -389,7 +361,7 @@ def notify(client, tokens, message, server, profile, msg, help=None):
         }
 
 
-@params_as_args
+@register
 def toggle(client, tokens, message, server, profile, msg, help=None):
     """
     Toggle your profile notifications **{version}**. Example:
@@ -407,7 +379,7 @@ def toggle(client, tokens, message, server, profile, msg, help=None):
     return {"msg": SuccessMessage(f"Notifications are now **{on_or_off}** for **{message.author.name}**.")}
 
 
-@params_as_args
+@register
 def timezone(client, tokens, message, server, profile, msg, help=None):
     """
     Set your timezone. Example:
@@ -460,7 +432,7 @@ def timezone(client, tokens, message, server, profile, msg, help=None):
             }
 
 
-@params_as_args
+@register
 def timeformat(client, tokens, message, server, profile, msg, help=None):
     """
     Set the time format for the output of rcd using Python
@@ -537,7 +509,7 @@ def timeformat(client, tokens, message, server, profile, msg, help=None):
         }
 
 
-@params_as_args
+@register
 def multiplier(client, tokens, message, server, profile, msg, help=None):
     """
     Set a multiplier on your cooldowns to extend or reduce their frequency.
@@ -589,7 +561,7 @@ def multiplier(client, tokens, message, server, profile, msg, help=None):
     return {"msg": SuccessMessage(f"Your Cooldown Multiplier is now `{tokens[1]}`.")}
 
 
-@params_as_args
+@register
 def whocan(client, tokens, message, server, profile, msg, help=None):
     """
     Determine who in your server can use a particular command. Example:
@@ -637,7 +609,7 @@ def whocan(client, tokens, message, server, profile, msg, help=None):
     return {"msg": NormalMessage("Sorry, no one can do that right now.")}
 
 
-@params_as_args
+@register
 def dibbs(client, tokens, message, server, profile, msg, help=None):
     """
     Call "dibbs" on the guild raid.
@@ -679,7 +651,7 @@ def dibbs(client, tokens, message, server, profile, msg, help=None):
         return {"msg": NormalMessage(f"Sorry, **{player_with_dibbs}** already has dibbs.", title="Not this time!")}
 
 
-@params_as_args
+@register
 def stats(client, tokens, message, server, profile, msg, help=None):
     """
     This command shows the output of {long} stats that the helper bot has managed to collect.
@@ -744,7 +716,7 @@ def stats(client, tokens, message, server, profile, msg, help=None):
         }
 
 
-@params_as_args
+@register
 @admin_protected
 def admin(client, tokens, message, server, profile, msg, help=None):
     """
@@ -760,7 +732,7 @@ def admin(client, tokens, message, server, profile, msg, help=None):
         return {"msg": HelpMessage(admin.__doc__, title="Admin Help")}
 
 
-@params_as_args
+@register
 @admin_protected
 def event(client, tokens, message, server, profile, msg, help=None):
     """
@@ -813,7 +785,7 @@ def event(client, tokens, message, server, profile, msg, help=None):
     return {"msg": NormalMessage("", title=f'{tokens[1]} "{tokens[2]}"', fields=fields)}
 
 
-@params_as_args
+@register
 @admin_protected
 def scrape(client, tokens, message, server, profile, msg, help=None):
     """
@@ -862,38 +834,14 @@ def scrape(client, tokens, message, server, profile, msg, help=None):
         }
 
 
-@params_as_args
+@register
 @admin_protected
 def _import(client, tokens, message, server, profile, msg, help=None):
     pass
 
 
-command_pipeline = execution_pipeline(
-    pre=[
-        _help,  # needs to be first to pass "help" param to those that follow
-        whocan,
-        # most commands that follow can be invoked as profile subcommand
-        _profile,
-        notify,  # notify must be before cd so `rcd hunt on` works
-        # cd allows arbitrary arguments so it must follow
-        # all other commands that can be invoked implicitly
-        cd,
-        stats,
-        toggle,
-        dibbs,
-        timezone,
-        timeformat,
-        multiplier,
-        register,  # called rarely, should be last.
-        admin,
-        event,
-        scrape,
-    ],
-)
-
-
 @sync_to_async
-@command_pipeline
+@execution_pipeline(pre=register.registry)
 def handle_rpcd_message(client, tokens, message, server, profile, msg, help=None, error=None, coro=None):
     _msg, _coro = msg, None
     if (error and not isinstance(error, str)) or not msg:
@@ -903,4 +851,4 @@ def handle_rpcd_message(client, tokens, message, server, profile, msg, help=None
         _msg = ErrorMessage(error)
     if coro and inspect.iscoroutinefunction(coro[0]):
         _coro = coro
-    return (_msg, _coro)
+    return _msg, _coro
