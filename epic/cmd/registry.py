@@ -1,3 +1,4 @@
+import collections
 import functools
 import re
 
@@ -5,8 +6,11 @@ from epic.models import Profile, Channel
 from epic.utils import ErrorMessage
 
 
+ParamTuple = collections.namedtuple("ParamTuple", "client,tokens,message,server,profile,msg,help")
+
+
 def init_registry(*wrappers):
-    registry, admin_protected = [], {}
+    registry, token_map, admin_protected = [], {}, {}
     help_tokens = {"h", "help"}
 
     def token_filter(func, acceptable_tokens, patterns=None, filter_funcs=None):
@@ -15,14 +19,16 @@ def init_registry(*wrappers):
         filter_funcs = [] if not filter_funcs else filter_funcs
 
         @functools.wraps(func)
-        def filtered_command(client, tokens, *rest):
+        def filtered_command(client, tokens, message, server, profile, msg, help=None):
+            params = ParamTuple(client, tokens, message, server, profile, msg, help)
             entry_token = "" if not tokens else tokens[0]
-            if filter_funcs and not any(f(tokens) for f in filter_funcs):
-                return
+            if filter_funcs:
+                if not any(f(params) for f in filter_funcs):
+                    return
             if entry_token not in acceptable_tokens and entry_token not in help_tokens:
                 if not any(re.match(pattern, entry_token) for pattern in patterns):
                     return  # not an invocation of this command
-            return func(client, tokens, *rest)
+            return func(*params)
 
         return filtered_command
 
@@ -35,24 +41,28 @@ def init_registry(*wrappers):
 
         return protected_command
 
-    def register(cmd=None, entry_tokens=None, entry_patterns=None, token_filters=None, protected=False, **kwargs):
+    def register(cmd=None, entry_tokens=None, entry_patterns=None, param_filters=None, protected=False, **kwargs):
         if entry_tokens is None:
             if not callable(cmd):
                 entry_tokens = cmd
 
         def _register(_cmd):
             assert callable(_cmd), f"{_cmd.__name__} is not callable and cannot be registered as a command."
-            if entry_tokens or entry_patterns or token_filters:
-                _cmd = token_filter(_cmd, entry_tokens, entry_patterns, token_filters)
+            if entry_tokens or entry_patterns or param_filters:
+                _cmd = token_filter(_cmd, entry_tokens, entry_patterns, param_filters)
             if protected:
                 admin_protected[_cmd.__name__] = True
                 _cmd = protect(_cmd)
             for w in wrappers:
                 _cmd = w(_cmd)
-            _cmd.entry_tokens, _cmd.entry_patterns, _cmd.entry_filters = entry_tokens, entry_patterns, token_filters
+            _cmd.entry_tokens, _cmd.entry_patterns, _cmd.param_filters = entry_tokens, entry_patterns, param_filters
             for key, value in kwargs.items():
                 setattr(_cmd, key, value)
             registry.append(_cmd)
+            if entry_tokens:
+                for token in entry_tokens:
+                    # index of the function tied to the token
+                    token_map[token] = len(registry) - 1
             return _cmd
 
         if callable(cmd):
@@ -60,8 +70,12 @@ def init_registry(*wrappers):
 
         return _register
 
+    def command_by_token(token):
+        return token_map[token]
+
     register.registry = registry
     register.admin_protected = admin_protected
+    register.command_by_token = command_by_token
     return register
 
 

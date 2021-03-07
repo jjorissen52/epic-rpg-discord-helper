@@ -59,8 +59,7 @@ def _help(client, tokens, message, server, profile, msg, help=None):
 
 @register(
     entry_tokens={"", "cd", "rd", *CoolDown.COOLDOWN_MAP.keys()},
-    entry_patterns=[r"<@!?(?P<user_id>\d+)>"],
-    token_filters=[lambda t: t[-1] not in {"on", "off"}],
+    param_filters=[lambda p: p.tokens[-1] not in {"on", "off"}],
 )
 def cd(client, tokens, message, server, profile, msg, help=None):
     """
@@ -216,7 +215,10 @@ def _profile(client, tokens, message, server, profile, msg, help=None):
     }
 
 
-@register({"notify", "n", "all", *CoolDown.COOLDOWN_MAP.keys()})
+@register(
+    entry_tokens={"notify", "n", "all", *CoolDown.COOLDOWN_MAP.keys()},
+    param_filters=[lambda p: p.tokens[-1] in {"on", "off"} or p.help],
+)
 def notify(client, tokens, message, server, profile, msg, help=None):
     """
         Manage your notification settings. Here you can specify which types of
