@@ -20,7 +20,7 @@ from epic.history.scrape import scrape_channels, scrape_channel
 
 
 def init_registry(*wrappers):
-    registry = []
+    registry, admin_protected = [], {}
     help_tokens = {'h', 'help'}
 
     def token_filter(func, acceptable_tokens, patterns=None, filter_funcs=None):
@@ -39,7 +39,16 @@ def init_registry(*wrappers):
             return func(client, tokens, *rest)
         return filtered_command
 
-    def register(cmd=None, entry_tokens=None, entry_patterns=None, token_filters=None, **kwargs):
+    def protect(func):
+        @functools.wraps(func)
+        def protected_command(client, tokens, message, server, profile, *args):
+            if admin_protected[func.__name__] and not profile.admin_user:
+                return {"msg": ErrorMessage("Sorry, only administrative users can use this command.")}
+            return func(client, tokens, message, server, profile, *args)
+        return protected_command
+
+    def register(cmd=None, entry_tokens=None, entry_patterns=None, token_filters=None,
+                 protected=False, **kwargs):
         if entry_tokens is None:
             if not callable(cmd):
                 entry_tokens = cmd
@@ -48,6 +57,9 @@ def init_registry(*wrappers):
             assert callable(_cmd), f"{_cmd.__name__} is not callable and cannot be registered as a command."
             if entry_tokens or entry_patterns or token_filters:
                 _cmd = token_filter(_cmd, entry_tokens, entry_patterns, token_filters)
+            if protected:
+                admin_protected[_cmd.__name__] = True
+                _cmd = protect(_cmd)
             for w in wrappers:
                 _cmd = w(_cmd)
             _cmd.entry_tokens, _cmd.entry_patterns, _cmd.entry_filters = \
@@ -63,6 +75,7 @@ def init_registry(*wrappers):
         return _register
 
     register.registry = registry
+    register.admin_protected = admin_protected
     return register
 
 
@@ -112,16 +125,6 @@ def params_as_args(func):
             return params
         params.update(res)
         return params
-
-    return wrapper
-
-
-def admin_protected(func):
-    @functools.wraps(func)
-    def wrapper(client, tokens, message, server, profile, msg, help=None):
-        if tokens and tokens[0] in {"admin", "event", "scrape", "import"} and not profile.admin_user:
-            return {"msg": ErrorMessage("Sorry, only administrative users can use this command.")}
-        return func(client, tokens, message, server, profile, msg, help)
 
     return wrapper
 
@@ -734,8 +737,7 @@ def stats(client, tokens, message, server, profile, msg, help=None):
         }
 
 
-@register({"admin"})
-@admin_protected
+@register({"admin"}, protected=True)
 def admin(client, tokens, message, server, profile, msg, help=None):
     """
     Commands only available to administrative users. Use `rcd help admin [command]` for usage.
@@ -748,8 +750,7 @@ def admin(client, tokens, message, server, profile, msg, help=None):
         return {"msg": HelpMessage(admin.__doc__, title="Admin Help")}
 
 
-@register({"event"})
-@admin_protected
+@register({"event"}, protected=True)
 def event(client, tokens, message, server, profile, msg, help=None):
     """
     Create and activate an event that has cooldown modifications. This will be active
@@ -799,8 +800,7 @@ def event(client, tokens, message, server, profile, msg, help=None):
     return {"msg": NormalMessage("", title=f'{tokens[1]} "{tokens[2]}"', fields=fields)}
 
 
-@register({"scrape"})
-@admin_protected
+@register({"scrape"}, protected=True)
 def scrape(client, tokens, message, server, profile, msg, help=None):
     """
     Scrape the contents of this channel for future refence.
@@ -846,8 +846,7 @@ def scrape(client, tokens, message, server, profile, msg, help=None):
         }
 
 
-@register
-@admin_protected
+@register(protected=True)
 def _import(client, tokens, message, server, profile, msg, help=None):
     pass
 
