@@ -23,26 +23,37 @@ def init_registry(*wrappers):
     registry = []
     help_tokens = {'h', 'help'}
 
-    def token_filter(func, acceptable_tokens):
+    def token_filter(func, acceptable_tokens, patterns=None, filter_funcs=None):
+        patterns = [] if not patterns else patterns
+        acceptable_tokens = set() if not acceptable_tokens else acceptable_tokens
+        filter_funcs = [] if not filter_funcs else filter_funcs
+
         @functools.wraps(func)
         def filtered_command(client, tokens, *rest):
             entry_token = "" if not tokens else tokens[0]
+            if filter_funcs and not any(f(tokens) for f in filter_funcs):
+                return
             if entry_token not in acceptable_tokens and entry_token not in help_tokens:
-                return  # not an invocation of this command
+                if not any(re.match(pattern, entry_token) for pattern in patterns):
+                    return  # not an invocation of this command
             return func(client, tokens, *rest)
         return filtered_command
 
-    def register(cmd=None, entry_tokens=None):
-        if cmd is None or entry_tokens is None:
+    def register(cmd=None, entry_tokens=None, entry_patterns=None, token_filters=None, **kwargs):
+        if entry_tokens is None:
             if not callable(cmd):
-                cmd, entry_tokens = None, cmd
+                entry_tokens = cmd
 
         def _register(_cmd):
             assert callable(_cmd), f"{_cmd.__name__} is not callable and cannot be registered as a command."
-            if entry_tokens:
-                _cmd = token_filter(_cmd, entry_tokens)
+            if entry_tokens or entry_patterns or token_filters:
+                _cmd = token_filter(_cmd, entry_tokens, entry_patterns, token_filters)
             for w in wrappers:
                 _cmd = w(_cmd)
+            _cmd.entry_tokens, _cmd.entry_patterns, _cmd.entry_filters = \
+                entry_tokens, entry_patterns, token_filters
+            for key, value in kwargs.items():
+                setattr(_cmd, key, value)
             registry.append(_cmd)
             return _cmd
 
@@ -93,6 +104,8 @@ def params_as_args(func):
                     "You can only use `help` and `register` commands until "
                     f"{message.channel.guild.name} has used a join code."
                 )
+        # first token is empty string if there are no given tokens
+        params["tokens"] = params["tokens"] if params["tokens"] else [""]
         args = [params.get(arg_name, None) for arg_name in arg_names]
         res = func(*args)
         if not res:
@@ -106,7 +119,7 @@ def params_as_args(func):
 def admin_protected(func):
     @functools.wraps(func)
     def wrapper(client, tokens, message, server, profile, msg, help=None):
-        if tokens[0] in {"admin", "event", "scrape", "import"} and not profile.admin_user:
+        if tokens and tokens[0] in {"admin", "event", "scrape", "import"} and not profile.admin_user:
             return {"msg": ErrorMessage("Sorry, only administrative users can use this command.")}
         return func(client, tokens, message, server, profile, msg, help)
 
@@ -116,7 +129,7 @@ def admin_protected(func):
 register = init_registry(params_as_args)
 
 
-@register({"", "h", "help"})
+@register({"h", "help"})
 def _help(client, tokens, message, server, profile, msg, help=None):
     """
 
@@ -149,17 +162,16 @@ def _help(client, tokens, message, server, profile, msg, help=None):
         • The cooldown duration for an observed EPIC RPG command is added to the current time. A notification is scheduled for this time.
         • The output of `rpg cd` is extracted and used to schedule notifications for all commands currently on cooldown.
     """
-    if not tokens:
-        # default command is now cd instead of help
-        return {"tokens": ["cd"]}
-    if tokens[0] not in {"help", "h"}:
-        return
     if len(tokens) == 1:
         return {"msg": HelpMessage(_help.__doc__)}
     return {"help": True, "tokens": tokens[1:]}
 
 
-@register
+@register(
+    entry_tokens={"", "cd", "rd", *CoolDown.COOLDOWN_MAP.keys()},
+    entry_patterns=[r"<@!?(?P<user_id>\d+)>"],
+    token_filters=[lambda t: t[-1] not in {"on", "off"}],
+)
 def cd(client, tokens, message, server, profile, msg, help=None):
     """
     Display when your cooldowns are expected to be done.
@@ -171,9 +183,9 @@ def cd(client, tokens, message, server, profile, msg, help=None):
         • `rcd` or `rrd`
         • `rcd daily weekly`
     """
-    if tokens[0] in CoolDown.COOLDOWN_MAP or re.match(r"<@!?(?P<user_id>\d+)>", tokens[0]):
-        # allow implicit invocation of cd
-        tokens, implicit_invocation = ["cd", *tokens], True
+    if tokens[0] not in {"cd", "rd"}:
+        # allow for implicit or default invocation of rcd
+        tokens = ["cd", *tokens[1:]] if tokens[0] == "" else ["cd", *tokens]
     nickname = message.author.name
     cooldown_filter = lambda x: True  # show all filters by default
     if tokens[0] not in {"rd", "cd"}:
@@ -181,7 +193,7 @@ def cd(client, tokens, message, server, profile, msg, help=None):
     if help and len(tokens) == 1:
         return {"msg": HelpMessage(cd.__doc__)}
     elif len(tokens) > 1:
-        mentioned_profile = Profile.from_tag(tokens[1], client, server, message)
+        mentioned_profile = Profile.from_tag(tokens[-1], client, server, message)
         if mentioned_profile:
             profile = mentioned_profile
             cd_args = set(tokens[2:])
@@ -277,8 +289,6 @@ def _profile(client, tokens, message, server, profile, msg, help=None):
         • `rcd p notify hunt on` Turns on hunt notifications for your profile.
         • `rcd p hunt on` Turns on hunt notifications for your profile.
     """
-    if tokens[0] not in {"profile", "p"}:
-        return None
     if help and len(tokens) == 1:
         return {"msg": HelpMessage(_profile.__doc__)}
     elif len(tokens) > 1:
@@ -316,7 +326,7 @@ def _profile(client, tokens, message, server, profile, msg, help=None):
     }
 
 
-@register
+@register({"notify", "n", "all", *CoolDown.COOLDOWN_MAP.keys()})
 def notify(client, tokens, message, server, profile, msg, help=None):
     """
         Manage your notification settings. Here you can specify which types of
@@ -347,6 +357,7 @@ def notify(client, tokens, message, server, profile, msg, help=None):
         • `guild`
         • `pet`
     """
+    print(tokens)
     if (tokens[0] in CoolDown.COOLDOWN_MAP or tokens[0] == "all") and tokens[-1] in {"on", "off"}:
         # allow implicit invocation of notify
         tokens = ["notify", *tokens]
@@ -354,6 +365,7 @@ def notify(client, tokens, message, server, profile, msg, help=None):
         for token in {*tokens[1:-1]}:
             if token not in CoolDown.COOLDOWN_MAP and token != "all":
                 return {"error": 1}
+    # pass on to the toggle command
     if tokens[0] not in {"notify", "n"} or len(tokens) == 2:
         return None
     if help or len(tokens) == 1:
@@ -660,7 +672,14 @@ def dibbs(client, tokens, message, server, profile, msg, help=None):
         return {"msg": NormalMessage(f"Sorry, **{player_with_dibbs}** already has dibbs.", title="Not this time!")}
 
 
-@register
+@register({
+    "gambling": ("gambling", "g"),
+    "g": ("gambling", "g"),
+    "drops": ("drops", "dr"),
+    "dr": ("drops", "dr"),
+    "hunts": ("hunts", "hu"),
+    "hu": ("hunts", "hu"),
+})
 def stats(client, tokens, message, server, profile, msg, help=None):
     """
     This command shows the output of {long} stats that the helper bot has managed to collect.
@@ -672,17 +691,7 @@ def stats(client, tokens, message, server, profile, msg, help=None):
         • `rcd {short} @player` show a player's {long} stats
     """
     minutes, _all = None, False
-    token_map = {
-        "gambling": ("gambling", "g"),
-        "g": ("gambling", "g"),
-        "drops": ("drops", "dr"),
-        "dr": ("drops", "dr"),
-        "hunts": ("hunts", "hu"),
-        "hu": ("hunts", "hu"),
-    }
-    if tokens[0] not in token_map:
-        return None
-    long, short = token_map[tokens[0]]
+    long, short = stats.entry_tokens[tokens[0]]
     if help:
         return {"msg": HelpMessage(stats.__doc__.format(long=long, short=short))}
     if len(tokens) > 1:
