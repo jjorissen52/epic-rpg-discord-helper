@@ -8,13 +8,22 @@ from django.db import migrations, models
 class Migration(migrations.Migration):
 
     dependencies = [
-        ('epic', '0012_event_cooldowns'),
+        ("epic", "0012_event_cooldowns"),
     ]
 
     operations = [
         migrations.AddField(
-            model_name='profile',
-            name='cooldown_multiplier',
-            field=models.DecimalField(blank=True, decimal_places=2, max_digits=3, null=True, validators=[django.core.validators.MinValueValidator(Decimal('0')), django.core.validators.MaxValueValidator(Decimal('1'))]),
+            model_name="profile",
+            name="cooldown_multiplier",
+            field=models.DecimalField(
+                blank=True,
+                decimal_places=2,
+                max_digits=3,
+                null=True,
+                validators=[
+                    django.core.validators.MinValueValidator(Decimal("0")),
+                    django.core.validators.MaxValueValidator(Decimal("1")),
+                ],
+            ),
         ),
     ]

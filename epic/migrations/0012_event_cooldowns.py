@@ -9,23 +9,25 @@ class Migration(migrations.Migration):
 
     dependencies = [
         migrations.swappable_dependency(settings.AUTH_USER_MODEL),
-        ('epic', '0011_groupactivity_invite'),
+        ("epic", "0011_groupactivity_invite"),
     ]
 
     operations = [
         migrations.CreateModel(
-            name='Event',
+            name="Event",
             fields=[
-                ('id', models.AutoField(auto_created=True, primary_key=True, serialize=False, verbose_name='ID')),
-                ('event_name', models.CharField(max_length=128)),
-                ('cooldown_adjustments', models.JSONField()),
-                ('start', models.DateTimeField(auto_now_add=True)),
-                ('end', models.DateTimeField()),
+                ("id", models.AutoField(auto_created=True, primary_key=True, serialize=False, verbose_name="ID")),
+                ("event_name", models.CharField(max_length=128)),
+                ("cooldown_adjustments", models.JSONField()),
+                ("start", models.DateTimeField(auto_now_add=True)),
+                ("end", models.DateTimeField()),
             ],
         ),
         migrations.AddField(
-            model_name='profile',
-            name='admin_user',
-            field=models.ForeignKey(blank=True, null=True, on_delete=django.db.models.deletion.SET_NULL, to=settings.AUTH_USER_MODEL),
+            model_name="profile",
+            name="admin_user",
+            field=models.ForeignKey(
+                blank=True, null=True, on_delete=django.db.models.deletion.SET_NULL, to=settings.AUTH_USER_MODEL
+            ),
         ),
     ]

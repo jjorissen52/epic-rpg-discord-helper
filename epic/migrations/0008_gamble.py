@@ -7,18 +7,30 @@ import django.db.models.deletion
 class Migration(migrations.Migration):
 
     dependencies = [
-        ('epic', '0007_group_guild_cd'),
+        ("epic", "0007_group_guild_cd"),
     ]
 
     operations = [
         migrations.CreateModel(
-            name='Gamble',
+            name="Gamble",
             fields=[
-                ('id', models.AutoField(auto_created=True, primary_key=True, serialize=False, verbose_name='ID')),
-                ('game', models.CharField(choices=[('bj', 'Blackjack'), ('cf', 'Coinflip'), ('slots', 'Slots'), ('dice', 'Dice')], max_length=5)),
-                ('outcome', models.CharField(choices=[('won', 'Win'), ('lost', 'Loss'), ('tied', 'Tie')], max_length=4)),
-                ('net', models.IntegerField()),
-                ('profile', models.ForeignKey(null=True, on_delete=django.db.models.deletion.SET_NULL, to='epic.profile')),
+                ("id", models.AutoField(auto_created=True, primary_key=True, serialize=False, verbose_name="ID")),
+                (
+                    "game",
+                    models.CharField(
+                        choices=[("bj", "Blackjack"), ("cf", "Coinflip"), ("slots", "Slots"), ("dice", "Dice")],
+                        max_length=5,
+                    ),
+                ),
+                (
+                    "outcome",
+                    models.CharField(choices=[("won", "Win"), ("lost", "Loss"), ("tied", "Tie")], max_length=4),
+                ),
+                ("net", models.IntegerField()),
+                (
+                    "profile",
+                    models.ForeignKey(null=True, on_delete=django.db.models.deletion.SET_NULL, to="epic.profile"),
+                ),
             ],
         ),
     ]
