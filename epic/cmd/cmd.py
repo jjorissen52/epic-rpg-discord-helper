@@ -72,16 +72,16 @@ def cd(client, tokens, message, server, profile, msg, help=None):
         • `rcd` or `rrd`
         • `rcd daily weekly`
     """
+    if help:
+        return {"msg": HelpMessage(cd.__doc__)}
+
     if tokens[0] not in {"cd", "rd"}:
         # allow for implicit or default invocation of rcd
         tokens = ["cd", *tokens[1:]] if tokens[0] == "" else ["cd", *tokens]
     nickname = message.author.name
     cooldown_filter = lambda x: True  # show all filters by default
-    if tokens[0] not in {"rd", "cd"}:
-        return None
-    if help and len(tokens) == 1:
-        return {"msg": HelpMessage(cd.__doc__)}
-    elif len(tokens) > 1:
+
+    if len(tokens) > 1:
         mentioned_profile = Profile.from_tag(tokens[-1], client, server, message)
         if mentioned_profile:
             profile = mentioned_profile
@@ -170,7 +170,7 @@ def _profile(client, tokens, message, server, profile, msg, help=None):
         • `rcd profile|p multiplier|mp <multiplier>`
         • `rcd profile|p on|off`
         • `rcd profile|p [notify|n] <cooldown_type> on|off`
-        • `rcd profile|p gamling|g [@player]`
+        • `rcd profile|p gambling|g [@player]`
     Examples:
         • `rcd profile` Displays your profile information
         • `rcd p tz <timezone>` Sets your timezone to the provided timezone.
@@ -183,15 +183,11 @@ def _profile(client, tokens, message, server, profile, msg, help=None):
     elif len(tokens) > 1:
         # allow other commands to be namespaced by profile if that's how the user calls it
         if tokens[1] in {
-            *("timezone", "tz"),
-            *("timeformat", "tf"),
-            *("multiplier", "mp"),
-            *("notify", "n"),
-            *("gambling", "g"),
-            "on",
-            "off",
-            # allow implicit command type commands to be namespaced by `rcd p`
-            *CoolDown.COOLDOWN_MAP.keys(),
+            *timezone.entry_tokens,
+            *timeformat.entry_tokens,
+            *multiplier.entry_tokens,
+            *stats.entry_tokens,
+            *notify.entry_tokens,
         }:
             return {"tokens": tokens[1:]}
         maybe_profile = Profile.from_tag(tokens[1], client, server, message)
@@ -249,53 +245,55 @@ def notify(client, tokens, message, server, profile, msg, help=None):
         • `guild`
         • `pet`
     """
-    print(tokens)
-    if (tokens[0] in CoolDown.COOLDOWN_MAP or tokens[0] == "all") and tokens[-1] in {"on", "off"}:
-        # allow implicit invocation of notify
-        tokens = ["notify", *tokens]
-        # make sure all passed tokens are valid cooldown type
-        for token in {*tokens[1:-1]}:
-            if token not in CoolDown.COOLDOWN_MAP and token != "all":
-                return {"error": 1}
-    # pass on to the toggle command
-    if tokens[0] not in {"notify", "n"} or len(tokens) == 2:
-        return None
-    if help or len(tokens) == 1:
+    if help:
         return {"msg": HelpMessage(notify.__doc__)}
-    _, command_type, toggle = tokens
-    if (command_type in CoolDown.COOLDOWN_MAP or command_type == "all") and toggle in {"on", "off"}:
-        on = toggle == "on"
-        if command_type == "all":
-            kwargs = {command_name: on for _, command_name in CoolDown.COOLDOWN_TYPE_CHOICES}
-        else:
-            # "work" is stored as "mine" in the database
-            command_type = "work" if command_type == "mine" else command_type
-            kwargs = {command_type: on}
-        profile.update(last_known_nickname=message.author.name, **kwargs)
-        if not profile.notify:
-            return {
-                "msg": NormalMessage(
-                    f"Notifications for `{command_type}` are now {toggle} for **{message.author.name}** "
-                    "but you will need to turn on notifications before you can receive any. "
-                    "Try `rcd on` to start receiving notifcations."
-                )
-            }
+
+    toggle_all = False
+    # allow implicit invocation of notify
+    tokens = tokens[1:] if tokens[0] in {"notify", "n"} else tokens
+    # make sure all passed tokens are valid cooldown type
+    command_types, toggle = tokens[:-1], tokens[-1]
+    for command_type in command_types:
+        if command_type not in CoolDown.COOLDOWN_MAP:
+            if command_type != "all":
+                return {"error": 1}
+            toggle_all = True
+
+    # invocation of the toggle command
+    if len(tokens) == 1:
+        return {"tokens": [toggle]}
+
+    on = toggle == "on"
+    if toggle_all:
+        kwargs = {command_name: on for command_name, _ in CoolDown.COOLDOWN_TYPE_CHOICES}
+    else:
+        kwargs = {command_type: on for command_type in command_types}
+    profile.update(last_known_nickname=message.author.name, **kwargs)
+    notification_type_string = ", ".join(kwargs.keys())
+    if not profile.notify:
         return {
-            "msg": SuccessMessage(
-                f"Notifications for **{command_type}** are now **{toggle}** for **{message.author.name}**."
+            "msg": NormalMessage(
+                f"Notifications for `{notification_type_string}` are now {toggle} for **{message.author.name}** "
+                "but you will need to turn on notifications before you can receive any. "
+                "Try `rcd on` to start receiving notifications."
             )
         }
+    return {
+        "msg": SuccessMessage(
+            f"Notifications for **{notification_type_string}** are now **{toggle}** for **{message.author.name}**."
+        )
+    }
 
 
 @register({"on", "off"})
-def toggle(client, tokens, message, server, profile, msg, help=None):
+def _toggle(client, tokens, message, server, profile, msg, help=None):
     """
     Toggle your profile notifications **{version}**. Example:
       • `rcd {version}`
     """
     on_or_off = tokens[0]
     if help and len(tokens) == 1:
-        return {"msg": HelpMessage(toggle.__doc__.format(version=on_or_off))}
+        return {"msg": HelpMessage(_toggle.__doc__.format(version=on_or_off))}
     elif len(tokens) != 1:
         return {"error": 1}
 
