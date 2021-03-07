@@ -21,16 +21,38 @@ from epic.history.scrape import scrape_channels, scrape_channel
 
 def init_registry(*wrappers):
     registry = []
+    help_tokens = {'h', 'help'}
 
-    def _register(cmd):
-        assert callable(cmd), f"{cmd.__name__} is not callable and cannot be registered as a command."
-        for w in wrappers:
-            cmd = w(cmd)
-        registry.append(cmd)
-        return cmd
+    def token_filter(func, acceptable_tokens):
+        @functools.wraps(func)
+        def filtered_command(client, tokens, *rest):
+            entry_token = "" if not tokens else tokens[0]
+            if entry_token not in acceptable_tokens and entry_token not in help_tokens:
+                return  # not an invocation of this command
+            return func(client, tokens, *rest)
+        return filtered_command
 
-    _register.registry = registry
-    return _register
+    def register(cmd=None, entry_tokens=None):
+        if cmd is None or entry_tokens is None:
+            if not callable(cmd):
+                cmd, entry_tokens = None, cmd
+
+        def _register(_cmd):
+            assert callable(_cmd), f"{_cmd.__name__} is not callable and cannot be registered as a command."
+            if entry_tokens:
+                _cmd = token_filter(_cmd, entry_tokens)
+            for w in wrappers:
+                _cmd = w(_cmd)
+            registry.append(_cmd)
+            return _cmd
+
+        if callable(cmd):
+            return _register(cmd)
+
+        return _register
+
+    register.registry = registry
+    return register
 
 
 def params_as_args(func):
@@ -94,7 +116,7 @@ def admin_protected(func):
 register = init_registry(params_as_args)
 
 
-@register
+@register({"", "h", "help"})
 def _help(client, tokens, message, server, profile, msg, help=None):
     """
 
@@ -206,7 +228,7 @@ def cd(client, tokens, message, server, profile, msg, help=None):
     return {"msg": NormalMessage(msg, title=f"**{nickname}'s** Cooldowns ({profile.timezone})")}
 
 
-@register
+@register({"register"})
 def _register(client, tokens, message, server, profile, msg, help=None):
     """
         Register your server for use with Epic Reminder.
@@ -234,7 +256,7 @@ def _register(client, tokens, message, server, profile, msg, help=None):
     return {"msg": SuccessMessage(f"Welcome {message.channel.guild.name}!", title="Welcome!")}
 
 
-@register
+@register({"profile", "p"})
 def _profile(client, tokens, message, server, profile, msg, help=None):
     """
     When called without any arguments, e.g. `rcd profile` this will display
@@ -361,14 +383,12 @@ def notify(client, tokens, message, server, profile, msg, help=None):
         }
 
 
-@register
+@register({"on", "off"})
 def toggle(client, tokens, message, server, profile, msg, help=None):
     """
     Toggle your profile notifications **{version}**. Example:
       • `rcd {version}`
     """
-    if tokens[0] not in {"on", "off"}:
-        return None
     on_or_off = tokens[0]
     if help and len(tokens) == 1:
         return {"msg": HelpMessage(toggle.__doc__.format(version=on_or_off))}
@@ -379,7 +399,7 @@ def toggle(client, tokens, message, server, profile, msg, help=None):
     return {"msg": SuccessMessage(f"Notifications are now **{on_or_off}** for **{message.author.name}**.")}
 
 
-@register
+@register({"timezone", "tz"})
 def timezone(client, tokens, message, server, profile, msg, help=None):
     """
     Set your timezone. Example:
@@ -388,9 +408,6 @@ def timezone(client, tokens, message, server, profile, msg, help=None):
           is not effected.)
         • `rcd tz default` Sets your timezone back to the default.
     """
-    command = tokens[0]
-    if command not in {"timezone", "tz"}:
-        return None
     current_time = datetime.datetime.now().astimezone(pytz.timezone(profile.timezone))
     if help or len(tokens) == 1:
         return {
@@ -432,7 +449,7 @@ def timezone(client, tokens, message, server, profile, msg, help=None):
             }
 
 
-@register
+@register({"timeformat", "tf"})
 def timeformat(client, tokens, message, server, profile, msg, help=None):
     """
     Set the time format for the output of rcd using Python
@@ -449,9 +466,6 @@ def timeformat(client, tokens, message, server, profile, msg, help=None):
     Don't worry, you will not be able to save an invalid time format.
     """
 
-    command = tokens[0]
-    if command not in {"timeformat", "tf"}:
-        return None
     itokens = tokenize(message.content[:250], preserve_case=True)
     current_time = datetime.datetime.now().astimezone(pytz.timezone(profile.timezone)).strftime(profile.time_format)
     if help or len(tokens) == 1:
@@ -509,7 +523,7 @@ def timeformat(client, tokens, message, server, profile, msg, help=None):
         }
 
 
-@register
+@register({"multiplier", "mp"})
 def multiplier(client, tokens, message, server, profile, msg, help=None):
     """
     Set a multiplier on your cooldowns to extend or reduce their frequency.
@@ -526,8 +540,6 @@ def multiplier(client, tokens, message, server, profile, msg, help=None):
     Multipliers must be from [0 to 10).
     """
     command = tokens[0]
-    if command not in {"multiplier", "mp"}:
-        return None
     if help or len(tokens) == 1:
         return {
             "msg": HelpMessage(
@@ -537,7 +549,8 @@ def multiplier(client, tokens, message, server, profile, msg, help=None):
     elif len(tokens) != 2:
         return {
             "msg": ErrorMessage(
-                f"Could not parse `rcd {command} {' '.join(tokens)}` as a valid multiplier command; your input has more arguments that expected."
+                f"Could not parse `rcd {command} {' '.join(tokens)}` as a valid multiplier "
+                f"command; your input has more arguments that expected."
             )
         }
     if tokens[1] == "default":
@@ -561,15 +574,13 @@ def multiplier(client, tokens, message, server, profile, msg, help=None):
     return {"msg": SuccessMessage(f"Your Cooldown Multiplier is now `{tokens[1]}`.")}
 
 
-@register
+@register({"whocan", "w"})
 def whocan(client, tokens, message, server, profile, msg, help=None):
     """
     Determine who in your server can use a particular command. Example:
       • `rcd whocan dungeon`
       • `rcd w dungeon`
     """
-    if tokens[0] not in {"whocan", "w"}:
-        return None
     if help or len(tokens) == 1:
         return {"msg": HelpMessage(whocan.__doc__)}
 
@@ -609,7 +620,7 @@ def whocan(client, tokens, message, server, profile, msg, help=None):
     return {"msg": NormalMessage("Sorry, no one can do that right now.")}
 
 
-@register
+@register({"dibbs", "dibbs?", "d", "d?"})
 def dibbs(client, tokens, message, server, profile, msg, help=None):
     """
     Call "dibbs" on the guild raid.
@@ -619,8 +630,6 @@ def dibbs(client, tokens, message, server, profile, msg, help=None):
         • `rcd dibbs` Call dibbs on next guild raid
         • `rcd dibbs?` Find out if anyone has dibbs without claiming it
     """
-    if tokens[0] not in {"dibbs", "dibbs?", "d", "d?"}:
-        return None
     if help:
         return {"msg": HelpMessage(dibbs.__doc__)}
 
@@ -716,7 +725,7 @@ def stats(client, tokens, message, server, profile, msg, help=None):
         }
 
 
-@register
+@register({"admin"})
 @admin_protected
 def admin(client, tokens, message, server, profile, msg, help=None):
     """
@@ -724,15 +733,13 @@ def admin(client, tokens, message, server, profile, msg, help=None):
     • `rcd admin event`
     • `rcd admin scrape`
     """
-    if tokens[0] != "admin":
-        return None
     if len(tokens) > 1:
         return {"tokens": tokens[1:]}
     elif help:
         return {"msg": HelpMessage(admin.__doc__, title="Admin Help")}
 
 
-@register
+@register({"event"})
 @admin_protected
 def event(client, tokens, message, server, profile, msg, help=None):
     """
@@ -746,8 +753,6 @@ def event(client, tokens, message, server, profile, msg, help=None):
         end at `2020-01-01T00:00:00` UTC, and have cooldown for arena as 7200 seconds for the duration.
         • `rcd admin event upsert "XMAS 2020" start=2020-12-01T00:00:00 end=2020-01-01T00:00:00 arena=60*60*12`
     """
-    if not tokens[0] == "event":
-        return None
     if help or len(tokens) < 3 or tokens[1] not in {"upsert", "show", "delete"}:
         return {"msg": HelpMessage(event.__doc__, title="Admin Event Help")}
     if tokens[1] == "upsert":
@@ -785,7 +790,7 @@ def event(client, tokens, message, server, profile, msg, help=None):
     return {"msg": NormalMessage("", title=f'{tokens[1]} "{tokens[2]}"', fields=fields)}
 
 
-@register
+@register({"scrape"})
 @admin_protected
 def scrape(client, tokens, message, server, profile, msg, help=None):
     """
@@ -793,8 +798,6 @@ def scrape(client, tokens, message, server, profile, msg, help=None):
     Usage:
         • `rcd admin scrape [limit]`
     """
-    if tokens[0] != "scrape":
-        return None
     if help:
         return {"msg": HelpMessage(scrape.__doc__)}
     limit = None
