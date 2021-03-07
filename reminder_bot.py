@@ -6,7 +6,7 @@ import logging
 from asgiref.sync import sync_to_async
 
 # imported for side effects which setup django apps
-from epic_reminder import wsgi # noqa
+from epic_reminder import wsgi  # noqa
 from epic.models import CoolDown, Profile, Server, Gamble, Hunt, GroupActivity
 from epic.query import (
     get_instance,
@@ -20,7 +20,7 @@ from epic.query import (
     update_hunt_results,
 )
 from epic.utils import tokenize, RCDMessage
-from epic.cmd_chain import handle_rpcd_message
+from epic.cmd import handle_rcd_command
 
 logger = logging.getLogger(__name__)
 
@@ -117,14 +117,12 @@ class Client(discord.Client):
 
         content = message.content[:150].lower()
 
-        if content.startswith("rpgcd") or content.startswith("rcd") or content.startswith("rrd"):
+        if content.startswith("rcd") or content.startswith("rrd"):
             if content.startswith("rcd"):
                 tokens = tokenize(message.content[3:])
-            elif content.startswith("rrd"):
-                tokens = ["rd", *tokenize(message.content[3:])]
             else:
-                tokens = tokenize(message.content[5:])
-            msg, coro = await handle_rpcd_message(self, tokens, message, server, None, None)
+                tokens = ["rd", *tokenize(message.content[3:])]
+            msg, coro = await handle_rcd_command(self, tokens, message, server, None, None)
             embed = msg.to_embed()
             await message.channel.send(embed=embed)
             if coro:
