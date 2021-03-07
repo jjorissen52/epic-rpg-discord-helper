@@ -1,128 +1,25 @@
 import re
 import time
 import pytz
-import discord
 import decimal
 import datetime
 import operator
-import inspect
 import functools
-
-from asgiref.sync import sync_to_async
-from pipeline import execution_pipeline
 
 from django.db.models import Q
 from django.forms.models import model_to_dict
 from django.core.exceptions import ValidationError
 
+from epic.cmd.registry import default_registry
 from epic.models import Channel, CoolDown, Profile, Server, JoinCode, Gamble, Hunt, Event
-from epic.utils import tokenize
+from epic.utils import tokenize, ErrorMessage, NormalMessage, HelpMessage, SuccessMessage
 from epic.history.scrape import scrape_channels, scrape_channel
 
 
-class RCDMessage:
-    color = 0x8C8A89
-    title = None
-    footer = None
-    fields = []
-
-    def __init__(self, msg, title=None, footer=None, fields=None):
-        self.msg = msg
-        if title:
-            self.title = title
-        if footer:
-            self.footer = footer
-        if fields:
-            self.fields = fields
-
-    def to_embed(self):
-        kwargs = {"color": self.color, "description": self.msg}
-        if self.title:
-            kwargs["title"] = self.title
-        embed = discord.Embed(**kwargs)
-        for field in self.fields:
-            embed.add_field(name=field[0], value=field[1], inline=False)
-        if self.footer:
-            embed.set_footer(text=self.footer)
-        return embed
+register = default_registry
 
 
-class ErrorMessage(RCDMessage):
-    title = "Error"
-    color = 0xEB4034
-
-
-class NormalMessage(RCDMessage):
-    color = 0x4381CC
-
-
-class HelpMessage(RCDMessage):
-    title = "Help"
-
-
-class SuccessMessage(RCDMessage):
-    color = 0x628F47
-
-
-def params_as_args(func):
-    arg_names = ["client", "tokens", "message", "server", "profile", "msg", "help"]
-
-    @functools.wraps(func)
-    def wrapper(params):
-        if params["msg"] or params.get("error", None) or params.get("coro", None):
-            # short-circuit to prevent running
-            # the rest of the command chain
-            return params
-        # if they are using commands, we want to go ahead and
-        # make them a profile.
-        if params["profile"] is None:
-            message, server, tokens, help = params["message"], params["server"], params["tokens"], params["help"]
-            if server is not None:
-                profile, created = Profile.objects.get_or_create(
-                    uid=message.author.id,
-                    defaults={
-                        "last_known_nickname": message.author.name,
-                        "server": server,
-                        "channel": message.channel.id,
-                    },
-                )
-                if not created and profile.server_id != server.id:
-                    profile.update(server_id=server.id)
-                # just keeping track of used channels
-                _channel, _ = Channel.objects.get_or_create(
-                    id=message.channel.id,
-                    defaults={
-                        "name_at_creation": message.channel.name,
-                        "server_id": server.id,
-                    },
-                )
-                params["profile"] = profile
-            elif not help and tokens and tokens[0] not in {"help", "register"}:
-                params["msg"] = ErrorMessage(
-                    "You can only use `help` and `register` commands until "
-                    f"{message.channel.guild.name} has used a join code."
-                )
-        args = [params.get(arg_name, None) for arg_name in arg_names]
-        res = func(*args)
-        if not res:
-            return params
-        params.update(res)
-        return params
-
-    return wrapper
-
-
-def admin_protected(func):
-    @functools.wraps(func)
-    def wrapper(client, tokens, message, server, profile, msg, help=None):
-        if tokens[0] in {"admin", "event", "scrape", "import"} and not profile.admin_user:
-            return {"msg": ErrorMessage("Sorry, only administrative users can use this command.")}
-        return func(client, tokens, message, server, profile, msg, help)
-
-    return wrapper
-
-
-@params_as_args
+@register({"h", "help"})
 def _help(client, tokens, message, server, profile, msg, help=None):
     """
 
@@ -155,17 +52,15 @@ def _help(client, tokens, message, server, profile, msg, help=None):
         • The cooldown duration for an observed EPIC RPG command is added to the current time. A notification is scheduled for this time.
         • The output of `rpg cd` is extracted and used to schedule notifications for all commands currently on cooldown.
     """
-    if not tokens:
-        # default command is now cd instead of help
-        return {"tokens": ["cd"]}
-    if tokens[0] not in {"help", "h"}:
-        return
     if len(tokens) == 1:
         return {"msg": HelpMessage(_help.__doc__)}
     return {"help": True, "tokens": tokens[1:]}
 
 
-@params_as_args
+@register(
+    entry_tokens={"", "cd", "rd", *CoolDown.COOLDOWN_MAP.keys()},
+    param_filters=[lambda p: p.tokens[-1] not in {"on", "off"}],
+)
 def cd(client, tokens, message, server, profile, msg, help=None):
     """
     Display when your cooldowns are expected to be done.
@@ -177,17 +72,17 @@ def cd(client, tokens, message, server, profile, msg, help=None):
         • `rcd` or `rrd`
         • `rcd daily weekly`
     """
-    if tokens[0] in CoolDown.COOLDOWN_MAP or re.match(r"<@!?(?P<user_id>\d+)>", tokens[0]):
-        # allow implicit invocation of cd
-        tokens, implicit_invocation = ["cd", *tokens], True
+    if help:
+        return {"msg": HelpMessage(cd.__doc__)}
+
+    if tokens[0] not in {"cd", "rd"}:
+        # allow for implicit or default invocation of rcd
+        tokens = ["cd", *tokens[1:]] if tokens[0] == "" else ["cd", *tokens]
     nickname = message.author.name
     cooldown_filter = lambda x: True  # show all filters by default
-    if tokens[0] not in {"rd", "cd"}:
-        return None
-    if help and len(tokens) == 1:
-        return {"msg": HelpMessage(cd.__doc__)}
-    elif len(tokens) > 1:
-        mentioned_profile = Profile.from_tag(tokens[1], client, server, message)
+
+    if len(tokens) > 1:
+        mentioned_profile = Profile.from_tag(tokens[-1], client, server, message)
         if mentioned_profile:
             profile = mentioned_profile
             cd_args = set(tokens[2:])
@@ -234,8 +129,8 @@ def cd(client, tokens, message, server, profile, msg, help=None):
     return {"msg": NormalMessage(msg, title=f"**{nickname}'s** Cooldowns ({profile.timezone})")}
 
 
-@params_as_args
-def register(client, tokens, message, server, profile, msg, help=None):
+@register({"register"})
+def _register(client, tokens, message, server, profile, msg, help=None):
     """
         Register your server for use with Epic Reminder.
     Compute resources are limited, so invite codes will be doled out sparingly.
@@ -262,7 +157,7 @@ def register(client, tokens, message, server, profile, msg, help=None):
     return {"msg": SuccessMessage(f"Welcome {message.channel.guild.name}!", title="Welcome!")}
 
 
-@params_as_args
+@register({"profile", "p"})
 def _profile(client, tokens, message, server, profile, msg, help=None):
     """
     When called without any arguments, e.g. `rcd profile` this will display
@@ -275,7 +170,7 @@ def _profile(client, tokens, message, server, profile, msg, help=None):
         • `rcd profile|p multiplier|mp <multiplier>`
         • `rcd profile|p on|off`
         • `rcd profile|p [notify|n] <cooldown_type> on|off`
-        • `rcd profile|p gamling|g [@player]`
+        • `rcd profile|p gambling|g [@player]`
     Examples:
         • `rcd profile` Displays your profile information
         • `rcd p tz <timezone>` Sets your timezone to the provided timezone.
@@ -283,22 +178,16 @@ def _profile(client, tokens, message, server, profile, msg, help=None):
         • `rcd p notify hunt on` Turns on hunt notifications for your profile.
         • `rcd p hunt on` Turns on hunt notifications for your profile.
     """
-    if tokens[0] not in {"profile", "p"}:
-        return None
     if help and len(tokens) == 1:
         return {"msg": HelpMessage(_profile.__doc__)}
     elif len(tokens) > 1:
         # allow other commands to be namespaced by profile if that's how the user calls it
         if tokens[1] in {
-            *("timezone", "tz"),
-            *("timeformat", "tf"),
-            *("multiplier", "mp"),
-            *("notify", "n"),
-            *("gambling", "g"),
-            "on",
-            "off",
-            # allow implicit command type commands to be namespaced by `rcd p`
-            *CoolDown.COOLDOWN_MAP.keys(),
+            *timezone.entry_tokens,
+            *timeformat.entry_tokens,
+            *multiplier.entry_tokens,
+            *stats.entry_tokens,
+            *notify.entry_tokens,
         }:
             return {"tokens": tokens[1:]}
         maybe_profile = Profile.from_tag(tokens[1], client, server, message)
@@ -322,7 +211,10 @@ def _profile(client, tokens, message, server, profile, msg, help=None):
     }
 
 
-@params_as_args
+@register(
+    entry_tokens={"notify", "n", "all", *CoolDown.COOLDOWN_MAP.keys()},
+    param_filters=[lambda p: p.tokens[-1] in {"on", "off"} or p.help],
+)
 def notify(client, tokens, message, server, profile, msg, help=None):
     """
         Manage your notification settings. Here you can specify which types of
@@ -353,53 +245,55 @@ def notify(client, tokens, message, server, profile, msg, help=None):
         • `guild`
         • `pet`
     """
-    if (tokens[0] in CoolDown.COOLDOWN_MAP or tokens[0] == "all") and tokens[-1] in {"on", "off"}:
-        # allow implicit invocation of notify
-        tokens = ["notify", *tokens]
-        # make sure all passed tokens are valid cooldown type
-        for token in {*tokens[1:-1]}:
-            if token not in CoolDown.COOLDOWN_MAP and token != "all":
-                return {"error": 1}
-    if tokens[0] not in {"notify", "n"} or len(tokens) == 2:
-        return None
-    if help or len(tokens) == 1:
+    if help:
         return {"msg": HelpMessage(notify.__doc__)}
-    _, command_type, toggle = tokens
-    if (command_type in CoolDown.COOLDOWN_MAP or command_type == "all") and toggle in {"on", "off"}:
-        on = toggle == "on"
-        if command_type == "all":
-            kwargs = {command_name: on for _, command_name in CoolDown.COOLDOWN_TYPE_CHOICES}
-        else:
-            # "work" is stored as "mine" in the database
-            command_type = "work" if command_type == "mine" else command_type
-            kwargs = {command_type: on}
-        profile.update(last_known_nickname=message.author.name, **kwargs)
-        if not profile.notify:
-            return {
-                "msg": NormalMessage(
-                    f"Notifications for `{command_type}` are now {toggle} for **{message.author.name}** "
-                    "but you will need to turn on notifications before you can receive any. "
-                    "Try `rcd on` to start receiving notifcations."
-                )
-            }
+
+    toggle_all = False
+    # allow implicit invocation of notify
+    tokens = tokens[1:] if tokens[0] in {"notify", "n"} else tokens
+    # make sure all passed tokens are valid cooldown type
+    command_types, toggle = tokens[:-1], tokens[-1]
+    for command_type in command_types:
+        if command_type not in CoolDown.COOLDOWN_MAP:
+            if command_type != "all":
+                return {"error": 1}
+            toggle_all = True
+
+    # invocation of the toggle command
+    if len(tokens) == 1:
+        return {"tokens": [toggle]}
+
+    on = toggle == "on"
+    if toggle_all:
+        kwargs = {command_name: on for command_name, _ in CoolDown.COOLDOWN_TYPE_CHOICES}
+    else:
+        kwargs = {command_type: on for command_type in command_types}
+    profile.update(last_known_nickname=message.author.name, **kwargs)
+    notification_type_string = ", ".join(kwargs.keys())
+    if not profile.notify:
         return {
-            "msg": SuccessMessage(
-                f"Notifications for **{command_type}** are now **{toggle}** for **{message.author.name}**."
+            "msg": NormalMessage(
+                f"Notifications for `{notification_type_string}` are now {toggle} for **{message.author.name}** "
+                "but you will need to turn on notifications before you can receive any. "
+                "Try `rcd on` to start receiving notifications."
             )
         }
+    return {
+        "msg": SuccessMessage(
+            f"Notifications for **{notification_type_string}** are now **{toggle}** for **{message.author.name}**."
+        )
+    }
 
 
-@params_as_args
-def toggle(client, tokens, message, server, profile, msg, help=None):
+@register({"on", "off"})
+def _toggle(client, tokens, message, server, profile, msg, help=None):
     """
     Toggle your profile notifications **{version}**. Example:
       • `rcd {version}`
     """
-    if tokens[0] not in {"on", "off"}:
-        return None
     on_or_off = tokens[0]
     if help and len(tokens) == 1:
-        return {"msg": HelpMessage(toggle.__doc__.format(version=on_or_off))}
+        return {"msg": HelpMessage(_toggle.__doc__.format(version=on_or_off))}
     elif len(tokens) != 1:
         return {"error": 1}
 
@@ -407,7 +301,7 @@ def toggle(client, tokens, message, server, profile, msg, help=None):
     return {"msg": SuccessMessage(f"Notifications are now **{on_or_off}** for **{message.author.name}**.")}
 
 
-@params_as_args
+@register({"timezone", "tz"})
 def timezone(client, tokens, message, server, profile, msg, help=None):
     """
     Set your timezone. Example:
@@ -416,9 +310,6 @@ def timezone(client, tokens, message, server, profile, msg, help=None):
           is not effected.)
         • `rcd tz default` Sets your timezone back to the default.
     """
-    command = tokens[0]
-    if command not in {"timezone", "tz"}:
-        return None
     current_time = datetime.datetime.now().astimezone(pytz.timezone(profile.timezone))
     if help or len(tokens) == 1:
         return {
@@ -460,7 +351,7 @@ def timezone(client, tokens, message, server, profile, msg, help=None):
             }
 
 
-@params_as_args
+@register({"timeformat", "tf"})
 def timeformat(client, tokens, message, server, profile, msg, help=None):
     """
     Set the time format for the output of rcd using Python
@@ -477,9 +368,6 @@ def timeformat(client, tokens, message, server, profile, msg, help=None):
     Don't worry, you will not be able to save an invalid time format.
     """
 
-    command = tokens[0]
-    if command not in {"timeformat", "tf"}:
-        return None
     itokens = tokenize(message.content[:250], preserve_case=True)
     current_time = datetime.datetime.now().astimezone(pytz.timezone(profile.timezone)).strftime(profile.time_format)
     if help or len(tokens) == 1:
@@ -537,7 +425,7 @@ def timeformat(client, tokens, message, server, profile, msg, help=None):
         }
 
 
-@params_as_args
+@register({"multiplier", "mp"})
 def multiplier(client, tokens, message, server, profile, msg, help=None):
     """
     Set a multiplier on your cooldowns to extend or reduce their frequency.
@@ -554,8 +442,6 @@ def multiplier(client, tokens, message, server, profile, msg, help=None):
     Multipliers must be from [0 to 10).
     """
     command = tokens[0]
-    if command not in {"multiplier", "mp"}:
-        return None
     if help or len(tokens) == 1:
         return {
             "msg": HelpMessage(
@@ -565,7 +451,8 @@ def multiplier(client, tokens, message, server, profile, msg, help=None):
     elif len(tokens) != 2:
         return {
             "msg": ErrorMessage(
-                f"Could not parse `rcd {command} {' '.join(tokens)}` as a valid multiplier command; your input has more arguments that expected."
+                f"Could not parse `rcd {command} {' '.join(tokens)}` as a valid multiplier "
+                f"command; your input has more arguments that expected."
             )
         }
     if tokens[1] == "default":
@@ -589,15 +476,13 @@ def multiplier(client, tokens, message, server, profile, msg, help=None):
     return {"msg": SuccessMessage(f"Your Cooldown Multiplier is now `{tokens[1]}`.")}
 
 
-@params_as_args
+@register({"whocan", "w"})
 def whocan(client, tokens, message, server, profile, msg, help=None):
     """
     Determine who in your server can use a particular command. Example:
       • `rcd whocan dungeon`
       • `rcd w dungeon`
     """
-    if tokens[0] not in {"whocan", "w"}:
-        return None
     if help or len(tokens) == 1:
         return {"msg": HelpMessage(whocan.__doc__)}
 
@@ -637,7 +522,7 @@ def whocan(client, tokens, message, server, profile, msg, help=None):
     return {"msg": NormalMessage("Sorry, no one can do that right now.")}
 
 
-@params_as_args
+@register({"dibbs", "dibbs?", "d", "d?"})
 def dibbs(client, tokens, message, server, profile, msg, help=None):
     """
     Call "dibbs" on the guild raid.
@@ -647,8 +532,6 @@ def dibbs(client, tokens, message, server, profile, msg, help=None):
         • `rcd dibbs` Call dibbs on next guild raid
         • `rcd dibbs?` Find out if anyone has dibbs without claiming it
     """
-    if tokens[0] not in {"dibbs", "dibbs?", "d", "d?"}:
-        return None
     if help:
         return {"msg": HelpMessage(dibbs.__doc__)}
 
@@ -679,7 +562,16 @@ def dibbs(client, tokens, message, server, profile, msg, help=None):
         return {"msg": NormalMessage(f"Sorry, **{player_with_dibbs}** already has dibbs.", title="Not this time!")}
 
 
-@params_as_args
+@register(
+    {
+        "gambling": ("gambling", "g"),
+        "g": ("gambling", "g"),
+        "drops": ("drops", "dr"),
+        "dr": ("drops", "dr"),
+        "hunts": ("hunts", "hu"),
+        "hu": ("hunts", "hu"),
+    }
+)
 def stats(client, tokens, message, server, profile, msg, help=None):
     """
     This command shows the output of {long} stats that the helper bot has managed to collect.
@@ -691,17 +583,7 @@ def stats(client, tokens, message, server, profile, msg, help=None):
         • `rcd {short} @player` show a player's {long} stats
     """
     minutes, _all = None, False
-    token_map = {
-        "gambling": ("gambling", "g"),
-        "g": ("gambling", "g"),
-        "drops": ("drops", "dr"),
-        "dr": ("drops", "dr"),
-        "hunts": ("hunts", "hu"),
-        "hu": ("hunts", "hu"),
-    }
-    if tokens[0] not in token_map:
-        return None
-    long, short = token_map[tokens[0]]
+    long, short = stats.entry_tokens[tokens[0]]
     if help:
         return {"msg": HelpMessage(stats.__doc__.format(long=long, short=short))}
     if len(tokens) > 1:
@@ -744,24 +626,20 @@ def stats(client, tokens, message, server, profile, msg, help=None):
         }
 
 
-@params_as_args
-@admin_protected
+@register({"admin"}, protected=True)
 def admin(client, tokens, message, server, profile, msg, help=None):
     """
     Commands only available to administrative users. Use `rcd help admin [command]` for usage.
     • `rcd admin event`
     • `rcd admin scrape`
     """
-    if tokens[0] != "admin":
-        return None
     if len(tokens) > 1:
         return {"tokens": tokens[1:]}
     elif help:
         return {"msg": HelpMessage(admin.__doc__, title="Admin Help")}
 
 
-@params_as_args
-@admin_protected
+@register({"event"}, protected=True)
 def event(client, tokens, message, server, profile, msg, help=None):
     """
     Create and activate an event that has cooldown modifications. This will be active
@@ -774,8 +652,6 @@ def event(client, tokens, message, server, profile, msg, help=None):
         end at `2020-01-01T00:00:00` UTC, and have cooldown for arena as 7200 seconds for the duration.
         • `rcd admin event upsert "XMAS 2020" start=2020-12-01T00:00:00 end=2020-01-01T00:00:00 arena=60*60*12`
     """
-    if not tokens[0] == "event":
-        return None
     if help or len(tokens) < 3 or tokens[1] not in {"upsert", "show", "delete"}:
         return {"msg": HelpMessage(event.__doc__, title="Admin Event Help")}
     if tokens[1] == "upsert":
@@ -813,16 +689,13 @@ def event(client, tokens, message, server, profile, msg, help=None):
     return {"msg": NormalMessage("", title=f'{tokens[1]} "{tokens[2]}"', fields=fields)}
 
 
-@params_as_args
-@admin_protected
+@register({"scrape"}, protected=True)
 def scrape(client, tokens, message, server, profile, msg, help=None):
     """
     Scrape the contents of this channel for future refence.
     Usage:
         • `rcd admin scrape [limit]`
     """
-    if tokens[0] != "scrape":
-        return None
     if help:
         return {"msg": HelpMessage(scrape.__doc__)}
     limit = None
@@ -862,45 +735,6 @@ def scrape(client, tokens, message, server, profile, msg, help=None):
         }
 
 
-@params_as_args
-@admin_protected
+@register(protected=True)
 def _import(client, tokens, message, server, profile, msg, help=None):
     pass
-
-
-command_pipeline = execution_pipeline(
-    pre=[
-        _help,  # needs to be first to pass "help" param to those that follow
-        whocan,
-        # most commands that follow can be invoked as profile subcommand
-        _profile,
-        notify,  # notify must be before cd so `rcd hunt on` works
-        # cd allows arbitrary arguments so it must follow
-        # all other commands that can be invoked implicitly
-        cd,
-        stats,
-        toggle,
-        dibbs,
-        timezone,
-        timeformat,
-        multiplier,
-        register,  # called rarely, should be last.
-        admin,
-        event,
-        scrape,
-    ],
-)
-
-
-@sync_to_async
-@command_pipeline
-def handle_rpcd_message(client, tokens, message, server, profile, msg, help=None, error=None, coro=None):
-    _msg, _coro = msg, None
-    if (error and not isinstance(error, str)) or not msg:
-        original_tokens = tokenize(message.content[:250], preserve_case=True)
-        _msg = ErrorMessage(f"`{' '.join(original_tokens)}` could not be parsed as a valid command.")
-    elif error:
-        _msg = ErrorMessage(error)
-    if coro and inspect.iscoroutinefunction(coro[0]):
-        _coro = coro
-    return (_msg, _coro)

@@ -7,29 +7,41 @@ import django.db.models.deletion
 class Migration(migrations.Migration):
 
     dependencies = [
-        ('epic', '0010_hunt'),
+        ("epic", "0010_hunt"),
     ]
 
     operations = [
         migrations.CreateModel(
-            name='GroupActivity',
+            name="GroupActivity",
             fields=[
-                ('id', models.AutoField(auto_created=True, primary_key=True, serialize=False, verbose_name='ID')),
-                ('created', models.DateTimeField(auto_now_add=True)),
-                ('updated', models.DateTimeField(auto_now=True)),
-                ('type', models.CharField(choices=[('horse', 'horse'), ('dungeon', 'dungeon'), ('miniboss', 'miniboss'), ('arena', 'arena'), ('duel', 'duel')], max_length=8)),
-                ('initiator', models.ForeignKey(on_delete=django.db.models.deletion.CASCADE, to='epic.profile')),
+                ("id", models.AutoField(auto_created=True, primary_key=True, serialize=False, verbose_name="ID")),
+                ("created", models.DateTimeField(auto_now_add=True)),
+                ("updated", models.DateTimeField(auto_now=True)),
+                (
+                    "type",
+                    models.CharField(
+                        choices=[
+                            ("horse", "horse"),
+                            ("dungeon", "dungeon"),
+                            ("miniboss", "miniboss"),
+                            ("arena", "arena"),
+                            ("duel", "duel"),
+                        ],
+                        max_length=8,
+                    ),
+                ),
+                ("initiator", models.ForeignKey(on_delete=django.db.models.deletion.CASCADE, to="epic.profile")),
             ],
             options={
-                'abstract': False,
+                "abstract": False,
             },
         ),
         migrations.CreateModel(
-            name='Invite',
+            name="Invite",
             fields=[
-                ('id', models.AutoField(auto_created=True, primary_key=True, serialize=False, verbose_name='ID')),
-                ('activity', models.ForeignKey(on_delete=django.db.models.deletion.CASCADE, to='epic.groupactivity')),
-                ('profile', models.ForeignKey(on_delete=django.db.models.deletion.CASCADE, to='epic.profile')),
+                ("id", models.AutoField(auto_created=True, primary_key=True, serialize=False, verbose_name="ID")),
+                ("activity", models.ForeignKey(on_delete=django.db.models.deletion.CASCADE, to="epic.groupactivity")),
+                ("profile", models.ForeignKey(on_delete=django.db.models.deletion.CASCADE, to="epic.profile")),
             ],
         ),
     ]

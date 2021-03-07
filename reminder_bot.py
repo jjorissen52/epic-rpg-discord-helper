@@ -1,23 +1,12 @@
-import os
 import re
 import asyncio
-import dotenv
 import discord
 import logging
 
-logger = logging.getLogger(__name__)
-
-dotenv.load_dotenv(override=True)
-
-os.environ.setdefault("DJANGO_SETTINGS_MODULE", "epic_reminder.settings")
-
-# django.setup() is called as a side-effect
-from django.core.wsgi import get_wsgi_application
-
-get_wsgi_application()
-
 from asgiref.sync import sync_to_async
 
+# imported for side effects which setup django apps
+from epic_reminder import wsgi  # noqa
 from epic.models import CoolDown, Profile, Server, Gamble, Hunt, GroupActivity
 from epic.query import (
     get_instance,
@@ -30,9 +19,10 @@ from epic.query import (
     set_guild_membership,
     update_hunt_results,
 )
-from epic.utils import tokenize
+from epic.utils import tokenize, RCDMessage
+from epic.cmd import handle_rcd_command
 
-from epic.cmd_chain import RCDMessage, handle_rpcd_message
+logger = logging.getLogger(__name__)
 
 
 async def process_rpg_messages(client, server, message):
@@ -127,14 +117,12 @@ class Client(discord.Client):
 
         content = message.content[:150].lower()
 
-        if content.startswith("rpgcd") or content.startswith("rcd") or content.startswith("rrd"):
+        if content.startswith("rcd") or content.startswith("rrd"):
             if content.startswith("rcd"):
                 tokens = tokenize(message.content[3:])
-            elif content.startswith("rrd"):
-                tokens = ["rd", *tokenize(message.content[3:])]
             else:
-                tokens = tokenize(message.content[5:])
-            msg, coro = await handle_rpcd_message(self, tokens, message, server, None, None)
+                tokens = ["rd", *tokenize(message.content[3:])]
+            msg, coro = await handle_rcd_command(self, tokens, message, server, None, None)
             embed = msg.to_embed()
             await message.channel.send(embed=embed)
             if coro:

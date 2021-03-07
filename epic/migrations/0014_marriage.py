@@ -6,6 +6,7 @@ import django.core.validators
 from django.db import migrations, models
 import django.db.models.deletion
 
+
 def now():
     return datetime.datetime.now(tz=datetime.timezone.utc)
 
@@ -13,72 +14,85 @@ def now():
 class Migration(migrations.Migration):
 
     dependencies = [
-        ('epic', '0013_profile_cooldown_multiplier'),
+        ("epic", "0013_profile_cooldown_multiplier"),
     ]
 
     operations = [
         migrations.AlterModelOptions(
-            name='gamble',
-            options={'ordering': ('-created',)},
+            name="gamble",
+            options={"ordering": ("-created",)},
         ),
         migrations.AlterModelOptions(
-            name='hunt',
-            options={'ordering': ('-created',)},
+            name="hunt",
+            options={"ordering": ("-created",)},
         ),
         migrations.AddField(
-            model_name='gamble',
-            name='updated',
+            model_name="gamble",
+            name="updated",
             field=models.DateTimeField(db_index=True, default=now),
             preserve_default=False,
         ),
         migrations.AddField(
-            model_name='profile',
-            name='partner',
-            field=models.ForeignKey(blank=True, null=True, on_delete=django.db.models.deletion.SET_NULL, to='epic.profile'),
+            model_name="profile",
+            name="partner",
+            field=models.ForeignKey(
+                blank=True, null=True, on_delete=django.db.models.deletion.SET_NULL, to="epic.profile"
+            ),
         ),
         migrations.AlterField(
-            model_name='groupactivity',
-            name='created',
+            model_name="groupactivity",
+            name="created",
             field=models.DateTimeField(db_index=True),
         ),
         migrations.AlterField(
-            model_name='groupactivity',
-            name='updated',
+            model_name="groupactivity",
+            name="updated",
             field=models.DateTimeField(db_index=True),
         ),
         migrations.AlterField(
-            model_name='guild',
-            name='created',
+            model_name="guild",
+            name="created",
             field=models.DateTimeField(db_index=True),
         ),
         migrations.AlterField(
-            model_name='guild',
-            name='updated',
+            model_name="guild",
+            name="updated",
             field=models.DateTimeField(db_index=True),
         ),
         migrations.AlterField(
-            model_name='hunt',
-            name='created',
+            model_name="hunt",
+            name="created",
             field=models.DateTimeField(db_index=True),
         ),
         migrations.AlterField(
-            model_name='hunt',
-            name='updated',
+            model_name="hunt",
+            name="updated",
             field=models.DateTimeField(db_index=True),
         ),
         migrations.AlterField(
-            model_name='profile',
-            name='cooldown_multiplier',
-            field=models.DecimalField(blank=True, decimal_places=2, max_digits=3, null=True, validators=[django.core.validators.MinValueValidator(Decimal('0')), django.core.validators.MaxValueValidator(Decimal('9.9900000000000002131628207280300557613372802734375'))]),
+            model_name="profile",
+            name="cooldown_multiplier",
+            field=models.DecimalField(
+                blank=True,
+                decimal_places=2,
+                max_digits=3,
+                null=True,
+                validators=[
+                    django.core.validators.MinValueValidator(Decimal("0")),
+                    django.core.validators.MaxValueValidator(
+                        Decimal("9.9900000000000002131628207280300557613372802734375")
+                    ),
+                ],
+            ),
         ),
         migrations.AlterField(
-            model_name='profile',
-            name='created',
+            model_name="profile",
+            name="created",
             field=models.DateTimeField(db_index=True),
         ),
         migrations.AlterField(
-            model_name='profile',
-            name='updated',
+            model_name="profile",
+            name="updated",
             field=models.DateTimeField(db_index=True),
         ),
     ]
