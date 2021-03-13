@@ -1,0 +1,12 @@
+[package]
+name = "materials"
+version = "0.1.0"
+authors = ["jjorissen52 <jjorissen52@gmail.com>"]
+edition = "2018"
+
+[dependencies]
+pyo3 = { version = "0.12.1", features = ["extension-module"] }
+
+[lib]
+name = "materials"
+crate-type = ["cdylib"]
