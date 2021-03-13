@@ -583,9 +583,9 @@ def logs(client, tokens, message, server, profile, msg, help=None):
         • `rcd logs [a{n}=a5] [@player=@you]`
 
     Example:
-        • `rcd logs` assuming that I am in area 5, how many logs am I gonna have in area 10?
-        • `rcd logs a7` now that I am in area 7, how many logs am I gonna have in area 10?
-        • `rcd logs @kevin` how many logs is Kevin gonna have in area 10?
+        • `rcd logs` assuming that I am in A5, how many logs am I gonna have in A10?
+        • `rcd logs a7` now that I am in A7, how many logs am I gonna have in A10?
+        • `rcd logs @kevin` how many logs is Kevin gonna have in area A10?
 
     """
     if help:
@@ -597,6 +597,8 @@ def logs(client, tokens, message, server, profile, msg, help=None):
         area = int(area_indicator.groups()[0])
         start, end = area_indicator.span()
         tokens, metadata["area"] = tokenize(f'{full_message[0:start]}{full_message[end:]}'), area
+    if metadata["area"] > 10:
+        return {"msg": ErrorMessage("This command is only supported for areas 10 and below.", title="Logs Error")}
 
     mentioned_profile = Profile.from_tag(tokens[-1], client, server, message)
     if mentioned_profile:

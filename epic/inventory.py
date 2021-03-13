@@ -69,12 +69,12 @@ InventoryTuple = collections.namedtuple(
 )
 
 
-def calculate_future_logs(inventory: dict):
-    return materials.future(*map(int, InventoryTuple(**inventory))), FUTURE_AVAILABLE
+def calculate_future_logs(area: int, inventory: dict):
+    return materials.future(area, *map(int, InventoryTuple(**inventory))), FUTURE_AVAILABLE
 
 
 def calculate_log_future(area: int, *values: Tuple[str]):
-    return calculate_future_logs(parse_inventory(*values))
+    return calculate_future_logs(area, parse_inventory(*values))
 
 
 if __name__ == "__main__":
