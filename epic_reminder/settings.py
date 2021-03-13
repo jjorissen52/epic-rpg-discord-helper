@@ -12,9 +12,10 @@ https://docs.djangoproject.com/en/3.1/ref/settings/
 
 import os
 from pathlib import Path
-from env_settings import utils
 
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
+from epic_reminder import utils
+
 BASE_DIR = str(Path(__file__).resolve().parent.parent)
 # { start } generated using python manage.py populate_settings
 
@@ -65,8 +66,6 @@ INSTALLED_APPS = (
         "django.contrib.messages",
         "django.contrib.staticfiles",
         "epic",
-        # Third Party
-        "env_settings",
     ]
     + ["django_extensions"]
     if DEBUG
