@@ -527,9 +527,10 @@ def dibbs(client, tokens, message, server, profile, msg, help=None):
     """
     Call "dibbs" on the guild raid.
     Usage:
-        • `rcd dibbs|d[?]`
+        • `rcd dibbs|d[?] [undo]`
     Example:
         • `rcd dibbs` Call dibbs on next guild raid
+        • `rcd dibbs undo` Undo your dibbs call
         • `rcd dibbs?` Find out if anyone has dibbs without claiming it
     """
     if help:
@@ -542,6 +543,13 @@ def dibbs(client, tokens, message, server, profile, msg, help=None):
         f" at `{profile.player_guild.after.astimezone(tz).strftime(tf)}`" if profile.player_guild.after else ""
     )
     raid_dibbs = profile.player_guild.raid_dibbs
+    if len(tokens) > 1 and tokens[1] == "undo":
+        if not raid_dibbs or profile.uid != raid_dibbs.uid:
+            return {"msg": NormalMessage(f"Well, you never actually had dibbs, "
+                                         f"but at least now everyone knows you didn't want it.")}
+        profile.player_guild.update(raid_dibbs=None)
+        return {"msg": SuccessMessage(f"Great! No more dibbs for you!", title="Undibbsed!")}
+
     if tokens[0][-1] == "?":
         if raid_dibbs:
             player_with_dibbs = client.get_user(int(raid_dibbs.uid))
