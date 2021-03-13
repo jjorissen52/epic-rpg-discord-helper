@@ -9,6 +9,7 @@ from asgiref.sync import sync_to_async
 from django.db import models, transaction
 from django.core.validators import MaxValueValidator, MinValueValidator
 
+from . import inventory
 from .mixins import UpdateAble
 from .utils import tokenize, int_from_token
 from .managers import ProfileManager, GamblingStatsManager, HuntManager, GroupActivityManager
@@ -638,3 +639,28 @@ class Sentinel(models.Model):
     after = models.DateTimeField(null=True, blank=True)
     action = models.CharField(max_length=10, null=True, blank=True)
     metadata = models.JSONField(null=True, blank=True)
+
+    @staticmethod
+    def act(embed, profile: Profile, caller: str):
+        if caller == "inventory":
+            return Sentinel.maybe_logs_message(embed, profile)
+
+    @staticmethod
+    def maybe_logs_message(embed, profile: Profile):
+        trigger = Sentinel.objects.filter(trigger=0, profile__uid=profile.uid, action="logs").first()
+        if trigger:
+            future_logs, future_available = inventory.calculate_log_future(
+                trigger.metadata.get("area", 5), *(field.value for field in embed.fields)
+            )
+            snoop = trigger.metadata.get("snoop", None)
+            trigger.delete()
+            if not future_available:
+                return f"<@!{profile.uid}> Sorry, log futures are broken."
+            if snoop:
+                return f"<@!{snoop}> Since you just had to know, <@!{profile.uid}> should have " \
+                       f"**{future_logs:,}**  logs in area 10!"
+            return (
+                f"<@!{profile.uid}> Hmm... well it seems to me, if you play "
+                f"your cards right, you'll have **{future_logs:,}**  logs "
+                "in area 10!"
+            )

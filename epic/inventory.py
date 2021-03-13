@@ -1,6 +1,7 @@
 import collections
 import re
 from types import SimpleNamespace
+from typing import Tuple
 
 FUTURE_AVAILABLE = True
 
@@ -72,7 +73,7 @@ def calculate_future_logs(inventory: dict):
     return materials.future(*map(int, InventoryTuple(**inventory))), FUTURE_AVAILABLE
 
 
-def calculate_log_future(*values):
+def calculate_log_future(area: int, *values: Tuple[str]):
     return calculate_future_logs(parse_inventory(*values))
 
 

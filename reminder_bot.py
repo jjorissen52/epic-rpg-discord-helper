@@ -75,27 +75,16 @@ async def process_rpg_messages(client, server, message):
                 pet_cooldowns, _ = CoolDown.from_pet_screen(profile, [field.value for field in embed.fields])
                 return await upsert_cooldowns(pet_cooldowns)
             elif inventory_cue in embed.author.name:
-                trigger_qs = await sync_to_async(Sentinel.objects.filter)(trigger=0, profile__uid=profile.uid)
-                trigger = await sync_to_async(trigger_qs.first)()
-                if trigger and trigger.action == "logs":
-                    future_logs, future_available = inventory.calculate_log_future(
-                        *(field.value for field in embed.fields)
-                    )
-                    await sync_to_async(trigger.delete)()
-                    if not future_available:
-                        return await message.channel.send(f"<@!{profile.uid}> Sorry, log futures are broken.")
-                    return await message.channel.send(
-                        f"<@!{profile.uid}> Hmm... well it seems to me, if you play "
-                        f"your cards right, you'll have **{future_logs:,}**  logs "
-                        "in area 10!"
-                    )
+                result = await sync_to_async(Sentinel.act)(embed, profile, caller="inventory")
+                if result:
+                    await message.channel.send(result)
+                return
 
             elif any([cue in embed.author.name for cue in gambling_cues]):
                 gamble = Gamble.from_results_screen(profile, embed)
                 if gamble:
                     await gamble.asave()
             elif any([cue in embed.author.name for cue in group_cues]):
-                group_activity_type = None
                 for activity_type in group_cues:
                     if activity_type in embed.author.name:
                         group_activity_type = activity_type

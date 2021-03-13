@@ -573,38 +573,48 @@ def dibbs(client, tokens, message, server, profile, msg, help=None):
         return {"msg": NormalMessage(f"Sorry, **{player_with_dibbs}** already has dibbs.", title="Not this time!")}
 
 
-@register({"logs"})
+@register({"logs", "log"})
 def logs(client, tokens, message, server, profile, msg, help=None):
     """
     Ask for the future log value of your current inventory!
     **Note: This feature is not finalized and the usage pattern is subject to change.**
 
     Usage:
-        • `rcd logs [@player]`
+        • `rcd logs [a{n}=a5] [@player=@you]`
 
     Example:
-        • `rcd logs` how many logs am I gonna have in area 10?
+        • `rcd logs` assuming that I am in area 5, how many logs am I gonna have in area 10?
+        • `rcd logs a7` now that I am in area 7, how many logs am I gonna have in area 10?
         • `rcd logs @kevin` how many logs is Kevin gonna have in area 10?
 
     """
     if help:
         return {"msg": HelpMessage(logs.__doc__)}
 
-    mentioned_profile, nosy = Profile.from_tag(tokens[-1], client, server, message), False
-    if mentioned_profile:
-        profile, nosy = mentioned_profile, True
+    full_message, metadata = " ".join(tokens), {"area": 5}
+    area_indicator = re.search(r" [aA](\d{1,2})", full_message)
+    if area_indicator:
+        area = int(area_indicator.groups()[0])
+        start, end = area_indicator.span()
+        tokens, metadata["area"] = tokenize(f'{full_message[0:start]}{full_message[end:]}'), area
 
-    Sentinel.objects.get_or_create(trigger=0, profile=profile, action="logs", after=None)
-    if nosy:
+    mentioned_profile = Profile.from_tag(tokens[-1], client, server, message)
+    if mentioned_profile:
+        profile, metadata["snoop"] = mentioned_profile, profile.uid
+
+    Sentinel.objects.get_or_create(trigger=0, profile=profile, action="logs", after=None, metadata=metadata)
+    _area = f'Area {metadata["area"]}'
+    if metadata.get("snoop", None):
         return {
             "msg": NormalMessage(
-                "Busybody, eh? Okay, I'll check next time they open their inventory.", title="Snoop Logs"
+                "Busybody, eh? Okay, I'll check next time they open their inventory.",
+                title=f"Snoop Logs ({_area})"
             )
         }
     return {
         "msg": NormalMessage(
-            "Okay, the next time I see your inventory, I will tell you how many " "logs you should have in Area 10.",
-            title="Logs",
+            "Okay, the next time I see your inventory, I'll say how many logs you should have in Area 10.",
+            title=f"Logs ({_area})"
         )
     }
 
