@@ -11,7 +11,7 @@ from django.forms.models import model_to_dict
 from django.core.exceptions import ValidationError
 
 from epic.cmd.registry import default_registry
-from epic.models import Channel, CoolDown, Profile, Server, JoinCode, Gamble, Hunt, Event
+from epic.models import Channel, CoolDown, Profile, Server, JoinCode, Gamble, Hunt, Event, Sentinel
 from epic.utils import tokenize, ErrorMessage, NormalMessage, HelpMessage, SuccessMessage
 from epic.history.scrape import scrape_channels, scrape_channel
 
@@ -545,8 +545,11 @@ def dibbs(client, tokens, message, server, profile, msg, help=None):
     raid_dibbs = profile.player_guild.raid_dibbs
     if len(tokens) > 1 and tokens[1] == "undo":
         if not raid_dibbs or profile.uid != raid_dibbs.uid:
-            return {"msg": NormalMessage(f"Well, you never actually had dibbs, "
-                                         f"but at least now everyone knows you didn't want it.")}
+            return {
+                "msg": NormalMessage(
+                    f"Well, you never actually had dibbs, " f"but at least now everyone knows you didn't want it."
+                )
+            }
         profile.player_guild.update(raid_dibbs=None)
         return {"msg": SuccessMessage(f"Great! No more dibbs for you!", title="Undibbsed!")}
 
@@ -568,6 +571,42 @@ def dibbs(client, tokens, message, server, profile, msg, help=None):
     else:
         player_with_dibbs = client.get_user(int(raid_dibbs.uid))
         return {"msg": NormalMessage(f"Sorry, **{player_with_dibbs}** already has dibbs.", title="Not this time!")}
+
+
+@register({"logs"})
+def logs(client, tokens, message, server, profile, msg, help=None):
+    """
+    Ask for the future log value of your current inventory!
+    **Note: This feature is not finalized and the usage pattern is subject to change.**
+
+    Usage:
+        • `rcd logs [@player]`
+
+    Example:
+        • `rcd logs` how many logs am I gonna have in area 10?
+        • `rcd logs @kevin` how many logs is Kevin gonna have in area 10?
+
+    """
+    if help:
+        return {"msg": HelpMessage(logs.__doc__)}
+
+    mentioned_profile, nosy = Profile.from_tag(tokens[-1], client, server, message), False
+    if mentioned_profile:
+        profile, nosy = mentioned_profile, True
+
+    Sentinel.objects.get_or_create(trigger=0, profile=profile, action="logs", after=None)
+    if nosy:
+        return {
+            "msg": NormalMessage(
+                "Busybody, eh? Okay, I'll check next time they open their inventory.", title="Snoop Logs"
+            )
+        }
+    return {
+        "msg": NormalMessage(
+            "Okay, the next time I see your inventory, I will tell you how many " "logs you should have in Area 10.",
+            title="Logs",
+        )
+    }
 
 
 @register(

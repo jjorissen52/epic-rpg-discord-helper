@@ -6,8 +6,9 @@ import logging
 from asgiref.sync import sync_to_async
 
 # imported for side effects which setup django apps
+from epic import inventory
 from epic_reminder import wsgi  # noqa
-from epic.models import CoolDown, Profile, Server, Gamble, Hunt, GroupActivity
+from epic.models import CoolDown, Profile, Server, Gamble, Hunt, GroupActivity, Sentinel
 from epic.query import (
     get_instance,
     update_instance,
@@ -26,11 +27,16 @@ logger = logging.getLogger(__name__)
 
 
 async def process_rpg_messages(client, server, message):
-    rpg_cd_rd_cues, cooldown_cue, pet_screen_cue = ["cooldowns", "ready"], "cooldown", "'s pets"
+    rpg_cd_rd_cues, cooldown_cue, pet_screen_cue, inventory_cue = (
+        ["cooldowns", "ready"],
+        "cooldown",
+        "'s pets",
+        "'s inventory",
+    )
     gambling_cues = set(Gamble.GAME_CUE_MAP.keys())
     # arena is special case since it does not show an icon_url
     group_cues = GroupActivity.ACTIVITY_SET - {"arena"}
-    cues = [*rpg_cd_rd_cues, *gambling_cues, *group_cues, cooldown_cue, pet_screen_cue]
+    cues = [*rpg_cd_rd_cues, *gambling_cues, *group_cues, cooldown_cue, pet_screen_cue, inventory_cue]
     hunt_result = Hunt.hunt_result_from_message(message)
     if hunt_result:
         name, *other = hunt_result
@@ -68,6 +74,21 @@ async def process_rpg_messages(client, server, message):
             elif pet_screen_cue in embed.author.name:
                 pet_cooldowns, _ = CoolDown.from_pet_screen(profile, [field.value for field in embed.fields])
                 return await upsert_cooldowns(pet_cooldowns)
+            elif inventory_cue in embed.author.name:
+                trigger_qs = await sync_to_async(Sentinel.objects.filter)(trigger=0, profile__uid=profile.uid)
+                trigger = await sync_to_async(trigger_qs.first)()
+                if trigger and trigger.action == "logs":
+                    future_logs, future_available = inventory.calculate_log_future(
+                        *(field.value for field in embed.fields)
+                    )
+                    await sync_to_async(trigger.delete)()
+                    if not future_available:
+                        return await message.channel.send(f"<@!{profile.uid}> Sorry, log futures are broken.")
+                    return await message.channel.send(
+                        f"<@!{profile.uid}> Hmm... well it seems to me, if you play "
+                        f"your cards right, you'll have **{future_logs:,}**  logs "
+                        "in area 10!"
+                    )
 
             elif any([cue in embed.author.name for cue in gambling_cues]):
                 gamble = Gamble.from_results_screen(profile, embed)

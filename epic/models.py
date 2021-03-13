@@ -619,3 +619,22 @@ class Channel(models.Model):
     id = models.PositiveIntegerField(primary_key=True)
     server = models.ForeignKey(Server, on_delete=models.CASCADE)
     name_at_creation = models.CharField(max_length=150, null=True, blank=True)
+
+
+class Sentinel(models.Model):
+    """
+    A record indicating that an action should be performed
+    after a triggering event.
+    """
+
+    TRIGGER_TYPE_CHOICES = (
+        (0, "Inventory"),
+        (1, "Time"),
+    )
+    ACTION_TYPE_CHOICES = (("logs", "Logs"),)
+
+    profile = models.ForeignKey("epic.Profile", on_delete=models.CASCADE)
+    trigger = models.PositiveSmallIntegerField(choices=TRIGGER_TYPE_CHOICES)
+    after = models.DateTimeField(null=True, blank=True)
+    action = models.CharField(max_length=10, null=True, blank=True)
+    metadata = models.JSONField(null=True, blank=True)
