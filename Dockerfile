@@ -1,15 +1,23 @@
 FROM jjorissen/rust-python:3.7
+RUN apt-get -y update \
+ && apt-get install -y tree \
+ && rm -rf /var/lib/apt/lists/*
+RUN pip install --upgrade pip \
+ && pip install poetry
 
 ENV APP_HOME /app
 WORKDIR $APP_HOME
 
-# Install dependencies.
-COPY pyproject.toml requirements.txt ./
-RUN pip install -r requirements.txt
+# Install dependencies from poetry
+COPY pyproject.toml poetry.lock ./
+RUN poetry config virtualenvs.create false \
+ && poetry install
+
+# Build and install materials dependency
 COPY . .
 RUN cd /app/materials \
-    && python setup.py test \
-    && cd /app
+ && python setup.py install \
+ && cd /app
 
 ENV PYTHONBUFFERED=1
 CMD ["python"]

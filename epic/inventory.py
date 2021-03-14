@@ -88,4 +88,4 @@ if __name__ == "__main__":
         "\n<:unicornhorn:545329267425149112> **unicorn horn**: 19"
         "\n<:dragonscale:619991355317289007> **dragon scale**: 3",
     )
-    print(calculate_future_logs(inventory))
+    print(calculate_future_logs(5, inventory))
