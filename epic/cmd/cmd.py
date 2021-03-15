@@ -639,7 +639,7 @@ def logs(client, tokens, message, server, profile, msg, help=None):
     if area_indicator:
         area = int(area_indicator.groups()[0])
         start, end = area_indicator.span()
-        tokens, metadata["area"] = tokenize(f'{full_message[0:start]}{full_message[end:]}'), area
+        tokens, metadata["area"] = tokenize(f"{full_message[0:start]}{full_message[end:]}"), area
     if metadata["area"] > 10:
         return {"msg": ErrorMessage("This command is only supported for areas 10 and below.", title="Logs Error")}
 
@@ -652,14 +652,13 @@ def logs(client, tokens, message, server, profile, msg, help=None):
     if metadata.get("snoop", None):
         return {
             "msg": NormalMessage(
-                "Busybody, eh? Okay, I'll check next time they open their inventory.",
-                title=f"Snoop Logs ({_area})"
+                "Busybody, eh? Okay, I'll check next time they open their inventory.", title=f"Snoop Logs ({_area})"
             )
         }
     return {
         "msg": NormalMessage(
             "Okay, the next time I see your inventory, I'll say how many logs you should have in Area 10.",
-            title=f"Logs ({_area})"
+            title=f"Logs ({_area})",
         )
     }
 
@@ -788,7 +787,7 @@ def event(client, tokens, message, server, profile, msg, help=None):
     if _event.cooldown_adjustments:
         defaults, adj = CoolDown.COOLDOWN_MAP, _event.cooldown_adjustments
         output = "\n".join([f"{k:12}: {int(defaults[k].total_seconds()):8} => {adj[k]:8}" for k in adj.keys()])
-        fields.append(("Cooldowns (in Seconds)", f'```{output}```'))
+        fields.append(("Cooldowns (in Seconds)", f"```{output}```"))
     return {"msg": NormalMessage("", title=f'{tokens[1]} "{tokens[2]}"', fields=fields)}
 
 

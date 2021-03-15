@@ -276,9 +276,7 @@ class CoolDown(models.Model):
 
     @staticmethod
     def apply_multiplier(
-            cooldown_multiplier: Union[float, Decimal],
-            duration: datetime.timedelta,
-            cooldown_type: str
+        cooldown_multiplier: Union[float, Decimal], duration: datetime.timedelta, cooldown_type: str
     ) -> datetime.timedelta:
         if cooldown_type in {"vote", "daily", "weekly", "duel", "lootbox", "pet"}:
             return duration
@@ -672,8 +670,10 @@ class Sentinel(models.Model):
             if not future_available:
                 return f"<@!{profile.uid}> Sorry, log futures are broken."
             if snoop:
-                return f"<@!{snoop}> Since you just had to know, <@!{profile.uid}> should have " \
-                       f"**{future_logs:,}**  logs in area 10!"
+                return (
+                    f"<@!{snoop}> Since you just had to know, <@!{profile.uid}> should have "
+                    f"**{future_logs:,}**  logs in area 10!"
+                )
             return (
                 f"<@!{profile.uid}> Hmm... well it seems to me, if you play "
                 f"your cards right, you'll have **{future_logs:,}**  logs "
