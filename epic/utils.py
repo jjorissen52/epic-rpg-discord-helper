@@ -1,3 +1,4 @@
+import datetime
 import re
 import shlex
 import operator
@@ -73,3 +74,12 @@ class HelpMessage(RCDMessage):
 
 class SuccessMessage(RCDMessage):
     color = 0x628F47
+
+
+def to_human_readable(delta: datetime.timedelta):
+    total_seconds = int(delta.total_seconds())
+    seconds = total_seconds % 60
+    minutes = (total_seconds % 3600 - seconds) // 60
+    hours = (total_seconds % (3600 * 24) - minutes - seconds) // 3600
+    days = (total_seconds - hours - minutes - seconds) // (3600 * 24)
+    return days, hours, minutes, seconds

@@ -1,4 +1,6 @@
 import re
+from typing import Optional, Tuple, Union
+
 import pytz
 import datetime
 
@@ -237,23 +239,27 @@ class CoolDown(models.Model):
     after = models.DateTimeField()
 
     @staticmethod
-    def get_cooldown(cooldown_type, default=None):
-        if not cooldown_type in CoolDown.COOLDOWN_MAP:
-            return None
+    def get_event_cooldown_map():
         cooldown_map = CoolDown.COOLDOWN_MAP.copy()
         now = datetime.datetime.now(tz=datetime.timezone.utc)
         active_events = Event.objects.filter(start__lt=now, end__gt=now)
         for event in active_events:
             if event.cooldown_adjustments:
                 cooldown_map.update({k: datetime.timedelta(seconds=v) for k, v in event.cooldown_adjustments.items()})
+        return cooldown_map
+
+    @staticmethod
+    def get_cooldown(cooldown_type, default=None):
+        if not cooldown_type in CoolDown.COOLDOWN_MAP:
+            return None
+        cooldown_map = CoolDown.get_event_cooldown_map()
         return cooldown_map.get(cooldown_type, default)
 
     def __str__(self):
         return f"{self.profile} can {self.type} after {self.after}"
 
     @staticmethod
-    def default_cmd_cd(cmd: str) -> datetime.timedelta:
-        resolved = None
+    def default_cmd_cd(cmd: str) -> Tuple[Optional[str], Optional[datetime.timedelta]]:
         tokens = tokenize(cmd)
         if not tokens:
             return None, None
@@ -268,10 +274,20 @@ class CoolDown(models.Model):
             return None, None
         return resolved, CoolDown.get_cooldown(resolved)
 
+    @staticmethod
+    def apply_multiplier(
+            cooldown_multiplier: Union[float, Decimal],
+            duration: datetime.timedelta,
+            cooldown_type: str
+    ) -> datetime.timedelta:
+        if cooldown_type in {"vote", "daily", "weekly", "duel", "lootbox", "pet"}:
+            return duration
+        return datetime.timedelta(seconds=int(cooldown_multiplier * int(duration.total_seconds())))
+
     def calculate_cd(self, profile: Profile, duration: datetime.timedelta, type: str) -> datetime.datetime:
-        #  vote, daily, weekly, duel and lb
-        if profile.cooldown_multiplier and type not in {"vote", "daily", "weekly", "duel", "lootbox", "pet"}:
-            duration = datetime.timedelta(seconds=int(profile.cooldown_multiplier * int(duration.total_seconds())))
+        mp = profile.cooldown_multiplier
+        #  vote, daily, weekly, duel and lb remain
+        duration = CoolDown.apply_multiplier(mp, duration, type) if mp else duration
         self.after = datetime.datetime.now(tz=datetime.timezone.utc) + duration
         return self
 
@@ -590,7 +606,6 @@ class Event(models.Model):
 
     @staticmethod
     def parse_event(tokens, event_name, upsert=True):
-        cooldown_adjustments = {}
         event = Event.objects.filter(event_name=event_name).first()
         if not event:
             event = Event(event_name=event_name)

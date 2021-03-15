@@ -12,7 +12,7 @@ from django.core.exceptions import ValidationError
 
 from epic.cmd.registry import default_registry
 from epic.models import Channel, CoolDown, Profile, Server, JoinCode, Gamble, Hunt, Event, Sentinel
-from epic.utils import tokenize, ErrorMessage, NormalMessage, HelpMessage, SuccessMessage
+from epic.utils import tokenize, ErrorMessage, NormalMessage, HelpMessage, SuccessMessage, to_human_readable
 from epic.history.scrape import scrape_channels, scrape_channel
 
 
@@ -127,6 +127,49 @@ def cd(client, tokens, message, server, profile, msg, help=None):
             "All commands on cooldown! (You may need to use `rpg cd` to populate your cooldowns for the first time.)\n"
         )
     return {"msg": NormalMessage(msg, title=f"**{nickname}'s** Cooldowns ({profile.timezone})")}
+
+
+@register({"info", "i"})
+def info(client, tokens, message, server, profile, msg, help=None):
+    """
+    Info about the bot and other supported topics. Note: This command is
+    in early development and the invocation format is likely to change.
+    Usage:
+        • `rcd info|i <topic>|<topic number>`
+    Examples:
+        • `rcd info 1`
+        • `rcd info default cooldowns`
+    Topics:
+        • `default cooldowns` | `1` show the default cooldown durations
+        • `global cooldowns`  | `2` show the current cooldown durations with active events taken into account
+        • `my cooldowns`  | `3` show my current calculated cooldown durations with everything taken into account
+    """
+    if help:
+        return {"msg": HelpMessage(info.__doc__)}
+    topic = " ".join(tokens[1:])
+    cooldown_map = CoolDown.COOLDOWN_MAP.copy()
+
+    format, output = "{:>1}d {:>02}h {:02}m {:02}s", ""
+    if topic in {"default cooldowns", "1"}:
+        title = "Default Cooldowns"
+        for key, delta in sorted(cooldown_map.items(), key=lambda x: x[1]):
+            output += f"{key:12} => {format.format(*to_human_readable(delta))}\n"
+    elif topic in {"global cooldowns", "2"}:
+        title = "Global Cooldowns"
+        cooldown_map = CoolDown.get_event_cooldown_map()
+        for key, delta in sorted(cooldown_map.items(), key=lambda x: x[1]):
+            output += f"{key:12} => {format.format(*to_human_readable(delta))}\n"
+    elif topic in {"my cooldowns", "3"}:
+        title = "My Cooldowns"
+        cooldown_map = CoolDown.get_event_cooldown_map()
+        mp = profile.cooldown_multiplier
+        for key, delta in sorted(cooldown_map.items(), key=lambda x: x[1]):
+            delta = CoolDown.apply_multiplier(mp, delta, key) if mp else delta
+            output += f"{key:12} => {format.format(*to_human_readable(delta))}\n"
+    else:
+        return {"msg": ErrorMessage(f"No such topic `{topic}`. ", title="Info Error")}
+    # if profile.cooldown_multiplier and type not in {"vote", "daily", "weekly", "duel", "lootbox", "pet"}
+    return {"msg": NormalMessage(f"```{output}```", title=title)}
 
 
 @register({"register"})
@@ -707,9 +750,9 @@ def event(client, tokens, message, server, profile, msg, help=None):
     • `rcd admin event upsert|show|delete "NAME" [param=value {param=value ...}]`
     • `rcd admin event show NAME`
     Example:
-        The below command will create or update the event XMAS 2020 to start at `2020-12-01T00:00:00` UTC,
-        end at `2020-01-01T00:00:00` UTC, and have cooldown for arena as 7200 seconds for the duration.
-        • `rcd admin event upsert "XMAS 2020" start=2020-12-01T00:00:00 end=2020-01-01T00:00:00 arena=60*60*12`
+        The below command will create or update the event XMAS 2020 to start at `2020-12-01T00:00` UTC,
+        end at `2020-01-01T00:00` UTC, and have cooldown for arena as 7200 seconds for the duration.
+        • `rcd admin event upsert "XMAS 2020" start=2020-12-01T00:00 end=2020-01-01T00:00 arena=60*60*12`
     """
     if help or len(tokens) < 3 or tokens[1] not in {"upsert", "show", "delete"}:
         return {"msg": HelpMessage(event.__doc__, title="Admin Event Help")}
@@ -743,8 +786,9 @@ def event(client, tokens, message, server, profile, msg, help=None):
         ),
     ]
     if _event.cooldown_adjustments:
-        adj = _event.cooldown_adjustments
-        fields.append(("Cooldowns (in Seconds)", "\n".join([f"{k:25} => {adj[k]:15}" for k in adj.keys()])))
+        defaults, adj = CoolDown.COOLDOWN_MAP, _event.cooldown_adjustments
+        output = "\n".join([f"{k:12}: {int(defaults[k].total_seconds()):8} => {adj[k]:8}" for k in adj.keys()])
+        fields.append(("Cooldowns (in Seconds)", f'```{output}```'))
     return {"msg": NormalMessage("", title=f'{tokens[1]} "{tokens[2]}"', fields=fields)}
 
 
