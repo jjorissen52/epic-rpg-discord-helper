@@ -17,6 +17,7 @@ RUN poetry config virtualenvs.create false \
 COPY . .
 RUN cd /app/materials \
  && python setup.py install \
+ && rm -rf build dist *.egg-info target \
  && cd /app
 
 ENV PYTHONBUFFERED=1
