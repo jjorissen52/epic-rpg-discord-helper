@@ -172,11 +172,14 @@ def info(client, tokens, message, server, profile, msg, help=None):
     return {"msg": NormalMessage(f"```{output}```", title=title)}
 
 
-@register({"register"})
+@register({"register", "join"})
 def _register(client, tokens, message, server, profile, msg, help=None):
     """
-        Register your server for use with Epic Reminder.
-    Compute resources are limited, so invite codes will be doled out sparingly.
+    Register your server for use with Epic Reminder. You will need to ask for a join code.
+
+    Usage:
+        • rcd register|join <join_code>
+
     Example:
         • `rcd register asdf` attempts to register the server using the join code `asdf`
     """
