@@ -647,12 +647,16 @@ def logs(client, tokens, message, server, profile, msg, help=None):
     if mentioned_profile:
         profile, metadata["snoop"] = mentioned_profile, profile.uid
 
-    Sentinel.objects.get_or_create(trigger=0, profile=profile, action="logs", after=None, metadata=metadata)
+    open_sentinels = list(Sentinel.objects.filter(trigger=0, profile=profile, action="logs"))
+    len(open_sentinels) == 0 and Sentinel.objects.create(trigger=0, profile=profile, action="logs", metadata=metadata)
+    for sentinel in open_sentinels:
+        sentinel.metadata.get("snoop", -1) == metadata.get("snoop", -1) and sentinel.update(metadata=metadata)
+
     _area = f'Area {metadata["area"]}'
     if metadata.get("snoop", None):
         return {
             "msg": NormalMessage(
-                "Busybody, eh? Okay, I'll check next time they open their inventory.", title=f"Snoop Logs ({_area})"
+                "Busybody, eh? Okay, I'll check next time they open their inventory.", title=f"Snoop Lawgs ({_area})"
             )
         }
     return {
