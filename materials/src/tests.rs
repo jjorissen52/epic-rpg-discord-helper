@@ -100,8 +100,8 @@ fn test_upgrade() {
 
 #[test]
 fn test_strategy(){
-    let ug = Strategy::new(Some(Action::Upgrade));
-    let dg = Strategy::new(Some(Action::Dismantle(100)));
+    let ug = Strategy::from(vec![Action::Upgrade]);
+    let dg = Strategy::from(vec![Action::Dismantle(100)]);
     assert!(dg > ug);
     assert!(ug < dg);
 }
