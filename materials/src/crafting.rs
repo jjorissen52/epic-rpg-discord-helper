@@ -45,11 +45,12 @@ pub enum Action {
 pub struct Strategy(Vec<Action>);
 
 impl Strategy {
-    pub fn new( action: Option<Action>) -> Strategy {
+    pub fn new() -> Strategy {
         let mut vec = Vec::new();
-        if let Some(_action) = action {
-            vec.push(_action)
-        }
+        Strategy(vec)
+    }
+
+    pub fn from(vec: Vec<Action>) -> Strategy {
         Strategy(vec)
     }
 
@@ -59,10 +60,26 @@ impl Strategy {
         Strategy(vec)
     }
 
-    pub fn extend(self, other: Self) -> Strategy {
-        let (Strategy(mut s1), Strategy(s2)) = (self, other);
-        s1.extend(s2);
-        Strategy(s1)
+    pub fn concat(self, other: Strategy) -> Strategy {
+        let Strategy(_other) = other;
+        self.extend(_other)
+    }
+
+    pub fn extend(self, vec: Vec<Action>) -> Strategy {
+        let Strategy(mut _vec) = self;
+        _vec.extend(vec);
+        Strategy(_vec)
+    }
+
+    pub fn terminal(&self) -> bool {
+        let Strategy(inner) = self;
+        if inner.len() == 0 {
+            return false
+        }
+        match inner[inner.len() -1] {
+            Action::Terminate(_) => true,
+            _ => false
+        }
     }
 
     fn cost(&self) -> u64 {
@@ -412,7 +429,7 @@ impl Inventory {
     }
 
     pub fn migrate(&self, start: &Class, end: &Class, mut max_dismantle: usize, area: TradeArea) -> (Inventory, Strategy) {
-        let mut strategy = Strategy::new(None);
+        let mut strategy = Strategy::new();
         if start == end {
             return (self.clone(), strategy) // nothing to do
         }
@@ -438,7 +455,7 @@ impl Inventory {
         let (inv, s2) = inv.migrate(&Class::Fish, to_class, max_steps, area);
         let (inv, s3) = inv.migrate(&Class::Fruit, to_class, max_steps, area);
         let (inv, s4) = inv.migrate(&Class::Log, to_class, max_steps, area);
-        return (inv, s1.extend(s2).extend(s3).extend(s4))
+        return (inv, s1.concat(s2).concat(s3).concat(s4))
     }
 
     pub fn future(&self, start: TradeArea, end: TradeArea) -> Inventory {
@@ -468,7 +485,7 @@ impl Inventory {
             },
             // Make sure nothing is in rubies and have things in logs as the universal currency
             TradeTable::A11 => self.migrate_all(&Class::Log, all, start),
-            _ => (self.clone(), Strategy::new(None))
+            _ => (self.clone(), Strategy::new())
         };
         if let Some(next_area) = TradeTable::next_area(start) {
             return new_inv.future(next_area, end)
