@@ -76,8 +76,13 @@ async def process_rpg_messages(client, server, message):
                 return await upsert_cooldowns(pet_cooldowns)
             elif inventory_cue in embed.author.name:
                 result = await sync_to_async(Sentinel.act)(embed, profile, caller="inventory")
-                if result:
-                    await message.channel.send(result)
+                if not isinstance(result, (tuple, list)):
+                    result = [result]
+                for r in result:
+                    if isinstance(r, RCDMessage):
+                        await message.channel.send(embed=r.to_embed())
+                    elif isinstance(r, str):
+                        await message.channel.send(r)
                 return
 
             elif any([cue in embed.author.name for cue in gambling_cues]):

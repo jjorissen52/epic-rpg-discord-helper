@@ -13,7 +13,7 @@ from django.core.validators import MaxValueValidator, MinValueValidator
 
 from . import inventory
 from .mixins import UpdateAble
-from .utils import tokenize, int_from_token
+from .utils import tokenize, int_from_token, ErrorMessage, NormalMessage
 from .managers import ProfileManager, GamblingStatsManager, HuntManager, GroupActivityManager
 
 
@@ -653,6 +653,11 @@ class Sentinel(models.Model):
     action = models.CharField(max_length=10, null=True, blank=True)
     metadata = models.JSONField(null=True, blank=True)
 
+    def update(self, **kwargs):
+        for key in kwargs:
+            setattr(self, key, kwargs[key])
+        return self.save() or self  # return self if save returns nothing
+
     @staticmethod
     def act(embed, profile: Profile, caller: str):
         if caller == "inventory":
@@ -668,14 +673,16 @@ class Sentinel(models.Model):
             snoop = trigger.metadata.get("snoop", None)
             trigger.delete()
             if not future_available:
-                return f"<@!{profile.uid}> Sorry, log futures are broken."
+                return ErrorMessage(f"<@!{profile.uid}> Sorry, log futures are broken.")
+            results = []
             if snoop:
-                return (
-                    f"<@!{snoop}> Since you just had to know, <@!{profile.uid}> should have "
-                    f"**{future_logs:,}**  logs in area 10!"
+                results.append(f"<@!{snoop}> Psssstt... **{profile.last_known_nickname}** opened their inventory!")
+            results.append(
+                NormalMessage(
+                    f"<@!{profile.uid}> Hmm... well it seems to me, if you play "
+                    f"your cards right, you'll have **{future_logs:,}**  logs "
+                    "in area 10!",
+                    title=f"Logs (Area {trigger.metadata['area']})",
                 )
-            return (
-                f"<@!{profile.uid}> Hmm... well it seems to me, if you play "
-                f"your cards right, you'll have **{future_logs:,}**  logs "
-                "in area 10!"
             )
+            return results
