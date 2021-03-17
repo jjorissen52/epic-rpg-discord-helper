@@ -1,4 +1,4 @@
-use crate::crafting::{Name, TradeTable, Inventory, get_item, Class, Strategy, Action};
+use crate::crafting::{Name, TradeTable, Inventory, Items, Class, Strategy, Action};
 
 #[test]
 fn test_adjustment() {
@@ -26,19 +26,19 @@ fn test_trade() {
 
 #[test]
 fn test_dismantle() {
-    let (maybe_hyper_log, qty) = get_item(&Name::UltraLog).dismantle(1);
-    let hyper_log = get_item(&Name::HyperLog);
+    let (maybe_hyper_log, qty) = Items::get_item(&Name::UltraLog).dismantle(1);
+    let hyper_log = Items::get_item(&Name::HyperLog);
 
     assert_eq!(maybe_hyper_log, hyper_log);
     assert_eq!(qty, 8);
 
     let (maybe_wooden_log, qty) = hyper_log.full_dismantle(8);
-    let wooden_log = get_item(&Name::WoodenLog);
+    let wooden_log = Items::get_item(&Name::WoodenLog);
     assert_eq!(maybe_wooden_log, wooden_log);
     assert_eq!(81920, qty);
 
-    let (maybe_golden_fish, qty) = get_item(&Name::EpicFish).dismantle(2);
-    let golden_fish = get_item(&Name::GoldenFish);
+    let (maybe_golden_fish, qty) = Items::get_item(&Name::EpicFish).dismantle(2);
+    let golden_fish = Items::get_item(&Name::GoldenFish);
     assert_eq!(golden_fish, maybe_golden_fish);
     assert_eq!(80*2, qty);
 }
@@ -79,20 +79,20 @@ fn test_migrate_all() {
 
 #[test]
 fn test_upgrade() {
-    let (maybe_epic_log, result, remainder) = get_item(&Name::WoodenLog).upgrade(53);
-    let epic_log = get_item(&Name::EpicLog);
+    let (maybe_epic_log, result, remainder) = Items::get_item(&Name::WoodenLog).upgrade(53);
+    let epic_log = Items::get_item(&Name::EpicLog);
     assert_eq!(maybe_epic_log, epic_log);
     assert_eq!(result, 2);
     assert_eq!(remainder, 3);
 
-    let (maybe_ultra_log, result, remainder) = get_item(&Name::WoodenLog).upgrade_to(750_011, &Name::UltraLog, 2);
-    let ultra_log = get_item(&Name::UltraLog);
+    let (maybe_ultra_log, result, remainder) = Items::get_item(&Name::WoodenLog).upgrade_to(750_011, &Name::UltraLog, 2);
+    let ultra_log = Items::get_item(&Name::UltraLog);
     assert_eq!(maybe_ultra_log, ultra_log);
     assert_eq!(result, 2);
     assert_eq!(remainder, 250_011);
 
-    let (maybe_epic_fish, result, remainder) = get_item(&Name::NormieFish).upgrade_to(2001, &Name::EpicFish, 2);
-    let epic_fish = get_item(&Name::EpicFish);
+    let (maybe_epic_fish, result, remainder) = Items::get_item(&Name::NormieFish).upgrade_to(2001, &Name::EpicFish, 2);
+    let epic_fish = Items::get_item(&Name::EpicFish);
     assert_eq!(maybe_epic_fish, epic_fish);
     assert_eq!(result, 1);
     assert_eq!(remainder, 501)

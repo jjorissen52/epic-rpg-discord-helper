@@ -1,4 +1,5 @@
 use std::cmp::{min, Ordering};
+use std::ops::Index;
 
 #[derive(Debug, Copy, Clone, Eq, PartialEq)]
 pub enum Class {
@@ -38,7 +39,7 @@ pub enum Action {
     Upgrade,
     Dismantle(u64),
     Trade,
-    Terminate,
+    Terminate(bool), // success or failure
 }
 #[derive(Debug, Clone, Eq)]
 pub struct Strategy(Vec<Action>);
@@ -64,6 +65,7 @@ impl Strategy {
         for action in strat.iter() {
             match action {
                 Action::Dismantle(cost) => { self_cost += cost },
+                Action::Terminate(success) => return if *success { 0 } else { u64::MAX },
                 _ => {},
             }
         }
@@ -99,7 +101,6 @@ impl PartialEq for Strategy {
 
 #[derive(Debug, Copy, Clone, Eq, PartialEq)]
 pub struct Item(Class, Name, u32);
-
 impl Item {
     pub fn tradeable(&self) -> bool {
         let Item(class, _, _) = &self;
@@ -114,11 +115,11 @@ impl Item {
 
     pub fn dismantle(&self, qty: u64) -> (Item, u64) {
         let Item(_, name, value) = &self;
-        let idx = index_of(&name);
+        let idx = Items::index_of(&name);
         if *value == 1 {
             return (self.clone(), qty)
         }
-        (ITEMS[idx - 1], qty * (value * 4 / 5) as u64)
+        (Items[idx - 1], qty * (value * 4 / 5) as u64)
     }
 
     pub fn full_dismantle(&self, mut qty: u64) -> (Item, u64) {
@@ -132,23 +133,23 @@ impl Item {
 
     pub fn upgrade(&self, available: u64) -> (Item, u64, u64) {
         let Item(class, name, _) = &self;
-        let idx = index_of(&name);
-        if idx == last_of(class) { return (self.clone(), 0, available); }
+        let idx = Items::index_of(&name);
+        if idx == Items::last_of(class) { return (self.clone(), 0, available); }
 
-        let Item(_, _, cost) = ITEMS[idx + 1];
+        let Item(_, _, cost) = Items[idx + 1];
         let remainder = available % cost as u64;
-        (ITEMS[idx + 1], available / cost as u64, remainder)
+        (Items[idx + 1], available / cost as u64, remainder)
     }
 
     pub fn upgrade_to(&self, available: u64, to: &Name, mut amount: u64) -> (Item, u64, u64) {
         let Item(_, name, _) = self;
 
-        let end = index_of(to);
-        let start = index_of(name);
+        let end = Items::index_of(to);
+        let start = Items::index_of(name);
 
         let mut cost: u64 = 1;
         for i in (start..end + 1).rev() {
-            let Item(_, _, value) = ITEMS[i];
+            let Item(_, _, value) = Items[i];
             cost *= value as u64;
         }
 
@@ -158,14 +159,84 @@ impl Item {
         let total_cost = amount * cost;
         let (mut item, mut cost, mut remainder) = (self.clone(), total_cost, 0 as  u64);
         for i in start..end {
-            (item, cost, remainder) = ITEMS[i].upgrade(cost);
+            (item, cost, remainder) = Items[i].upgrade(cost);
             assert_eq!(remainder, 0);
         }
         (item, amount, available - total_cost)
     }
 }
 
-const INV_SIZE: usize = 19;
+pub struct Items;
+impl Items {
+    pub const INV_SIZE: usize = 19;
+
+    const ITEMS: [Item; Items::INV_SIZE] = [
+        Item(Class::Log, Name::WoodenLog, 1),
+        Item(Class::Log, Name::EpicLog, 25),
+        Item(Class::Log, Name::SuperLog, 10),
+        Item(Class::Log, Name::MegaLog, 10),
+        Item(Class::Log, Name::HyperLog, 10),
+        Item(Class::Log, Name::UltraLog, 10),
+        Item(Class::Fish, Name::NormieFish, 1),
+        Item(Class::Fish, Name::GoldenFish, 15),
+        Item(Class::Fish, Name::EpicFish, 100),
+        Item(Class::Fruit, Name::Apple, 1),
+        Item(Class::Fruit, Name::Banana, 15),
+        Item(Class::Gem, Name::Ruby, 1),
+        Item(Class::Lootbox, Name::CommonLootbox, 1),
+        Item(Class::Lootbox, Name::UncommonLootbox, 1),
+        Item(Class::Lootbox, Name::RareLootbox, 1),
+        Item(Class::Lootbox, Name::EpicLootbox, 1),
+        Item(Class::Lootbox, Name::EdgyLootbox, 1),
+        Item(Class::Lootbox, Name::OmegaLootbox, 1),
+        Item(Class::Lootbox, Name::GodlyLootbox, 1),
+    ];
+
+    pub fn index_of(name: &Name) -> usize {
+        for i in 0..Items::INV_SIZE {
+            let Item(_, _name, _) = Items[i];
+            if _name == *name {
+                return i
+            }
+        }
+        return usize::max_value() // not possible
+    }
+
+    pub fn get_item(name: &Name) -> Item {
+        return Items[Items::index_of(name)]
+    }
+
+    pub fn first_of(class: &Class) -> usize {
+        for i in 0..Items::INV_SIZE {
+            let Item(_class, _, _) = Items[i];
+            if _class == *class {
+                return i
+            }
+        }
+        return usize::max_value() // not possible
+    }
+
+    pub fn last_of(class: &Class) -> usize {
+        let mut flag = false;
+        for i in 0..Items::INV_SIZE {
+            let Item(_class, _, _) = &Items[i];
+            if class == _class {
+                flag = true // flag indicates that we are in the correct class
+            } else if flag {
+                // we have gone past the correct class, so we want the last one
+                return i - 1
+            }
+        }
+        return Items::INV_SIZE
+    }
+}
+
+impl Index<usize> for Items {
+    type Output = Item;
+    fn index(&self, index: usize) -> &Self::Output {
+        &Items::ITEMS[index]
+    }
+}
 
 #[non_exhaustive]
 pub struct TradeTable;
@@ -229,72 +300,12 @@ impl TradeTable {
     }
 }
 
-pub const ITEMS: [Item; INV_SIZE] = [
-    Item(Class::Log, Name::WoodenLog, 1),
-    Item(Class::Log, Name::EpicLog, 25),
-    Item(Class::Log, Name::SuperLog, 10),
-    Item(Class::Log, Name::MegaLog, 10),
-    Item(Class::Log, Name::HyperLog, 10),
-    Item(Class::Log, Name::UltraLog, 10),
-    Item(Class::Fish, Name::NormieFish, 1),
-    Item(Class::Fish, Name::GoldenFish, 15),
-    Item(Class::Fish, Name::EpicFish, 100),
-    Item(Class::Fruit, Name::Apple, 1),
-    Item(Class::Fruit, Name::Banana, 15),
-    Item(Class::Gem, Name::Ruby, 1),
-    Item(Class::Lootbox, Name::CommonLootbox, 1),
-    Item(Class::Lootbox, Name::UncommonLootbox, 1),
-    Item(Class::Lootbox, Name::RareLootbox, 1),
-    Item(Class::Lootbox, Name::EpicLootbox, 1),
-    Item(Class::Lootbox, Name::EdgyLootbox, 1),
-    Item(Class::Lootbox, Name::OmegaLootbox, 1),
-    Item(Class::Lootbox, Name::GodlyLootbox, 1),
-];
-
-pub fn index_of(name: &Name) -> usize {
-    for i in 0..INV_SIZE {
-        let Item(_, _name, _) = ITEMS[i];
-        if _name == *name {
-            return i
-        }
-    }
-    return usize::max_value() // not possible
-}
-
-pub fn get_item(name: &Name) -> Item {
-    return ITEMS[index_of(name)]
-}
-
-pub fn first_of(class: &Class) -> usize {
-    for i in 0..INV_SIZE {
-        let Item(_class, _, _) = ITEMS[i];
-        if _class == *class {
-            return i
-        }
-    }
-    return usize::max_value() // not possible
-}
-
-pub fn last_of(class: &Class) -> usize {
-    let mut flag = false;
-    for i in 0..INV_SIZE {
-        let Item(_class, _, _) = &ITEMS[i];
-        if class == _class {
-            flag = true // flag indicates that we are in the correct class
-        } else if flag {
-            // we have gone past the correct class, so we want the last one
-            return i - 1
-        }
-    }
-    return INV_SIZE
-}
-
 #[derive(Debug, Copy, Clone, PartialOrd, PartialEq)]
-pub struct Inventory([u64; INV_SIZE]);
+pub struct Inventory([u64; Items::INV_SIZE]);
 
 impl Inventory {
     pub fn new() -> Inventory {
-        Inventory([0; INV_SIZE])
+        Inventory([0; Items::INV_SIZE])
     }
 
     pub fn itemized(
@@ -314,8 +325,8 @@ impl Inventory {
 
     pub fn adjustment(&self, name: &Name, amount: i128) -> Inventory {
         let Inventory(mut inner) = self;
-        for i in 0..INV_SIZE {
-            let Item(_, _name, _) = &ITEMS[i];
+        for i in 0..Items::INV_SIZE {
+            let Item(_, _name, _) = &Items[i];
             if _name == name {
                 inner[i] = (inner[i] as i128 + amount) as u64;
                 return Inventory(inner)
@@ -325,13 +336,13 @@ impl Inventory {
     }
 
     pub fn get_item(&self, name: &Name) -> (Item, u64) {
-        let i = index_of(name);
+        let i = Items::index_of(name);
         let Inventory(inner) = &self;
-        (ITEMS[i], inner[i])
+        (Items[i], inner[i])
     }
 
     pub fn get_qty(&self, name: &Name) -> u64 {
-        let i = index_of(name);
+        let i = Items::index_of(name);
         let Inventory(inner) = &self;
         inner[i]
     }
@@ -387,19 +398,19 @@ impl Inventory {
         if start == end {
             return self.clone() // nothing to do
         }
-        let base_idx = first_of(start);
-        max_dismantle = min(max_dismantle, last_of(start) - base_idx);
+        let base_idx = Items::first_of(start);
+        max_dismantle = min(max_dismantle, Items::last_of(start) - base_idx);
         let &Inventory(mut inner) = &self;
 
         let mut idx = base_idx + max_dismantle;
         while idx > base_idx {
-            let (_, qty) = ITEMS[idx].dismantle(inner[idx]);
+            let (_, qty) = Items[idx].dismantle(inner[idx]);
             inner[idx] = 0;
             idx -= 1;
             inner[idx] += qty;
         }
-        let result_idx = first_of(end);
-        return Inventory(inner).trade(&ITEMS[base_idx].1, &ITEMS[result_idx].1, -1, area);
+        let result_idx = Items::first_of(end);
+        return Inventory(inner).trade(&Items[base_idx].1, &Items[result_idx].1, -1, area);
     }
 
     pub fn migrate_all(&self, to_class: &Class, max_steps: usize, area: TradeArea) -> Inventory {
