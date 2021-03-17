@@ -1,3 +1,5 @@
+#![allow(dead_code)]
+
 use std::cmp::{min, Ordering};
 use std::ops::Index;
 
@@ -41,7 +43,7 @@ pub enum Action {
     Trade,
     Terminate(bool), // success or failure
 }
-#[derive(Debug, Clone, Eq)]
+#[derive(Debug, Eq)]
 pub struct Strategy(Vec<Action>);
 
 impl Strategy {
@@ -93,6 +95,14 @@ impl Strategy {
             }
         }
         return self_cost
+    }
+}
+
+impl Clone for Strategy {
+
+    fn clone(&self) -> Strategy {
+        let Strategy(actions) = self;
+        Strategy(actions.clone())
     }
 }
 
@@ -344,6 +354,14 @@ impl Inventory {
             ruby,
             0, 0, 0, 0, 0, 0, 0
         ])
+    }
+
+    pub fn len(&self) -> usize {
+        let mut length = 0;
+        for _ in self.non_zero() {
+            length += 1
+        }
+        length
     }
 
     pub fn non_zero(&self) -> Vec<(Item, u64)> {
