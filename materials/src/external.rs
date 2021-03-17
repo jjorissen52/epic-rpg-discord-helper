@@ -37,59 +37,78 @@ enum Branch {
     Dismantle,
 }
 
-// fn exec_strategy(mut rec: Inventory, mut inv: Inventory, branch: Branch, area: TradeArea) -> Strategy {
-//     let mut strat = Strategy::new(None);
-//     match branch {
-//         Branch::Trade => {
-//             for (item, _) in rec.non_zero() {
-//                 let Item(class, _, _) = item;
-//                 (inv, s1) = inv.migrate_all(&class, max_steps, area);
-//                 _strat = _strat.extend(s1)
-//             }
-//             strat
-//         },
-//         Branch::Upgrade => {
-//             for (ritem, rqty) in rec.non_zero() {
-//                 let Item(rclass, ritem, _) = ritem;
-//                 for (iitem, iqty) in inv.non_zero() {
-//                     let Item(iclass, iname, _) = iitem;
-//                     (inv, s1) = inv.migrate_all(&class, max_steps, area);
-//                     _strat = _strat.extend(s1)
-//                 }
-//             }
-//             strat
-//         }
-//     }
-//
-// }
-//
-//
-// pub fn find_strategy(recipe: Inventory, inventory: Inventory, area: TradeArea) -> Strategy {
-//     if recipe > inventory {
-//         return Strategy::new(Some(Action::Terminate(true)))
-//     }
-//     let mut s1 = Strategy::new(None); let mut s2; let mut s3;
-//     let (mut r1, mut i1) = (recipe.clone(), inventory.clone());
-//     let (mut r2, mut i2) = (recipe.clone(), inventory.clone());
-//     let (mut r3, mut i3) = (recipe.clone(), inventory.clone());
-//
-//     // calculate new recipe and inventory
-//     // first we try trading
-//     match
-//     for (ritem, ramount) in r1.non_zero() {
-//         let Item(rclass, _, _) = ritem;
-//         for (iitem, iamount) in i1.non_zero() {
-//             let Item(iclass, _, _) = iitem;
-//             (i1, s1) = i1.migrate_all(&rclass, max_steps, area)
-//         }
-//     }
-//
-//     // explore new branches
-//     return min(
-//         min(
-//             find_strategy(r1, i1, area),
-//             find_strategy(r2, i2, area),
-//             ),
-//             find_strategy(r2, i2, area),
-//     )
-// }
+fn exec_branch(item_qty: (Item, u64), inv: Inventory, branch: &Branch) -> (Inventory, Strategy) {
+    return (Inventory::new(), Strategy::from(vec![Action::Terminate(true)]))
+    // let mut strat = Strategy::new(None);
+    // match branch {
+    //     Branch::Trade => {
+    //         for (item, _) in rec.non_zero() {
+    //             let Item(class, _, _) = item;
+    //             (inv, s1) = inv.migrate_all(&class, 0, area); // free trades only
+    //             _strat = _strat.extend(s1)
+    //         }
+    //         strat
+    //     },
+    //     Branch::Dismantle => {
+    //
+    //         strat
+    //     }
+    // };
+    // return (rec, inv, strat)
+}
+
+/// Find a strategy to construct the recipe from the provided inventory.
+///
+/// A Strategy represents the set of actions required to make the translation
+/// from one Inventory to another. Strategies consist of a series of actions
+/// which end in Action::Terminate(success: bool). Each Action has an associated
+/// cost, and thus Strategies can be compared cost wise.
+///
+/// To progress from one Inventory to a target Inventory, there are three
+/// possible branches of logic which could potentially advance you to your goal:
+/// 1. Perform Zero-Cost Trades:
+///     You may have enough materials to build the recipe if you do some trades first.
+///     The difficulty here is that to perform trades, materials must be the base of
+///     their Class, so you must first Dismantle to Trade. Because of this, trading
+///     is not necessary a free action.
+/// 2. Perform Downgrades:
+///     It may be necessary to break down materials into lower level materials. This
+///     costs 20% of the value of higher tier material, so this has a cost associated
+///     with it. It should be noted that dismantling higher tiers SHOULD have a higher
+///     associated cost, but for a first pass implementation, this detail will be
+///     elided, with the result being sub-optimal Strategies may win.
+/// 3. Perform Upgrades:
+///     There is no associated cost to the Upgrade action. This is sound as long as
+///     the result of any Upgrade is actually used in the recipe.
+pub fn find_strategy(recipe: Inventory, inventory: Inventory, area: TradeArea) -> Strategy {
+    if inventory >= recipe {
+        return Strategy::from(vec![Action::Terminate(true)])
+    }
+    let mut invs = [inventory.clone(), inventory.clone(), inventory.clone()];
+    let mut strats = [Strategy::new(), Strategy::new(), Strategy::new()];
+    for (item, amount) in recipe.non_zero() {
+        let mut _s = [Strategy::new(), Strategy::new(), Strategy::new()];
+        for (i, branch) in [Branch::Trade, Branch::Upgrade, Branch::Dismantle].iter().enumerate() {
+            (invs[i], _s[i]) = exec_branch((item, amount), inventory.clone(), branch);
+            strats[i] = strats[i].clone().concat(_s[i].clone())
+        }
+    }
+    for i in 0..strats.len() {
+        if !strats[i].terminal() {
+            strats[i] = strats[i].clone().concat(find_strategy(recipe, invs[i], area));
+        }
+    }
+    strats.iter().min().unwrap().clone()
+}
+
+
+#[test]
+fn test_find_strategy_terminates() {
+    find_strategy(Inventory::new(), Inventory::new(), TradeTable::A1);
+
+    let mut recipe = Inventory::new();
+    let mut inv = Inventory::new();
+    recipe = recipe.adjustment(&Name::WoodenLog, 10);
+    inv = inv.adjustment(&Name::WoodenLog, 0);
+    find_strategy(recipe, inv, TradeTable::A1);
+}

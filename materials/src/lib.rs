@@ -1,4 +1,4 @@
-#![allow(dead_code)]
+#![allow(warnings)]
 #![feature(destructuring_assignment)]
 
 mod crafting;
