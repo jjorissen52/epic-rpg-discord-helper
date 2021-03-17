@@ -58,35 +58,28 @@ impl Strategy {
         Strategy(vec)
     }
 
-    fn cost(&self, other: &Self) -> (u64, u64) {
-        let (Strategy(self_copy), Strategy(other_copy)) = (self, other);
-        let (mut self_cost, mut other_cost) = (0 as u64, 0 as u64);
-        for action in self_copy.iter() {
+    fn cost(&self) -> u64 {
+        let Strategy(strat) = self;
+        let mut self_cost = 0;
+        for action in strat.iter() {
             match action {
                 Action::Dismantle(cost) => { self_cost += cost },
                 _ => {},
             }
         }
-        for action in other_copy.iter() {
-            match action {
-                Action::Dismantle(cost) => { other_cost += cost },
-                _ => {},
-            }
-        }
-        return if self_cost == other_cost {
-            (self_copy.len() as u64, other_copy.len() as u64)
-        } else {
-            (self_cost, other_cost)
-        }
+        return self_cost
     }
 }
 
 impl Ord for Strategy {
     fn cmp(&self, other: &Self) -> Ordering {
-        let (c1, c2) = self.cost(other);
-        // dbg!(c1, c2);
-        // dbg!(c1.cmp(&c2));
-        c1.cmp(&c2)
+        let (c1, c2) = (self.cost(), other.cost());
+        let (Strategy(s1), Strategy(s2)) = (self, other);
+        return if c1 == c2 {
+            s1.len().cmp(&s2.len())
+        } else {
+            c1.cmp(&c2)
+        }
     }
 }
 
@@ -98,8 +91,9 @@ impl PartialOrd for Strategy {
 
 impl PartialEq for Strategy {
     fn eq(&self, other: &Self) -> bool {
-        let (c1, c2) = self.cost(other);
-        return c1 == c2
+        let (c1, c2) = (self.cost(), other.cost());
+        let (Strategy(s1), Strategy(s2)) = (self, other);
+        c1 == c2 && s1.len() == s2.len()
     }
 }
 
