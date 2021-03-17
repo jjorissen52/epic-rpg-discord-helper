@@ -14,11 +14,13 @@ RUN poetry config virtualenvs.create false \
  && poetry install
 
 # Build and install materials dependency
-COPY . .
+COPY materials materials
 RUN cd /app/materials \
  && python setup.py install \
  && rm -rf build dist *.egg-info target \
  && cd /app
+
+COPY . .
 
 ENV PYTHONBUFFERED=1
 CMD ["python"]
