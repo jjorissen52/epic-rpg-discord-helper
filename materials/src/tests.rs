@@ -49,7 +49,7 @@ fn test_migrate() {
     inv = inv.adjustment(&Name::EpicFish, 10);
     inv = inv.adjustment(&Name::GoldenFish, 0);
     inv = inv.adjustment(&Name::NormieFish, 0);
-    inv = inv.migrate(&Class::Fish, &Class::Log, 5, TradeTable::A2);
+    let (inv, _) = inv.migrate(&Class::Fish, &Class::Log, 5, TradeTable::A2);
     assert_eq!(inv.get_item(&Name::WoodenLog).1, 9600);
 }
 
@@ -69,7 +69,7 @@ fn test_migrate_all() {
     for &(name, initial, _) in counts.iter() {
         inv = inv.adjustment(name, initial as i128)
     }
-    inv = inv.migrate_all(&Class::Log, 100, TradeTable::A8);
+    let (inv, _) = inv.migrate_all(&Class::Log, 100, TradeTable::A8);
 
     for &(name, _, fin) in counts.iter() {
         assert_eq!(inv.get_qty(name), fin);

@@ -3,6 +3,7 @@
 
 mod crafting;
 mod tests;
+mod external;
 
 use pyo3::prelude::*;
 use pyo3::{wrap_pyfunction, exceptions};
@@ -15,7 +16,7 @@ pub fn future(
     apple: u64, banana: u64,
     ruby: u64,
 ) -> Result<u64, PyErr> {
-    if let Some(logs) = crafting::future_logs(
+    if let Some(logs) = external::future_logs(
         area,
         wooden_log, epic_log, super_log, mega_log, hyper_log, ultra_log,
         normie_fish, golden_fish, epic_fish,
