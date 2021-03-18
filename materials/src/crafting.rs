@@ -159,6 +159,27 @@ impl Item {
         (Items[idx - 1], qty * (value * 4 / 5) as u64)
     }
 
+    pub fn dismantle_to(&self, mut available: u64, to: &Name, mut amount: u64) -> (Item, u64, u64) {
+        let mut current_qty: u64 = 0;
+        let mut current_item = self.clone();
+        let Item(_, losing_name, _) = current_item;
+        let start_idx = Items::index_of(&losing_name);
+        let end_idx = Items::index_of(to);
+        while available != 0 && current_qty < amount  {
+            let mut qty: u64 = 1;
+            let mut idx = start_idx;
+            current_item = self.clone();
+            while idx > end_idx {
+                (current_item, qty) = current_item.dismantle(qty);
+                idx -= 1;
+            }
+            current_qty += qty;
+            available -= 1;
+        }
+        // (Item, qty, remainder)
+        (current_item, current_qty, available)
+    }
+
     pub fn full_dismantle(&self, mut qty: u64) -> (Item, u64) {
         let (mut item, mut dqty) = self.dismantle(qty);
         while dqty > qty {

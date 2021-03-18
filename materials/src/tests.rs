@@ -44,6 +44,19 @@ fn test_dismantle() {
 }
 
 #[test]
+fn test_dismantle_to() {
+    let ultra_log = Items::get_item(&Name::UltraLog);
+    let (desired_amount, name) = (150_000, &Name::WoodenLog);
+    let (item, qty, remainder) = ultra_log.dismantle_to(3, name, desired_amount);
+    assert_eq!((item, qty, remainder), (Items::get_item(name), 163_840, 1));
+
+    let epic_fish = Items::get_item(&Name::EpicFish);
+    let (desired_amount, name) = (3000, &Name::GoldenFish);
+    let (item, qty, remainder) = epic_fish.dismantle_to(1_000, name, desired_amount);
+    assert_eq!((item, qty, remainder), (Items::get_item(name), 3040, 962))
+}
+
+#[test]
 fn test_migrate() {
     let mut inv = Inventory::new();
     inv = inv.adjustment(&Name::EpicFish, 10);
