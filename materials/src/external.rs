@@ -38,12 +38,13 @@ enum Branch {
 }
 
 fn exec_branch(item_qty: (Item, u64), mut inv: Inventory, branch: &Branch, area: TradeArea) -> (u64, Inventory, Strategy) {
-    // return (Inventory::new(), Strategy::from(vec![Action::Terminate(true)]))
-    let (item, mut recipe_amount) = item_qty;
-    let Item(_, gaining, _) = item;
+    let (item, starting_qty) = item_qty;
+    let mut recipe_amount = starting_qty;
+    let Item(desired_class, desired_name, _) = item;
     match branch {
         Branch::Trade => {
             let mut strat = Strategy::new();
+            let gaining = Items[Items::first_of(&desired_class)].1;
             let tradeable = [&Name::WoodenLog, &Name::NormieFish, &Name::Apple, &Name::Ruby];
             for losing in tradeable.iter() {
                 if recipe_amount == 0 {
@@ -59,7 +60,7 @@ fn exec_branch(item_qty: (Item, u64), mut inv: Inventory, branch: &Branch, area:
                     strat = strat.add(Action::Trade)
                 }
             }
-            let recipe_reduction = item_qty.1 - recipe_amount;
+            let recipe_reduction = starting_qty - recipe_amount;
             if recipe_reduction == 0 {
                 strat = strat.add(Action::Terminate(false));
             }
