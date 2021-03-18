@@ -37,24 +37,37 @@ enum Branch {
     Dismantle,
 }
 
-fn exec_branch(item_qty: (Item, u64), inv: Inventory, branch: &Branch) -> (Inventory, Strategy) {
-    return (Inventory::new(), Strategy::from(vec![Action::Terminate(true)]))
-    // let mut strat = Strategy::new(None);
-    // match branch {
-    //     Branch::Trade => {
-    //         for (item, _) in rec.non_zero() {
-    //             let Item(class, _, _) = item;
-    //             (inv, s1) = inv.migrate_all(&class, 0, area); // free trades only
-    //             _strat = _strat.extend(s1)
-    //         }
-    //         strat
-    //     },
-    //     Branch::Dismantle => {
-    //
-    //         strat
-    //     }
-    // };
-    // return (rec, inv, strat)
+fn exec_branch(item_qty: (Item, u64), mut inv: Inventory, branch: &Branch, area: TradeArea) -> (u64, Inventory, Strategy) {
+    // return (Inventory::new(), Strategy::from(vec![Action::Terminate(true)]))
+    let (item, mut recipe_amount) = item_qty;
+    let Item(_, gaining, _) = item;
+    match branch {
+        Branch::Trade => {
+            let mut strat = Strategy::new();
+            let tradeable = [&Name::WoodenLog, &Name::NormieFish, &Name::Apple, &Name::Ruby];
+            for losing in tradeable.iter() {
+                if recipe_amount == 0 {
+                    strat = strat.add(Action::Terminate(true));
+                    break
+                }
+                inv = inv.trade(losing, &gaining, recipe_amount as i128, area);
+                let gained = inv.get_item(&gaining);
+                if gained.1 != 0 {
+                    let adjustment = min(recipe_amount, gained.1);
+                    recipe_amount -= adjustment;
+                    inv = inv.adjustment(&gaining, -(adjustment as i128));
+                    strat = strat.add(Action::Trade)
+                }
+            }
+            let recipe_reduction = item_qty.1 - recipe_amount;
+            if recipe_reduction == 0 {
+                strat = strat.add(Action::Terminate(false));
+            }
+            (recipe_reduction, inv, strat)
+        },
+        Branch::Dismantle => (0, inv, Strategy::from(vec![Action::Terminate(false)])),
+        Branch::Upgrade => (0, inv, Strategy::from(vec![Action::Terminate(false)])),
+    }
 }
 
 /// Find a strategy to construct the recipe from the provided inventory.
@@ -85,20 +98,32 @@ pub fn find_strategy(recipe: Inventory, inventory: Inventory, area: TradeArea) -
         return Strategy::from(vec![Action::Terminate(true)])
     }
     let mut invs = [inventory.clone(), inventory.clone(), inventory.clone()];
+    let mut recs = [recipe.clone(), recipe.clone(), recipe.clone()];
     let mut strats = [Strategy::new(), Strategy::new(), Strategy::new()];
     for (item, amount) in recipe.non_zero() {
+        let Item(_, name, _) = item;
         let mut _s = [Strategy::new(), Strategy::new(), Strategy::new()];
+        let mut reduction = 0;
         for (i, branch) in [Branch::Trade, Branch::Upgrade, Branch::Dismantle].iter().enumerate() {
-            (invs[i], _s[i]) = exec_branch((item, amount), inventory.clone(), branch);
+            (reduction, invs[i], _s[i]) = exec_branch((item, amount), inventory.clone(), branch, area);
+            recs[i] = recs[i].adjustment(&name, -(reduction as i128));
             strats[i] = strats[i].clone().concat(_s[i].clone())
         }
     }
     for i in 0..strats.len() {
         if !strats[i].terminal() {
-            strats[i] = strats[i].clone().concat(find_strategy(recipe, invs[i], area));
+            strats[i] = strats[i].clone().concat(find_strategy(recs[i], invs[i], area));
         }
     }
     strats.iter().min().unwrap().clone()
+}
+
+pub fn can_craft(recipe: Inventory, inventory: Inventory, area: TradeArea) -> bool {
+    let actions = find_strategy(recipe, inventory, area).into_vec();
+    if let Action::Terminate(success) = actions[actions.len() - 1] {
+        return success
+    }
+    panic!("Not possible; all strategies must have terminated to get here.")
 }
 
 
@@ -106,9 +131,20 @@ pub fn find_strategy(recipe: Inventory, inventory: Inventory, area: TradeArea) -
 fn test_find_strategy_terminates() {
     find_strategy(Inventory::new(), Inventory::new(), TradeTable::A1);
 
-    let mut recipe = Inventory::new();
-    let mut inv = Inventory::new();
-    recipe = recipe.adjustment(&Name::WoodenLog, 10);
-    inv = inv.adjustment(&Name::WoodenLog, 0);
+    let recipe = Inventory::from(vec![(&Name::WoodenLog, 10)]);
+    let inv = Inventory::from(vec![(&Name::WoodenLog, 0)]);
     find_strategy(recipe, inv, TradeTable::A1);
+}
+
+#[test]
+fn test_can_craft_with_trades() {
+    let recipe = Inventory::from(vec![(&Name::NormieFish, 10)]);
+    let inv = Inventory::from(vec![(&Name::WoodenLog, 10)]);
+    assert!(can_craft(recipe.clone(), inv.clone(), TradeTable::A1));
+    assert!(!can_craft(recipe.clone(), inv.clone(), TradeTable::A10));
+
+    let recipe = Inventory::from(vec![(&Name::WoodenLog, 10)]);
+    let inv = Inventory::from(vec![(&Name::Apple, 2)]);
+    assert!(can_craft(recipe.clone(), inv.clone(), TradeTable::A6));
+    assert!(!can_craft(recipe.clone(), inv.clone(), TradeTable::A3));
 }

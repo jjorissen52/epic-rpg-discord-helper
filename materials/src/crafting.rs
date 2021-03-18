@@ -56,6 +56,10 @@ impl Strategy {
         Strategy(vec)
     }
 
+    pub fn into_vec(self) -> Vec<Action> {
+        self.0
+    }
+
     pub fn add(self, action: Action) -> Strategy {
         let Strategy(mut vec) = self;
         vec.push(action);
@@ -133,9 +137,9 @@ impl PartialEq for Strategy {
 }
 
 #[derive(Debug, Copy, Clone, Eq, PartialEq)]
-pub struct Item(Class, Name, u32);
+pub struct Item(pub Class, pub Name, pub u32);
 impl Item {
-    pub fn tradeable(&self) -> bool {
+    pub fn is_tradeable(&self) -> bool {
         let Item(class, _, _) = &self;
         match class {
             Class::Log => true,
@@ -246,7 +250,7 @@ impl Items {
                 return i
             }
         }
-        return usize::max_value() // not possible
+        return usize::MAX // not possible
     }
 
     pub fn last_of(class: &Class) -> usize {
@@ -277,7 +281,7 @@ pub struct TradeTable;
 pub type TradeArea = (usize, usize, usize, u8);
 
 impl TradeTable {
-    // ratio of (fish, apple, ruby):log
+    //          ratio of (fish, apple, ruby):log
     pub const A1: TradeArea = (1, 0, 0, 1);
     pub const A2: TradeArea = (1, 0, 0, 2);
     pub const A3: TradeArea = (1, 3, 0, 3);
@@ -333,12 +337,20 @@ impl TradeTable {
     }
 }
 
-#[derive(Debug, Copy, Clone, PartialOrd, PartialEq)]
+#[derive(Debug, Copy, Clone, Eq)]
 pub struct Inventory([u64; Items::INV_SIZE]);
 
 impl Inventory {
     pub fn new() -> Inventory {
         Inventory([0; Items::INV_SIZE])
+    }
+
+    pub fn from(vec: Vec<(&Name, u64)>) -> Inventory {
+        let mut inv = Inventory::new();
+        for item in vec.iter() {
+            inv = inv.adjustment(item.0, item.1 as i128)
+        }
+        inv
     }
 
     pub fn itemized(
@@ -400,17 +412,17 @@ impl Inventory {
     }
 
     pub fn trade(self, losing: &Name, gaining: &Name, qty: i128, area: TradeArea) -> Inventory {
-        let max = if qty < 0 { i128::MAX } else { qty };
+        let target_qty = if qty < 0 { i128::MAX } else { qty };
         let (litem, mut lqty) = &self.get_item(losing);
         let (gitem, _) = &self.get_item(gaining);
-        if litem.tradeable() && gitem.tradeable() {
+        if litem.is_tradeable() && gitem.is_tradeable() {
             let (fish, apple, ruby, _) = area;
             let (Item(litem_cls, _, _), Item(gitem_cls, _, _)) = (litem, gitem);
             if litem_cls == gitem_cls {
                 return self;
             } else if litem_cls != &Class::Log && gitem_cls != &Class::Log {
                 return self.trade(losing, &Name::WoodenLog, -1, area)
-                    .trade(&Name::WoodenLog, gaining, max, area)
+                    .trade(&Name::WoodenLog, gaining, target_qty, area)
             }
             return match (litem_cls, gitem_cls) {
                 (Class::Log, _) => {
@@ -422,7 +434,7 @@ impl Inventory {
                         Class::Gem => ruby,
                         _ => panic!("not possible."),
                     };
-                    while lqty / exchange_rate as u64 > 0 && gqty < max {
+                    while lqty / exchange_rate as u64 > 0 && gqty < target_qty {
                         gqty += 1;
                         lqty -= exchange_rate as u64;
                         total_cost += exchange_rate as i128;
@@ -436,7 +448,7 @@ impl Inventory {
                         Class::Gem => ruby,
                         _ => panic!("not possible."),
                     };
-                    let exchange_qty = if max < lqty as i128 { max } else { lqty as i128 };
+                    let exchange_qty = if target_qty < lqty as i128 { target_qty } else { lqty as i128 };
                     self.adjustment(losing, -exchange_qty)
                         .adjustment(gaining, exchange_qty * exchange_rate as i128)
                 },
@@ -509,5 +521,50 @@ impl Inventory {
             return new_inv.future(next_area, end)
         }
         new_inv
+    }
+}
+
+
+impl Ord for Inventory {
+    fn cmp(&self, other: &Self) -> Ordering {
+        self.cmp(other)
+    }
+}
+
+impl PartialOrd for Inventory {
+    fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
+        Some(self.cmp(other))
+    }
+
+    fn lt(&self, other: &Self) -> bool {
+        !self.ge(other)
+    }
+
+    fn le(&self, other: &Self) -> bool {
+        let self_items = self.0;
+        let other_items = other.0;
+        self_items.iter().enumerate().all(|(i, qty)| qty <= &other_items[i])
+    }
+
+    fn gt(&self, other: &Self) -> bool {
+        !self.le(other)
+    }
+
+    fn ge(&self, other: &Self) -> bool {
+        let self_items = self.0;
+        let other_items = other.0;
+        self_items.iter().enumerate().all(|(i, qty)| qty >= &other_items[i])
+    }
+}
+
+impl PartialEq for Inventory {
+    fn eq(&self, other: &Self) -> bool {
+        let self_items = self.0;
+        let other_items = other.0;
+        self_items.iter().enumerate().all(|(i, qty)| qty == &other_items[i])
+    }
+
+    fn ne(&self, other: &Self) -> bool {
+        !self.eq(other)
     }
 }
