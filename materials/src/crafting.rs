@@ -1,7 +1,7 @@
 #![allow(dead_code)]
 
 use std::cmp::{min, Ordering};
-use std::ops::Index;
+use std::ops::{Index, IndexMut};
 
 #[derive(Debug, Copy, Clone, Eq, PartialEq)]
 pub enum Class {
@@ -159,16 +159,19 @@ impl Item {
         (Items[idx - 1], qty * (value * 4 / 5) as u64)
     }
 
-    pub fn dismantle_to(&self, mut available: u64, to: &Name, mut amount: u64) -> (Item, u64, u64) {
+    pub fn dismantle_to(&self, mut available: u64, to: &Name, mut amount: u64) -> (u64, u64) {
         let mut current_qty: u64 = 0;
-        let mut current_item = self.clone();
-        let Item(_, losing_name, _) = current_item;
+        let Item(_, losing_name, _) = self;
         let start_idx = Items::index_of(&losing_name);
         let end_idx = Items::index_of(to);
+        // one at a time, dismantle from the starting item tier
+        // to the indicated item tier until either
+        // we run out of the starting tier or we have
+        // enough of the target tier
         while available != 0 && current_qty < amount  {
             let mut qty: u64 = 1;
             let mut idx = start_idx;
-            current_item = self.clone();
+            let mut current_item = self.clone();
             while idx > end_idx {
                 (current_item, qty) = current_item.dismantle(qty);
                 idx -= 1;
@@ -177,7 +180,7 @@ impl Item {
             available -= 1;
         }
         // (Item, qty, remainder)
-        (current_item, current_qty, available)
+        (current_qty, available)
     }
 
     pub fn full_dismantle(&self, mut qty: u64) -> (Item, u64) {
@@ -361,6 +364,19 @@ impl TradeTable {
 #[derive(Debug, Copy, Clone, Eq)]
 pub struct Inventory([u64; Items::INV_SIZE]);
 
+impl Index<usize> for Inventory {
+    type Output = u64;
+    fn index(&self, index: usize) -> &Self::Output {
+        &self.0[index]
+    }
+}
+
+impl IndexMut<usize> for Inventory {
+    fn index_mut(&mut self, index: usize) -> &mut Self::Output {
+        &mut self.0[index]
+    }
+}
+
 impl Inventory {
     pub fn new() -> Inventory {
         Inventory([0; Items::INV_SIZE])
@@ -410,26 +426,19 @@ impl Inventory {
 
     pub fn adjustment(&self, name: &Name, amount: i128) -> Inventory {
         let Inventory(mut inner) = self;
-        for i in 0..Items::INV_SIZE {
-            let Item(_, _name, _) = &Items[i];
-            if _name == name {
-                inner[i] = (inner[i] as i128 + amount) as u64;
-                return Inventory(inner)
-            }
-        }
-        panic!("No such item!")
+        let idx = Items::index_of(name);
+        inner[idx] = (inner[idx] as i128 + amount) as u64;
+        Inventory(inner)
     }
 
     pub fn get_item(&self, name: &Name) -> (Item, u64) {
         let i = Items::index_of(name);
-        let Inventory(inner) = &self;
-        (Items[i], inner[i])
+        (Items[i], self[i])
     }
 
     pub fn get_qty(&self, name: &Name) -> u64 {
         let i = Items::index_of(name);
-        let Inventory(inner) = &self;
-        inner[i]
+        self[i]
     }
 
     pub fn trade(self, losing: &Name, gaining: &Name, qty: i128, area: TradeArea) -> Inventory {
@@ -544,7 +553,6 @@ impl Inventory {
         new_inv
     }
 }
-
 
 impl Ord for Inventory {
     fn cmp(&self, other: &Self) -> Ordering {
