@@ -1,4 +1,4 @@
-use crate::crafting::{Name, TradeTable, Inventory, Items, Class, Strategy, Action};
+use crate::crafting::{Name, TradeTable, Inventory, Item, Items, Class, Strategy, Action};
 
 #[test]
 fn test_adjustment() {
@@ -54,6 +54,16 @@ fn test_dismantle_to() {
     let (desired_amount, name) = (3000, &Name::GoldenFish);
     let (qty, remainder) = epic_fish.dismantle_to(1_000, name, desired_amount);
     assert_eq!((qty, remainder), (3040, 962))
+}
+
+#[test]
+fn test_dismantle_cost() {
+    let ultra_log = Items::get_item(&Name::UltraLog);
+    let (desired_amount, name) = (150_000, &Name::WoodenLog);
+    let (qty, remainder) = ultra_log.dismantle_to(3, name, desired_amount);
+    // amount lost from original material cost
+    let cost: u64 = 250_000 * 2 - 163_840;
+    assert_eq!(cost, Item::dismantle_cost(0, 5, 163_840))
 }
 
 #[test]

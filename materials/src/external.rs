@@ -37,12 +37,13 @@ enum Branch {
     Dismantle,
 }
 
-fn exec_branch(item_qty: (Item, u64), mut inv: Inventory, branch: &Branch, area: TradeArea) -> (u64, Inventory, Strategy) {
-    let (item, starting_qty) = item_qty;
+fn exec_branch(recipe_qty: (Item, u64), mut inv: Inventory, branch: &Branch, area: TradeArea) -> (u64, Inventory, Strategy) {
+    let (item, starting_qty) = recipe_qty;
     let mut recipe_amount = starting_qty;
     let Item(desired_class, desired_name, _) = item;
     match branch {
         Branch::Trade => {
+            // perform any free trades into the current recipe item's class
             let mut strat = Strategy::new();
             let gaining = Items[Items::first_of(&desired_class)].1;
             let tradeable = [&Name::WoodenLog, &Name::NormieFish, &Name::Apple, &Name::Ruby];
@@ -66,7 +67,37 @@ fn exec_branch(item_qty: (Item, u64), mut inv: Inventory, branch: &Branch, area:
             }
             (recipe_reduction, inv, strat)
         },
-        Branch::Dismantle => (0, inv, Strategy::from(vec![Action::Terminate(false)])),
+        Branch::Dismantle => {
+            // find next non-zero inventory item and dismantle from it to
+            // the current recipe item
+            let recipe_item_idx = Items::index_of(&desired_name);
+            let mut idx = recipe_item_idx + 1;
+            // Fruit just happens to be the last dismantle-able class
+            // in Items::ITEMS
+            let highest_idx = Items::last_of(&Class::Fruit);
+            // Look for any items that could possibly be dismantled
+            while idx <= highest_idx {
+                let losing = inv[idx];
+                if losing != 0 {
+                    let (qty, remainder) = Items[idx]
+                        .dismantle_to(losing, &desired_name, starting_qty);
+                    // Subtract from the recipe cost either the quantity obtained from
+                    // dismantling or the amount required, whichever is smallest.
+                    // The rest of the items should be placed in the inventory.
+                    let recipe_reduction = min(qty, starting_qty);
+                    inv[idx] = remainder;
+                    inv[recipe_item_idx] = qty - recipe_reduction;
+
+                    // calculate the cost to record it in the strategy
+                    let cost = Item::dismantle_cost(idx - 1, highest_idx, qty);
+                    return (recipe_reduction, inv, Strategy::from(vec![Action::Dismantle(cost)]))
+                }
+                idx += 1;
+            }
+            // If we could not dismantle anything, this is not a necessary
+            // part of a winning strategy.
+            (0, inv, Strategy::from(vec![Action::Terminate(false)]))
+        },
         Branch::Upgrade => (0, inv, Strategy::from(vec![Action::Terminate(false)])),
     }
 }
@@ -121,6 +152,7 @@ pub fn find_strategy(recipe: Inventory, inventory: Inventory, area: TradeArea) -
 
 pub fn can_craft(recipe: Inventory, inventory: Inventory, area: TradeArea) -> bool {
     let actions = find_strategy(recipe, inventory, area).into_vec();
+    dbg!(actions.clone());
     if let Action::Terminate(success) = actions[actions.len() - 1] {
         return success
     }
@@ -148,4 +180,27 @@ fn test_can_craft_with_trades() {
     let inv = Inventory::from(vec![(&Name::Apple, 2)]);
     assert!(can_craft(recipe.clone(), inv.clone(), TradeTable::A6));
     assert!(!can_craft(recipe.clone(), inv.clone(), TradeTable::A3));
+}
+
+#[test]
+fn test_can_craft_with_dismantles() {
+    let recipe = Inventory::from(vec![(&Name::NormieFish, 24)]);
+    let inv = Inventory::from(vec![(&Name::EpicFish, 2)]);
+
+    assert!(can_craft(recipe.clone(), inv.clone(), TradeTable::A6));
+
+    let recipe = Inventory::from(vec![(&Name::WoodenLog, 163_840)]);
+    let inv = Inventory::from(vec![(&Name::UltraLog, 2)]);
+    assert!(can_craft(recipe.clone(), inv.clone(), TradeTable::A6));
+
+    let recipe = Inventory::from(vec![(&Name::WoodenLog, 163_841)]);
+    assert!(!can_craft(recipe.clone(), inv.clone(), TradeTable::A6));
+}
+
+#[test]
+fn test_can_craft_with_dismantles_and_trades() {
+    // recipe equivalent of fish sword
+    let recipe = Inventory::from(vec![(&Name::NormieFish, 20*12), (&Name::WoodenLog, 20*5)]);
+    let inv = Inventory::from(vec![(&Name::EpicFish, 1)]);
+    assert!(can_craft(recipe.clone(), inv.clone(), TradeTable::A1));
 }

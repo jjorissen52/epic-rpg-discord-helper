@@ -139,6 +139,13 @@ impl PartialEq for Strategy {
 #[derive(Debug, Copy, Clone, Eq, PartialEq)]
 pub struct Item(pub Class, pub Name, pub u32);
 impl Item {
+    pub fn dismantle_cost(start: usize, end: usize, result: u64) -> u64 {
+        let decay_top: u64 = 4;
+        let decay_bottom: u64 = 5;
+        let decay_times = end - start;
+        return result * decay_bottom.pow(decay_times as u32) / decay_top.pow(decay_times as u32) - result
+    }
+
     pub fn is_tradeable(&self) -> bool {
         let Item(class, _, _) = &self;
         match class {
@@ -179,7 +186,7 @@ impl Item {
             current_qty += qty;
             available -= 1;
         }
-        // (Item, qty, remainder)
+        // (qty, remainder)
         (current_qty, available)
     }
 
