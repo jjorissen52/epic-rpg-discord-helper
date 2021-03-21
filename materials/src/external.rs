@@ -15,7 +15,7 @@ pub fn future_logs(
         ruby
     );
     if let Some(area) = TradeTable::from_usize(area) {
-        return Some(inv.future(area, TradeTable::A10).get_qty(&Name::WoodenLog))
+        return Some(inv.future(area, TradeTable::A10)[&Name::WoodenLog])
     };
     None
 }
@@ -53,11 +53,11 @@ fn exec_branch(recipe_qty: (Item, u64), mut inv: Inventory, branch: &Branch, are
                     break
                 }
                 inv = inv.trade(losing, &gaining, recipe_amount as i128, area);
-                let gained = inv.get_item(&gaining);
-                if gained.1 != 0 {
-                    let adjustment = min(recipe_amount, gained.1);
+                let gained = inv[&gaining];
+                if gained != 0 {
+                    let adjustment = min(recipe_amount, gained);
                     recipe_amount -= adjustment;
-                    inv = inv.adjustment(&gaining, -(adjustment as i128));
+                    inv[&gaining] -= adjustment;
                     strat = strat.add(Action::Trade)
                 }
             }
@@ -130,7 +130,7 @@ pub fn find_strategy(recipe: Inventory, inventory: Inventory, area: TradeArea) -
         return Strategy::from(vec![Action::Terminate(true)])
     }
     let mut invs = [inventory.clone(), inventory.clone(), inventory.clone()];
-    let mut recs = [recipe.clone(), recipe.clone(), recipe.clone()];
+    let mut recs: [&mut Inventory; 3] = [&mut recipe.clone(), &mut recipe.clone(), &mut recipe.clone()];
     let mut strats = [Strategy::new(), Strategy::new(), Strategy::new()];
     for (item, amount) in recipe.non_zero() {
         let Item(_, name, _) = item;
@@ -138,13 +138,13 @@ pub fn find_strategy(recipe: Inventory, inventory: Inventory, area: TradeArea) -
         let mut reduction = 0;
         for (i, branch) in [Branch::Trade, Branch::Upgrade, Branch::Dismantle].iter().enumerate() {
             (reduction, invs[i], _s[i]) = exec_branch((item, amount), inventory.clone(), branch, area);
-            recs[i] = recs[i].adjustment(&name, -(reduction as i128));
+            recs[i][&name] -= reduction;
             strats[i] = strats[i].clone().concat(_s[i].clone())
         }
     }
     for i in 0..strats.len() {
         if !strats[i].terminal() {
-            strats[i] = strats[i].clone().concat(find_strategy(recs[i], invs[i], area));
+            strats[i] = strats[i].clone().concat(find_strategy(*recs[i], invs[i], area));
         }
     }
     strats.iter().min().unwrap().clone()

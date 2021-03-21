@@ -157,6 +157,22 @@ impl Item {
         }
     }
 
+    pub fn is_craftable(&self) -> bool {
+        let Item(class, _, _) = &self;
+        match class {
+            Class::Log => true,
+            Class::Fish => true,
+            Class::Fruit => true,
+            _ => false,
+        }
+    }
+
+    fn guard_tradeable(cls: &Class) {
+        if !Items[Items::first_of(cls)].is_tradeable() {
+            panic!(format!("Class {:?} cannot be traded to or from.", cls))
+        }
+    }
+
     pub fn dismantle(&self, qty: u64) -> (Item, u64) {
         let Item(_, name, value) = &self;
         let idx = Items::index_of(&name);
@@ -267,11 +283,7 @@ impl Items {
                 return i
             }
         }
-        return usize::max_value() // not possible
-    }
-
-    pub fn get_item(name: &Name) -> Item {
-        return Items[Items::index_of(name)]
+        return usize::MAX // not possible
     }
 
     pub fn first_of(class: &Class) -> usize {
@@ -306,10 +318,31 @@ impl Index<usize> for Items {
     }
 }
 
+impl Index<&Name> for Items {
+    type Output = Item;
+    fn index(&self, name: &Name) -> &Self::Output {
+        &Items[Items::index_of(name)]
+    }
+}
+
 #[non_exhaustive]
 pub struct TradeTable;
 
+pub struct ExchangeRate{numerator: u64, denominator: u64}
 pub type TradeArea = (usize, usize, usize, u8);
+
+impl Index<&Class> for TradeArea {
+    type Output = usize;
+    fn index(&self, index: &Class) -> &Self::Output {
+        match index {
+            Class::Log => &1,
+            Class::Fish => &self.0,
+            Class::Fruit => &self.1,
+            Class::Gem => &self.2,
+            _ => { Item::guard_tradeable(index); return &0 }
+        }
+    }
+}
 
 impl TradeTable {
     //          ratio of (fish, apple, ruby):log
@@ -366,6 +399,20 @@ impl TradeTable {
             _ => None,
         }
     }
+
+    pub fn rate_from_logs(area: TradeArea, to: &Class) -> ExchangeRate {
+        return ExchangeRate{
+            numerator: 1,
+            denominator: area[to] as u64
+        };
+    }
+
+    pub fn rate_to_logs(area: TradeArea, from: &Class) -> ExchangeRate {
+        return ExchangeRate{
+            numerator: area[from] as u64,
+            denominator: 1
+        };
+    }
 }
 
 #[derive(Debug, Copy, Clone, Eq)]
@@ -378,9 +425,22 @@ impl Index<usize> for Inventory {
     }
 }
 
+impl Index<&Name> for Inventory {
+    type Output = u64;
+    fn index(&self, name: &Name) -> &Self::Output {
+        &self.0[Items::index_of(name)]
+    }
+}
+
 impl IndexMut<usize> for Inventory {
     fn index_mut(&mut self, index: usize) -> &mut Self::Output {
         &mut self.0[index]
+    }
+}
+
+impl IndexMut<&Name> for Inventory {
+    fn index_mut(&mut self, name: &Name) -> &mut Self::Output {
+        &mut self.0[Items::index_of(name)]
     }
 }
 
@@ -391,8 +451,8 @@ impl Inventory {
 
     pub fn from(vec: Vec<(&Name, u64)>) -> Inventory {
         let mut inv = Inventory::new();
-        for item in vec.iter() {
-            inv = inv.adjustment(item.0, item.1 as i128)
+        for (&name, qty) in vec.iter() {
+            inv[&name] = *qty;
         }
         inv
     }
@@ -431,68 +491,47 @@ impl Inventory {
         vec
     }
 
-    pub fn adjustment(&self, name: &Name, amount: i128) -> Inventory {
-        let Inventory(mut inner) = self;
-        let idx = Items::index_of(name);
-        inner[idx] = (inner[idx] as i128 + amount) as u64;
-        Inventory(inner)
-    }
-
-    pub fn get_item(&self, name: &Name) -> (Item, u64) {
-        let i = Items::index_of(name);
-        (Items[i], self[i])
-    }
-
-    pub fn get_qty(&self, name: &Name) -> u64 {
-        let i = Items::index_of(name);
-        self[i]
-    }
-
     pub fn trade(self, losing: &Name, gaining: &Name, qty: i128, area: TradeArea) -> Inventory {
-        let target_qty = if qty < 0 { i128::MAX } else { qty };
-        let (litem, mut lqty) = &self.get_item(losing);
-        let (gitem, _) = &self.get_item(gaining);
-        if litem.is_tradeable() && gitem.is_tradeable() {
-            let (fish, apple, ruby, _) = area;
-            let (Item(litem_cls, _, _), Item(gitem_cls, _, _)) = (litem, gitem);
-            if litem_cls == gitem_cls {
-                return self;
-            } else if litem_cls != &Class::Log && gitem_cls != &Class::Log {
-                return self.trade(losing, &Name::WoodenLog, -1, area)
-                    .trade(&Name::WoodenLog, gaining, target_qty, area)
-            }
-            return match (litem_cls, gitem_cls) {
-                (Class::Log, _) => {
-                    let mut gqty: i128 = 0;
-                    let mut total_cost: i128 = 0;
-                    let exchange_rate = match gitem_cls {
-                        Class::Fish => fish,
-                        Class::Fruit => apple,
-                        Class::Gem => ruby,
-                        _ => panic!("not possible."),
-                    };
-                    while lqty / exchange_rate as u64 > 0 && gqty < target_qty {
-                        gqty += 1;
-                        lqty -= exchange_rate as u64;
-                        total_cost += exchange_rate as i128;
-                    };
-                    self.adjustment(losing, -total_cost).adjustment(gaining, gqty)
-                },
-                (_, Class::Log) => {
-                    let exchange_rate = match litem_cls {
-                        Class::Fish => fish,
-                        Class::Fruit => apple,
-                        Class::Gem => ruby,
-                        _ => panic!("not possible."),
-                    };
-                    let exchange_qty = if target_qty < lqty as i128 { target_qty } else { lqty as i128 };
-                    self.adjustment(losing, -exchange_qty)
-                        .adjustment(gaining, exchange_qty * exchange_rate as i128)
-                },
-                _ => { panic!("Other cases handled by if block.") }
-            }
+        let target_qty = if qty < 0 { u64::MAX } else { qty as u64 };
+        let (litem, mut lqty) = (Items[losing], self[losing]);
+        let gitem = Items[gaining];
+        let (Item(litem_cls, _, _), Item(gitem_cls, _, _)) = (litem, gitem);
+
+        // panic for un-tradeable
+        Item::guard_tradeable(&litem_cls);
+        Item::guard_tradeable(&gitem_cls);
+
+        if litem_cls == gitem_cls {
+            return self;
+        } else if litem_cls != Class::Log && gitem_cls != Class::Log {
+            return self.trade(losing, &Name::WoodenLog, -1, area)
+                .trade(&Name::WoodenLog, gaining, target_qty as i128, area)
         }
-        panic!("Cannot be done!!!!");
+        return match (litem_cls, gitem_cls) {
+            (Class::Log, _) => {
+                let mut gqty: u64 = 0;
+                let mut total_cost: u64 = 0;
+                let exchange_rate = TradeTable::rate_from_logs(area, &gitem_cls).denominator;
+                while lqty / exchange_rate > 0 && gqty < target_qty {
+                    gqty += 1;
+                    lqty -= exchange_rate;
+                    total_cost += exchange_rate;
+                };
+                let mut new_inv = self.clone();
+                new_inv[losing] -= total_cost;
+                new_inv[gaining] += gqty;
+                new_inv
+            },
+            (_, Class::Log) => {
+                let exchange_rate = TradeTable::rate_to_logs(area, &litem_cls).numerator;
+                let exchange_qty = if target_qty < lqty { target_qty } else { lqty };
+                let mut new_inv = self.clone();
+                new_inv[losing] -= exchange_qty;
+                new_inv[gaining] += exchange_qty * exchange_rate;
+                new_inv
+            },
+            _ => { panic!("Other cases handled by if block.") }
+        }
     }
 
     pub fn migrate(&self, start: &Class, end: &Class, mut max_dismantle: usize, area: TradeArea) -> (Inventory, Strategy) {
