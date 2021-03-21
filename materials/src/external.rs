@@ -18,7 +18,7 @@ pub fn future_logs(
         normie_fish, golden_fish, epic_fish,
         apple, banana,
         ruby
-    ).future(TradeTable::A10)[&Name::WoodenLog])
+    ).log_value())
 }
 
 #[test]

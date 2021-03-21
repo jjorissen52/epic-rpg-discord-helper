@@ -586,7 +586,9 @@ impl Inventory {
         return (inv, s1.concat(s2).concat(s3).concat(s4))
     }
 
-    pub fn future(&mut self, end: TradeArea) -> Inventory {
+    /// What this inventory should look like in the provided area
+    /// given they user follows an optimal trading strategy
+    pub fn future_version(&self, end: TradeArea) -> Inventory {
         fn discard_strategy(fut: (Inventory, Strategy)) -> Inventory {
             let (inv, _) = fut;
             inv
@@ -616,9 +618,14 @@ impl Inventory {
             _ => (self.clone(), Strategy::new())
         };
         if let Some(mut new_inv) = new_inv.next_area() {
-            return new_inv.future(end)
+            return new_inv.future_version(end)
         }
         new_inv
+    }
+
+    /// Ultimate value in logs of the provided inventory
+    pub fn log_value(&self) -> u64 {
+        self.future_version(TradeTable::A10)[&Name::WoodenLog]
     }
 }
 
