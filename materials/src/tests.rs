@@ -2,7 +2,7 @@ use crate::crafting::{Name, TradeTable, Inventory, Item, Items, Class, Strategy,
 
 #[test]
 fn test_adjustment() {
-    let mut inv = Inventory::new();
+    let mut inv = Inventory::new(TradeTable::A1);
     inv[&Name::Apple] += 89000;
     inv[&Name::Apple] += 125;
     inv[&Name::Apple] -= 125;
@@ -12,10 +12,10 @@ fn test_adjustment() {
 #[test]
 fn test_trade() {
     let apples = 89000;
-    let mut inv = Inventory::from(vec![(&Name::Apple, apples)]);
-    inv = inv.trade(&Name::Apple, &Name::WoodenLog, -1, TradeTable::A3);
+    let mut inv = Inventory::from(TradeTable::A3, vec![(&Name::Apple, apples)]);
+    inv = inv.trade(&Name::Apple, &Name::WoodenLog, -1);
     assert_eq!(inv[&Name::WoodenLog], apples*3);
-    inv = inv.trade(&Name::WoodenLog, &Name::Apple, -1, TradeTable::A3);
+    inv = inv.trade(&Name::WoodenLog, &Name::Apple, -1);
     assert_eq!(inv[&Name::Apple], apples);
 }
 
@@ -62,15 +62,15 @@ fn test_dismantle_cost() {
 #[test]
 fn test_migrate() {
     let mut inv = Inventory::from(
-        vec![(&Name::EpicFish, 10), (&Name::GoldenFish, 0), (&Name::NormieFish, 0)]
+        TradeTable::A2, vec![(&Name::EpicFish, 10), (&Name::GoldenFish, 0), (&Name::NormieFish, 0)]
     );
-    let (inv, _) = inv.migrate(&Class::Fish, &Class::Log, 5, TradeTable::A2);
+    let (inv, _) = inv.migrate(&Class::Fish, &Class::Log, 5);
     assert_eq!(inv[&Name::WoodenLog], 9600);
 }
 
 #[test]
 fn test_migrate_all() {
-    let mut inv = Inventory::new();
+    let mut inv = Inventory::new(TradeTable::A8);
     let counts: [(&Name, u64, u64); 8] = [
         (&Name::EpicFish, 100, 0),
         (&Name::GoldenFish, 15, 0),
@@ -84,7 +84,7 @@ fn test_migrate_all() {
     for &(name, initial, _) in counts.iter() {
         inv[name] += initial
     }
-    let (inv, _) = inv.migrate_all(&Class::Log, 100, TradeTable::A8);
+    let (inv, _) = inv.migrate_all(&Class::Log, 100);
 
     for &(name, _, fin) in counts.iter() {
         assert_eq!(inv[name], fin);
@@ -124,10 +124,10 @@ fn test_strategy(){
 #[test]
 fn it_works() {
     let apples = 89000;
-    let mut inv = Inventory::from(vec![(&Name::Apple, apples)]);
-    inv = inv.trade(&Name::Apple, &Name::WoodenLog, -1, TradeTable::A7);
-    inv = inv.trade(&Name::WoodenLog, &Name::Apple, -1, TradeTable::A8);
-    inv = inv.trade(&Name::Apple, &Name::NormieFish, -1, TradeTable::A9);
-    inv = inv.trade(&Name::NormieFish, &Name::WoodenLog, -1, TradeTable::A10);
-    dbg!(inv);
+    let mut inv = Inventory::from(TradeTable::A7, vec![(&Name::Apple, apples)]);
+    inv = inv.trade(&Name::Apple, &Name::WoodenLog, -1).next_area().unwrap(); // trade in A7
+    inv = inv.trade(&Name::WoodenLog, &Name::Apple, -1).next_area().unwrap(); // A8
+    inv = inv.trade(&Name::Apple, &Name::NormieFish, -1).next_area().unwrap(); // A9
+    inv = inv.trade(&Name::NormieFish, &Name::WoodenLog, -1); // A10
+    assert_eq!(inv.get_area(), TradeTable::A10);
 }

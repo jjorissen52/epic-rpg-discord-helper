@@ -8,16 +8,17 @@ pub fn future_logs(
     apple: u64, banana: u64,
     ruby: u64,
 ) -> Option<u64> {
-    let inv = Inventory::itemized(
+    let _area = match TradeTable::from_usize(area) {
+        Some(_area) => _area,
+        None => return None,
+    };
+    Some(Inventory::itemized(
+        _area,
         wooden_log, epic_log, super_log, mega_log, hyper_log, ultra_log,
         normie_fish, golden_fish, epic_fish,
         apple, banana,
         ruby
-    );
-    if let Some(area) = TradeTable::from_usize(area) {
-        return Some(inv.future(area, TradeTable::A10)[&Name::WoodenLog])
-    };
-    None
+    ).future(TradeTable::A10)[&Name::WoodenLog])
 }
 
 #[test]
@@ -37,7 +38,7 @@ enum Branch {
     Dismantle,
 }
 
-fn exec_branch(recipe_qty: (Item, u64), mut inv: Inventory, branch: &Branch, area: TradeArea) -> (u64, Inventory, Strategy) {
+fn exec_branch(recipe_qty: (Item, u64), mut inv: Inventory, branch: &Branch) -> (u64, Inventory, Strategy) {
     let (item, starting_qty) = recipe_qty;
     let mut recipe_amount = starting_qty;
     let Item(desired_class, desired_name, _) = item;
@@ -52,7 +53,7 @@ fn exec_branch(recipe_qty: (Item, u64), mut inv: Inventory, branch: &Branch, are
                     strat = strat.add(Action::Terminate(true));
                     break
                 }
-                inv = inv.trade(losing, &gaining, recipe_amount as i128, area);
+                inv = inv.trade(losing, &gaining, recipe_amount as i128);
                 let gained = inv[&gaining];
                 if gained != 0 {
                     let adjustment = min(recipe_amount, gained);
@@ -125,7 +126,7 @@ fn exec_branch(recipe_qty: (Item, u64), mut inv: Inventory, branch: &Branch, are
 /// 3. Perform Upgrades:
 ///     There is no associated cost to the Upgrade action. This is sound as long as
 ///     the result of any Upgrade is actually used in the recipe.
-pub fn find_strategy(recipe: Inventory, inventory: Inventory, area: TradeArea) -> Strategy {
+pub fn find_strategy(recipe: Inventory, inventory: Inventory) -> Strategy {
     if inventory >= recipe {
         return Strategy::from(vec![Action::Terminate(true)])
     }
@@ -137,22 +138,21 @@ pub fn find_strategy(recipe: Inventory, inventory: Inventory, area: TradeArea) -
         let mut _s = [Strategy::new(), Strategy::new(), Strategy::new()];
         let mut reduction = 0;
         for (i, branch) in [Branch::Trade, Branch::Upgrade, Branch::Dismantle].iter().enumerate() {
-            (reduction, invs[i], _s[i]) = exec_branch((item, amount), inventory.clone(), branch, area);
+            (reduction, invs[i], _s[i]) = exec_branch((item, amount), inventory.clone(), branch);
             recs[i][&name] -= reduction;
             strats[i] = strats[i].clone().concat(_s[i].clone())
         }
     }
     for i in 0..strats.len() {
         if !strats[i].terminal() {
-            strats[i] = strats[i].clone().concat(find_strategy(*recs[i], invs[i], area));
+            strats[i] = strats[i].clone().concat(find_strategy(*recs[i], invs[i]));
         }
     }
     strats.iter().min().unwrap().clone()
 }
 
-pub fn can_craft(recipe: Inventory, inventory: Inventory, area: TradeArea) -> bool {
-    let actions = find_strategy(recipe, inventory, area).into_vec();
-    dbg!(actions.clone());
+pub fn can_craft(recipe: Inventory, inventory: Inventory) -> bool {
+    let actions = find_strategy(recipe, inventory).into_vec();
     if let Action::Terminate(success) = actions[actions.len() - 1] {
         return success
     }
@@ -162,45 +162,57 @@ pub fn can_craft(recipe: Inventory, inventory: Inventory, area: TradeArea) -> bo
 
 #[test]
 fn test_find_strategy_terminates() {
-    find_strategy(Inventory::new(), Inventory::new(), TradeTable::A1);
+    find_strategy(Inventory::new(TradeTable::A1), Inventory::new(TradeTable::A1));
 
-    let recipe = Inventory::from(vec![(&Name::WoodenLog, 10)]);
-    let inv = Inventory::from(vec![(&Name::WoodenLog, 0)]);
-    find_strategy(recipe, inv, TradeTable::A1);
+    let recipe = Inventory::from(TradeTable::A1, vec![(&Name::WoodenLog, 10)]);
+    let inv = Inventory::from(TradeTable::A1, vec![(&Name::WoodenLog, 0)]);
+    find_strategy(recipe, inv);
 }
 
 #[test]
 fn test_can_craft_with_trades() {
-    let recipe = Inventory::from(vec![(&Name::NormieFish, 10)]);
-    let inv = Inventory::from(vec![(&Name::WoodenLog, 10)]);
-    assert!(can_craft(recipe.clone(), inv.clone(), TradeTable::A1));
-    assert!(!can_craft(recipe.clone(), inv.clone(), TradeTable::A10));
 
-    let recipe = Inventory::from(vec![(&Name::WoodenLog, 10)]);
-    let inv = Inventory::from(vec![(&Name::Apple, 2)]);
-    assert!(can_craft(recipe.clone(), inv.clone(), TradeTable::A6));
-    assert!(!can_craft(recipe.clone(), inv.clone(), TradeTable::A3));
+    let recipe = Inventory::from(TradeTable::A1, vec![(&Name::NormieFish, 10)]);
+    let inv = Inventory::from(TradeTable::A1, vec![(&Name::WoodenLog, 10)]);
+    assert!(can_craft(recipe.clone(), inv.clone()));
+
+    let recipe = Inventory::from(TradeTable::A10, vec![(&Name::NormieFish, 10)]);
+    let inv = Inventory::from(TradeTable::A10, vec![(&Name::WoodenLog, 10)]);
+    assert!(!can_craft(recipe.clone(), inv.clone()));
+
+    let recipe = Inventory::from(TradeTable::A6, vec![(&Name::WoodenLog, 10)]);
+    let inv = Inventory::from(TradeTable::A6, vec![(&Name::Apple, 2)]);
+    assert!(can_craft(recipe.clone(), inv.clone()));
+
+    // demonstrates a bug in the current implementation
+    let recipe = Inventory::from(TradeTable::A3, vec![(&Name::WoodenLog, 10)]);
+    let inv = Inventory::from(TradeTable::A3, vec![(&Name::Apple, 2)]);
+    assert!(!can_craft(recipe.clone(), inv.clone()));
 }
 
 #[test]
 fn test_can_craft_with_dismantles() {
-    let recipe = Inventory::from(vec![(&Name::NormieFish, 24)]);
-    let inv = Inventory::from(vec![(&Name::EpicFish, 2)]);
+    let recipe = Inventory::from(TradeTable::A6, vec![(&Name::NormieFish, 24)]);
+    let inv = Inventory::from(TradeTable::A6, vec![(&Name::EpicFish, 2)]);
 
-    assert!(can_craft(recipe.clone(), inv.clone(), TradeTable::A6));
+    assert!(can_craft(recipe.clone(), inv.clone()));
 
-    let recipe = Inventory::from(vec![(&Name::WoodenLog, 163_840)]);
-    let inv = Inventory::from(vec![(&Name::UltraLog, 2)]);
-    assert!(can_craft(recipe.clone(), inv.clone(), TradeTable::A6));
+    let recipe = Inventory::from(TradeTable::A6, vec![(&Name::WoodenLog, 163_840)]);
+    let inv = Inventory::from(TradeTable::A6, vec![(&Name::UltraLog, 2)]);
+    assert!(can_craft(recipe.clone(), inv.clone()));
 
-    let recipe = Inventory::from(vec![(&Name::WoodenLog, 163_841)]);
-    assert!(!can_craft(recipe.clone(), inv.clone(), TradeTable::A6));
+    let recipe = Inventory::from(TradeTable::A6, vec![(&Name::WoodenLog, 163_841)]);
+    assert!(!can_craft(recipe.clone(), inv.clone()));
+
+    let recipe = Inventory::from(TradeTable::A10, vec![(&Name::UltraLog, 1)]);
+    let inv = Inventory::from(TradeTable::A10, vec![(&Name::Banana, 1)]);
+    assert!(!can_craft(recipe.clone(), inv.clone()));
 }
 
 #[test]
 fn test_can_craft_with_dismantles_and_trades() {
     // recipe equivalent of fish sword
-    let recipe = Inventory::from(vec![(&Name::NormieFish, 20*12), (&Name::WoodenLog, 20*5)]);
-    let inv = Inventory::from(vec![(&Name::EpicFish, 1)]);
-    assert!(can_craft(recipe.clone(), inv.clone(), TradeTable::A1));
+    let recipe = Inventory::from(TradeTable::A1, vec![(&Name::NormieFish, 20*12), (&Name::WoodenLog, 20*5)]);
+    let inv = Inventory::from(TradeTable::A1, vec![(&Name::EpicFish, 1)]);
+    assert!(can_craft(recipe.clone(), inv.clone()));
 }

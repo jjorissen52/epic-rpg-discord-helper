@@ -416,41 +416,47 @@ impl TradeTable {
 }
 
 #[derive(Debug, Copy, Clone, Eq)]
-pub struct Inventory([u64; Items::INV_SIZE]);
+pub struct Inventory {
+    inventory: [u64; Items::INV_SIZE],
+    area: TradeArea,
+}
 
 impl Index<usize> for Inventory {
     type Output = u64;
     fn index(&self, index: usize) -> &Self::Output {
-        &self.0[index]
+        &self.inventory[index]
     }
 }
 
 impl Index<&Name> for Inventory {
     type Output = u64;
     fn index(&self, name: &Name) -> &Self::Output {
-        &self.0[Items::index_of(name)]
+        &self.inventory[Items::index_of(name)]
     }
 }
 
 impl IndexMut<usize> for Inventory {
     fn index_mut(&mut self, index: usize) -> &mut Self::Output {
-        &mut self.0[index]
+        &mut self.inventory[index]
     }
 }
 
 impl IndexMut<&Name> for Inventory {
     fn index_mut(&mut self, name: &Name) -> &mut Self::Output {
-        &mut self.0[Items::index_of(name)]
+        &mut self.inventory[Items::index_of(name)]
     }
 }
 
 impl Inventory {
-    pub fn new() -> Inventory {
-        Inventory([0; Items::INV_SIZE])
+    pub fn new(area: TradeArea) -> Inventory {
+        Inventory {
+            inventory: [0; Items::INV_SIZE],
+            area,
+        }
     }
 
-    pub fn from(vec: Vec<(&Name, u64)>) -> Inventory {
-        let mut inv = Inventory::new();
+    pub fn from(area: TradeArea, vec: Vec<(&Name, u64)>) -> Inventory {
+        let mut inv = Inventory::new(area);
         for (&name, qty) in vec.iter() {
             inv[&name] = *qty;
         }
@@ -458,18 +464,34 @@ impl Inventory {
     }
 
     pub fn itemized(
+        area: TradeArea,
         wooden_log: u64, epic_log: u64, super_log: u64, mega_log: u64, hyper_log: u64, ultra_log: u64,
         normie_fish: u64, golden_fish: u64, epic_fish: u64,
         apple: u64, banana: u64,
         ruby: u64,
     ) -> Inventory {
-        Inventory([
-            wooden_log, epic_log, super_log, mega_log, hyper_log, ultra_log,
-            normie_fish, golden_fish, epic_fish,
-            apple, banana,
-            ruby,
-            0, 0, 0, 0, 0, 0, 0
-        ])
+        Inventory{
+            area,
+            inventory: [
+                wooden_log, epic_log, super_log, mega_log, hyper_log, ultra_log,
+                normie_fish, golden_fish, epic_fish,
+                apple, banana,
+                ruby,
+                0, 0, 0, 0, 0, 0, 0
+            ]
+        }
+    }
+
+    pub fn get_area(&self) -> TradeArea {
+        self.area
+    }
+
+    pub fn next_area(mut self) -> Option<Self> {
+        match TradeTable::next_area(self.area) {
+            None => return None,
+            Some(area) => self.area = area
+        }
+        Some(self.clone())
     }
 
     pub fn len(&self) -> usize {
@@ -482,16 +504,15 @@ impl Inventory {
 
     pub fn non_zero(&self) -> Vec<(Item, u64)> {
         let mut vec = Vec::new();
-        let Inventory(inner) = self;
         for i in 0..Items::INV_SIZE {
-            if inner[i] != 0 {
-                vec.push((Items[i], inner[i]))
+            if self.inventory[i] != 0 {
+                vec.push((Items[i], self.inventory[i]))
             }
         }
         vec
     }
 
-    pub fn trade(self, losing: &Name, gaining: &Name, qty: i128, area: TradeArea) -> Inventory {
+    pub fn trade(self, losing: &Name, gaining: &Name, qty: i128) -> Inventory {
         let target_qty = if qty < 0 { u64::MAX } else { qty as u64 };
         let (litem, mut lqty) = (Items[losing], self[losing]);
         let gitem = Items[gaining];
@@ -504,14 +525,14 @@ impl Inventory {
         if litem_cls == gitem_cls {
             return self;
         } else if litem_cls != Class::Log && gitem_cls != Class::Log {
-            return self.trade(losing, &Name::WoodenLog, -1, area)
-                .trade(&Name::WoodenLog, gaining, target_qty as i128, area)
+            return self.trade(losing, &Name::WoodenLog, -1)
+                .trade(&Name::WoodenLog, gaining, target_qty as i128)
         }
         return match (litem_cls, gitem_cls) {
             (Class::Log, _) => {
                 let mut gqty: u64 = 0;
                 let mut total_cost: u64 = 0;
-                let exchange_rate = TradeTable::rate_from_logs(area, &gitem_cls).denominator;
+                let exchange_rate = TradeTable::rate_from_logs(self.area, &gitem_cls).denominator;
                 while lqty / exchange_rate > 0 && gqty < target_qty {
                     gqty += 1;
                     lqty -= exchange_rate;
@@ -523,7 +544,7 @@ impl Inventory {
                 new_inv
             },
             (_, Class::Log) => {
-                let exchange_rate = TradeTable::rate_to_logs(area, &litem_cls).numerator;
+                let exchange_rate = TradeTable::rate_to_logs(self.area, &litem_cls).numerator;
                 let exchange_qty = if target_qty < lqty { target_qty } else { lqty };
                 let mut new_inv = self.clone();
                 new_inv[losing] -= exchange_qty;
@@ -534,67 +555,68 @@ impl Inventory {
         }
     }
 
-    pub fn migrate(&self, start: &Class, end: &Class, mut max_dismantle: usize, area: TradeArea) -> (Inventory, Strategy) {
+    pub fn migrate(&self, start: &Class, end: &Class, mut max_dismantle: usize) -> (Inventory, Strategy) {
         let mut strategy = Strategy::new();
         if start == end {
             return (self.clone(), strategy) // nothing to do
         }
         let base_idx = Items::first_of(start);
         max_dismantle = min(max_dismantle, Items::last_of(start) - base_idx);
-        let &Inventory(mut inner) = &self;
+
+        let mut new_inv = self.clone();
 
         let mut idx = base_idx + max_dismantle;
         while idx > base_idx {
-            strategy = strategy.add(Action::Dismantle(inner[idx]));
-            let (_, qty) = Items[idx].dismantle(inner[idx]);
-            inner[idx] = 0;
+            strategy = strategy.add(Action::Dismantle(new_inv[idx]));
+            let (_, qty) = Items[idx].dismantle(new_inv[idx]);
+            new_inv[idx] = 0;
             idx -= 1;
-            inner[idx] += qty;
+            new_inv[idx] += qty;
         }
         let result_idx = Items::first_of(end);
         strategy = strategy.add(Action::Trade);
-        return (Inventory(inner).trade(&Items[base_idx].1, &Items[result_idx].1, -1, area), strategy);
+        return (new_inv.trade(&Items[base_idx].1, &Items[result_idx].1, -1), strategy);
     }
 
-    pub fn migrate_all(&self, to_class: &Class, max_steps: usize, area: TradeArea) -> (Inventory, Strategy) {
-        let (inv, s1) = self.clone().migrate(&Class::Gem, to_class, max_steps, area);
-        let (inv, s2) = inv.migrate(&Class::Fish, to_class, max_steps, area);
-        let (inv, s3) = inv.migrate(&Class::Fruit, to_class, max_steps, area);
-        let (inv, s4) = inv.migrate(&Class::Log, to_class, max_steps, area);
+    pub fn migrate_all(&self, to_class: &Class, max_steps: usize) -> (Inventory, Strategy) {
+        let (inv, s1) = self.clone().migrate(&Class::Gem, to_class, max_steps);
+        let (inv, s2) = inv.migrate(&Class::Fish, to_class, max_steps);
+        let (inv, s3) = inv.migrate(&Class::Fruit, to_class, max_steps);
+        let (inv, s4) = inv.migrate(&Class::Log, to_class, max_steps);
         return (inv, s1.concat(s2).concat(s3).concat(s4))
     }
 
-    pub fn future(&self, start: TradeArea, end: TradeArea) -> Inventory {
+    pub fn future(&mut self, end: TradeArea) -> Inventory {
         fn discard_strategy(fut: (Inventory, Strategy)) -> Inventory {
             let (inv, _) = fut;
             inv
         }
         let all = 10; // used as an indicator to dismantle all
-        let (new_inv, _) = match start {
-            TradeTable::A3 => self.migrate_all(&Class::Fish, all, start),
-            TradeTable::A5 => self.migrate_all(&Class::Fruit, all, start),
-            TradeTable::A7 => self.migrate(&Class::Fruit, &Class::Log, all, start),
+        let (mut new_inv, _) = match self.area {
+            TradeTable::A3 => self.migrate_all(&Class::Fish, all),
+            TradeTable::A5 => self.migrate_all(&Class::Fruit, all),
+            TradeTable::A7 => self.migrate(&Class::Fruit, &Class::Log, all),
             TradeTable::A8 => {
                 // dismantle tier 4 logs and fish (mega log and epic fish), get fruit
                 let tier = 4;
-                discard_strategy(self.migrate(&Class::Log, &Class::Fruit, tier, start))
-                    .migrate(&Class::Fish, &Class::Fruit, tier, start)
+                discard_strategy(self.migrate(&Class::Log, &Class::Fruit, tier))
+                    .migrate(&Class::Fish, &Class::Fruit, tier)
             },
             TradeTable::A9 => {
                 // dismantle tier 2 logs and fruit (epic log and banana), get fish
                 let tier = 2;
-                discard_strategy(self.migrate(&Class::Log, &Class::Fish, tier, start))
-                    .migrate(&Class::Fruit, &Class::Fish, tier, start)
+                discard_strategy(self.migrate(&Class::Log, &Class::Fish, tier))
+                    .migrate(&Class::Fruit, &Class::Fish, tier)
             },
             TradeTable::A10 => {
-                self.migrate(&Class::Fruit, &Class::Log, all, start)
+                self.migrate(&Class::Fruit, &Class::Log, all)
             },
             // Make sure nothing is in rubies and have things in logs as the universal currency
-            TradeTable::A11 => self.migrate_all(&Class::Log, all, start),
+            TradeTable::A11 => self.migrate_all(&Class::Log, all),
             _ => (self.clone(), Strategy::new())
         };
-        if let Some(next_area) = TradeTable::next_area(start) {
-            return new_inv.future(next_area, end)
+        if let Some(mut new_inv) = new_inv.next_area() {
+            return new_inv.future(end)
         }
         new_inv
     }
@@ -616,8 +638,8 @@ impl PartialOrd for Inventory {
     }
 
     fn le(&self, other: &Self) -> bool {
-        let self_items = self.0;
-        let other_items = other.0;
+        let self_items = self.inventory;
+        let other_items = other.inventory;
         self_items.iter().enumerate().all(|(i, qty)| qty <= &other_items[i])
     }
 
@@ -626,16 +648,16 @@ impl PartialOrd for Inventory {
     }
 
     fn ge(&self, other: &Self) -> bool {
-        let self_items = self.0;
-        let other_items = other.0;
+        let self_items = self.inventory;
+        let other_items = other.inventory;
         self_items.iter().enumerate().all(|(i, qty)| qty >= &other_items[i])
     }
 }
 
 impl PartialEq for Inventory {
     fn eq(&self, other: &Self) -> bool {
-        let self_items = self.0;
-        let other_items = other.0;
+        let self_items = self.inventory;
+        let other_items = other.inventory;
         self_items.iter().enumerate().all(|(i, qty)| qty == &other_items[i])
     }
 
