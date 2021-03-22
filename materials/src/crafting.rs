@@ -45,7 +45,7 @@ pub enum Action {
 
 #[derive(Debug, Eq)]
 pub struct Strategy{
-    inventory: Inventory,
+    pub inventory: Inventory,
     actions: Vec<Action>,
 }
 

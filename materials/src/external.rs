@@ -38,20 +38,20 @@ enum Branch {
     Dismantle,
 }
 
-fn exec_branch(recipe_qty: (Item, u64), mut inv: Inventory, branch: &Branch) -> (u64, Inventory, Strategy) {
+fn exec_branch(recipe_qty: (Item, u64), mut inv: Inventory, branch: &Branch) -> Option<(u64, Strategy)> {
     let (item, starting_qty) = recipe_qty;
     let mut recipe_amount = starting_qty;
     let Item(desired_class, desired_name, _) = item;
     match branch {
         Branch::Trade => {
             // perform any free trades into the current recipe item's class
-            let mut strat = Strategy::new();
+            let mut actions: Vec<Action> = Vec::new();
             let gaining = Items[Items::first_of(&desired_class)].1;
             let tradeable = [&Name::WoodenLog, &Name::NormieFish, &Name::Apple, &Name::Ruby];
             for losing in tradeable.iter() {
                 if recipe_amount == 0 {
-                    strat = strat.add(Action::Terminate(true));
-                    break
+                    let recipe_reduction = starting_qty - recipe_amount;
+                    return Some((recipe_reduction, Strategy::from(inv, actions)))
                 }
                 inv = inv.trade(losing, &gaining, recipe_amount as i128);
                 let gained = inv[&gaining];
@@ -59,14 +59,10 @@ fn exec_branch(recipe_qty: (Item, u64), mut inv: Inventory, branch: &Branch) -> 
                     let adjustment = min(recipe_amount, gained);
                     recipe_amount -= adjustment;
                     inv[&gaining] -= adjustment;
-                    strat = strat.add(Action::Trade)
+                    actions.push(Action::Trade)
                 }
             }
-            let recipe_reduction = starting_qty - recipe_amount;
-            if recipe_reduction == 0 {
-                strat = strat.add(Action::Terminate(false));
-            }
-            (recipe_reduction, inv, strat)
+            None
         },
         Branch::Dismantle => {
             // find next non-zero inventory item and dismantle from it to
@@ -91,15 +87,15 @@ fn exec_branch(recipe_qty: (Item, u64), mut inv: Inventory, branch: &Branch) -> 
 
                     // calculate the cost to record it in the strategy
                     let cost = Item::dismantle_cost(idx - 1, highest_idx, qty);
-                    return (recipe_reduction, inv, Strategy::from(vec![Action::Dismantle(cost)]))
+                    return Some((recipe_reduction, Strategy::from(inv, vec![Action::Dismantle(cost)])))
                 }
                 idx += 1;
             }
             // If we could not dismantle anything, this is not a necessary
             // part of a winning strategy.
-            (0, inv, Strategy::from(vec![Action::Terminate(false)]))
+            None
         },
-        Branch::Upgrade => (0, inv, Strategy::from(vec![Action::Terminate(false)])),
+        Branch::Upgrade => None,
     }
 }
 
@@ -126,37 +122,35 @@ fn exec_branch(recipe_qty: (Item, u64), mut inv: Inventory, branch: &Branch) -> 
 /// 3. Perform Upgrades:
 ///     There is no associated cost to the Upgrade action. This is sound as long as
 ///     the result of any Upgrade is actually used in the recipe.
-pub fn find_strategy(recipe: Inventory, inventory: Inventory) -> Strategy {
+pub fn find_strategy(recipe: Inventory, inventory: Inventory) -> Option<Strategy> {
     if inventory >= recipe {
-        return Strategy::from(vec![Action::Terminate(true)])
+        return Some(Strategy::new(inventory))
     }
-    let mut invs = [inventory.clone(), inventory.clone(), inventory.clone()];
     let mut recs: [&mut Inventory; 3] = [&mut recipe.clone(), &mut recipe.clone(), &mut recipe.clone()];
-    let mut strats = [Strategy::new(), Strategy::new(), Strategy::new()];
+    let mut strats: [Option<Strategy>; 3] = [None, None, None];
     for (item, amount) in recipe.non_zero() {
         let Item(_, name, _) = item;
-        let mut _s = [Strategy::new(), Strategy::new(), Strategy::new()];
-        let mut reduction = 0;
         for (i, branch) in [Branch::Trade, Branch::Upgrade, Branch::Dismantle].iter().enumerate() {
-            (reduction, invs[i], _s[i]) = exec_branch((item, amount), inventory.clone(), branch);
-            recs[i][&name] -= reduction;
-            strats[i] = strats[i].clone().concat(_s[i].clone())
+            if let Some((reduction, strategy)) = exec_branch((item, amount), inventory.clone(), branch) {
+                recs[i][&name] -= reduction;
+                let further_strategy = find_strategy(*recs[i], strategy.inventory.clone());
+                if let Some(_further_strategy) = further_strategy {
+                    strats[i] = Some(strategy.merge(_further_strategy))
+                }
+            }
         }
     }
-    for i in 0..strats.len() {
-        if !strats[i].terminal() {
-            strats[i] = strats[i].clone().concat(find_strategy(*recs[i], invs[i]));
-        }
+    if let Some(successful_strategy) = strats.iter().max() {
+       return successful_strategy.clone()
     }
-    strats.iter().min().unwrap().clone()
+    None
 }
 
 pub fn can_craft(recipe: Inventory, inventory: Inventory) -> bool {
-    let actions = find_strategy(recipe, inventory).into_vec();
-    if let Action::Terminate(success) = actions[actions.len() - 1] {
-        return success
+    if let Some(_) = find_strategy(recipe, inventory) {
+       return true
     }
-    panic!("Not possible; all strategies must have terminated to get here.")
+    return false;
 }
 
 
