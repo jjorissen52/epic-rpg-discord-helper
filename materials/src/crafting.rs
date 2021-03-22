@@ -61,6 +61,10 @@ impl Strategy {
         }
     }
 
+    pub fn get_inventory(self) -> Inventory {
+        self.inventory
+    }
+
     pub fn get_actions(self) -> Vec<Action> {
         self.actions
     }
@@ -84,6 +88,111 @@ impl Strategy {
             inventory: other.inventory.clone(),
             actions: actions,
         }
+    }
+
+    pub fn trade(self, losing: &Name, gaining: &Name, qty: i128) -> Strategy {
+        let target_qty = if qty < 0 { u64::MAX } else { qty as u64 };
+        let (litem, mut lqty) = (Items[losing], self.inventory[losing]);
+        let gitem = Items[gaining];
+        let (Item(litem_cls, _, _), Item(gitem_cls, _, _)) = (litem, gitem);
+
+        // panic for un-tradeable
+        Item::guard_tradeable(&litem_cls);
+        Item::guard_tradeable(&gitem_cls);
+
+        if litem_cls == gitem_cls {
+            return self
+        } else if litem_cls != Class::Log && gitem_cls != Class::Log {
+            return self.trade(losing, &Name::WoodenLog, -1)
+                .trade(&Name::WoodenLog, gaining, target_qty as i128)
+        }
+
+        let Strategy {mut inventory, actions} = self;
+        return match (litem_cls, gitem_cls) {
+            (Class::Log, _) => {
+                let mut gqty: u64 = 0;
+                let mut total_cost: u64 = 0;
+                let exchange_rate = TradeTable::rate_from_logs(inventory.area, &gitem_cls).denominator;
+                while lqty / exchange_rate > 0 && gqty < target_qty {
+                    gqty += 1;
+                    lqty -= exchange_rate;
+                    total_cost += exchange_rate;
+                };
+                inventory[losing] -= total_cost;
+                inventory[gaining] += gqty;
+                Strategy{ inventory, actions }
+            },
+            (_, Class::Log) => {
+                let exchange_rate = TradeTable::rate_to_logs(inventory.area, &litem_cls).numerator;
+                let exchange_qty = if target_qty < lqty { target_qty } else { lqty };
+                inventory[losing] -= exchange_qty;
+                inventory[gaining] += exchange_qty * exchange_rate;
+                Strategy{ inventory, actions }
+            },
+            _ => { panic!("Other cases handled by if block.") }
+        }
+    }
+
+    pub fn migrate(&self, start: &Class, end: &Class, mut max_dismantle: usize) -> Strategy {
+        if start == end {
+            return self.clone() // nothing to do
+        }
+        let base_idx = Items::first_of(start);
+        max_dismantle = min(max_dismantle, Items::last_of(start) - base_idx);
+        let Strategy{ mut actions, mut inventory } = self.clone();
+
+        let mut idx = base_idx + max_dismantle;
+        while idx > base_idx {
+            actions.push(Action::Dismantle(inventory[idx]));
+            let (_, qty) = Items[idx].dismantle(inventory[idx]);
+            inventory[idx] = 0;
+            idx -= 1;
+            inventory[idx] += qty;
+        }
+        let result_idx = Items::first_of(end);
+        Strategy{ actions, inventory }.trade(&Items[base_idx].1, &Items[result_idx].1, -1)
+    }
+
+    pub fn migrate_all(&self, to_class: &Class, max_steps: usize) -> Strategy {
+        let strat = self.clone().migrate(&Class::Gem, to_class, max_steps);
+        let strat = strat.migrate(&Class::Fish, to_class, max_steps);
+        let strat = strat.migrate(&Class::Fruit, to_class, max_steps);
+        let strat = strat.migrate(&Class::Log, to_class, max_steps);
+        return strat
+    }
+
+    /// What this inventory should look like in the provided area
+    /// given they user follows an optimal trading strategy
+    pub fn future_version(&self, end: TradeArea) -> Strategy {
+        let all = 10; // used as an indicator to dismantle all
+        let mut new_strategy = match self.inventory.area {
+            TradeTable::A3 => self.migrate_all(&Class::Fish, all),
+            TradeTable::A5 => self.migrate_all(&Class::Fruit, all),
+            TradeTable::A7 => self.migrate(&Class::Fruit, &Class::Log, all),
+            TradeTable::A8 => {
+                // dismantle tier 4 logs and fish (mega log and epic fish), get fruit
+                let tier = 4;
+                self.migrate(&Class::Log, &Class::Fruit, tier)
+                    .migrate(&Class::Fish, &Class::Fruit, tier)
+            },
+            TradeTable::A9 => {
+                // dismantle tier 2 logs and fruit (epic log and banana), get fish
+                let tier = 2;
+                self.migrate(&Class::Log, &Class::Fish, tier)
+                    .migrate(&Class::Fruit, &Class::Fish, tier)
+            },
+            TradeTable::A10 => {
+                self.migrate(&Class::Fruit, &Class::Log, all)
+            },
+            // Make sure nothing is in rubies and have things in logs as the universal currency
+            TradeTable::A11 => self.migrate_all(&Class::Log, all),
+            _ => self.clone()
+        };
+        let Strategy{ mut inventory, actions } = new_strategy;
+        if let Some(inventory) = inventory.next_area() {
+            return Strategy{ inventory, actions }.future_version(end)
+        }
+        Strategy{ inventory, actions }
     }
 }
 
@@ -499,114 +608,21 @@ impl Inventory {
     }
 
     pub fn trade(self, losing: &Name, gaining: &Name, qty: i128) -> Inventory {
-        let target_qty = if qty < 0 { u64::MAX } else { qty as u64 };
-        let (litem, mut lqty) = (Items[losing], self[losing]);
-        let gitem = Items[gaining];
-        let (Item(litem_cls, _, _), Item(gitem_cls, _, _)) = (litem, gitem);
-
-        // panic for un-tradeable
-        Item::guard_tradeable(&litem_cls);
-        Item::guard_tradeable(&gitem_cls);
-
-        if litem_cls == gitem_cls {
-            return self;
-        } else if litem_cls != Class::Log && gitem_cls != Class::Log {
-            return self.trade(losing, &Name::WoodenLog, -1)
-                .trade(&Name::WoodenLog, gaining, target_qty as i128)
-        }
-        return match (litem_cls, gitem_cls) {
-            (Class::Log, _) => {
-                let mut gqty: u64 = 0;
-                let mut total_cost: u64 = 0;
-                let exchange_rate = TradeTable::rate_from_logs(self.area, &gitem_cls).denominator;
-                while lqty / exchange_rate > 0 && gqty < target_qty {
-                    gqty += 1;
-                    lqty -= exchange_rate;
-                    total_cost += exchange_rate;
-                };
-                let mut new_inv = self.clone();
-                new_inv[losing] -= total_cost;
-                new_inv[gaining] += gqty;
-                new_inv
-            },
-            (_, Class::Log) => {
-                let exchange_rate = TradeTable::rate_to_logs(self.area, &litem_cls).numerator;
-                let exchange_qty = if target_qty < lqty { target_qty } else { lqty };
-                let mut new_inv = self.clone();
-                new_inv[losing] -= exchange_qty;
-                new_inv[gaining] += exchange_qty * exchange_rate;
-                new_inv
-            },
-            _ => { panic!("Other cases handled by if block.") }
-        }
+        Strategy::new(self.clone()).trade(losing, gaining, qty).get_inventory()
     }
 
-    pub fn migrate(&self, start: &Class, end: &Class, mut max_dismantle: usize) -> (Inventory, Strategy) {
-        let mut strategy = Strategy::new(self.clone());
-        if start == end {
-            return (self.clone(), strategy) // nothing to do
-        }
-        let base_idx = Items::first_of(start);
-        max_dismantle = min(max_dismantle, Items::last_of(start) - base_idx);
-
-        let mut new_inv = self.clone();
-
-        let mut idx = base_idx + max_dismantle;
-        while idx > base_idx {
-            strategy = strategy.add_action(Action::Dismantle(new_inv[idx]));
-            let (_, qty) = Items[idx].dismantle(new_inv[idx]);
-            new_inv[idx] = 0;
-            idx -= 1;
-            new_inv[idx] += qty;
-        }
-        let result_idx = Items::first_of(end);
-        strategy = strategy.add_action(Action::Trade);
-        return (new_inv.trade(&Items[base_idx].1, &Items[result_idx].1, -1), strategy);
+    pub fn migrate(&self, start: &Class, end: &Class, mut max_dismantle: usize) -> Inventory {
+        Strategy::new(self.clone()).migrate(start, end, max_dismantle).get_inventory()
     }
 
-    pub fn migrate_all(&self, to_class: &Class, max_steps: usize) -> (Inventory, Strategy) {
-        let (inv, s1) = self.clone().migrate(&Class::Gem, to_class, max_steps);
-        let (inv, s2) = inv.migrate(&Class::Fish, to_class, max_steps);
-        let (inv, s3) = inv.migrate(&Class::Fruit, to_class, max_steps);
-        let (inv, s4) = inv.migrate(&Class::Log, to_class, max_steps);
-        return (inv, s1.merge(s2).merge(s3).merge(s4))
+    pub fn migrate_all(&self, to_class: &Class, max_steps: usize) -> Inventory {
+        Strategy::new(self.clone()).migrate_all(to_class, max_steps).get_inventory()
     }
 
     /// What this inventory should look like in the provided area
     /// given they user follows an optimal trading strategy
     pub fn future_version(&self, end: TradeArea) -> Inventory {
-        fn discard_strategy(fut: (Inventory, Strategy)) -> Inventory {
-            let (inv, _) = fut;
-            inv
-        }
-        let all = 10; // used as an indicator to dismantle all
-        let (mut new_inv, _) = match self.area {
-            TradeTable::A3 => self.migrate_all(&Class::Fish, all),
-            TradeTable::A5 => self.migrate_all(&Class::Fruit, all),
-            TradeTable::A7 => self.migrate(&Class::Fruit, &Class::Log, all),
-            TradeTable::A8 => {
-                // dismantle tier 4 logs and fish (mega log and epic fish), get fruit
-                let tier = 4;
-                discard_strategy(self.migrate(&Class::Log, &Class::Fruit, tier))
-                    .migrate(&Class::Fish, &Class::Fruit, tier)
-            },
-            TradeTable::A9 => {
-                // dismantle tier 2 logs and fruit (epic log and banana), get fish
-                let tier = 2;
-                discard_strategy(self.migrate(&Class::Log, &Class::Fish, tier))
-                    .migrate(&Class::Fruit, &Class::Fish, tier)
-            },
-            TradeTable::A10 => {
-                self.migrate(&Class::Fruit, &Class::Log, all)
-            },
-            // Make sure nothing is in rubies and have things in logs as the universal currency
-            TradeTable::A11 => self.migrate_all(&Class::Log, all),
-            _ => (self.clone(), Strategy::new(self.clone()))
-        };
-        if let Some(mut new_inv) = new_inv.next_area() {
-            return new_inv.future_version(end)
-        }
-        new_inv
+        Strategy::new(self.clone()).future_version(end).get_inventory()
     }
 
     /// Ultimate value in logs of the provided inventory

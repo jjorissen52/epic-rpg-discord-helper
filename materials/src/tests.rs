@@ -64,7 +64,7 @@ fn test_migrate() {
     let mut inv = Inventory::from(
         TradeTable::A2, vec![(&Name::EpicFish, 10), (&Name::GoldenFish, 0), (&Name::NormieFish, 0)]
     );
-    let (inv, _) = inv.migrate(&Class::Fish, &Class::Log, 5);
+    let inv = inv.migrate(&Class::Fish, &Class::Log, 5);
     assert_eq!(inv[&Name::WoodenLog], 9600);
 }
 
@@ -84,7 +84,7 @@ fn test_migrate_all() {
     for &(name, initial, _) in counts.iter() {
         inv[name] += initial
     }
-    let (inv, _) = inv.migrate_all(&Class::Log, 100);
+    let inv = inv.migrate_all(&Class::Log, 100);
 
     for &(name, _, fin) in counts.iter() {
         assert_eq!(inv[name], fin);
