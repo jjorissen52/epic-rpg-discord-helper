@@ -3,7 +3,7 @@
 use std::cmp::{min, Ordering};
 use std::ops::{Index, IndexMut};
 
-#[derive(Debug, Copy, Clone, Eq, PartialEq)]
+#[derive(Debug, Copy, Clone, Eq, PartialEq, Hash)]
 pub enum Class {
     Log = 0,
     Fish,
@@ -13,7 +13,7 @@ pub enum Class {
     Cookie,
 }
 
-#[derive(Debug, Copy, Clone, Eq, PartialEq)]
+#[derive(Debug, Copy, Clone, Eq, PartialEq, Hash)]
 pub enum Name {
     WoodenLog = 0,
     EpicLog,
