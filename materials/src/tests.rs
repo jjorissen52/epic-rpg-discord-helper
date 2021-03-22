@@ -115,10 +115,26 @@ fn test_upgrade() {
 
 #[test]
 fn test_strategy(){
-    let ug = Strategy::from(vec![Action::Upgrade]);
-    let dg = Strategy::from(vec![Action::Dismantle(100)]);
-    assert!(dg > ug);
-    assert!(ug < dg);
+    let inv = Inventory::from(TradeTable::A3, vec![(&Name::WoodenLog, 10)]);
+    let ug = Strategy::from(inv.clone(), vec![Action::Upgrade]);
+    let dg = Strategy::from(inv.clone(), vec![Action::Dismantle(100)]);
+    // end inventory is the same and same number of steps, so strategies are equivalent
+    assert_eq!(dg, ug);
+
+    let mut inv = Inventory::from(TradeTable::A3, vec![(&Name::WoodenLog, 10)]);
+    let s1 = Strategy::from(inv.clone(), vec![Action::Upgrade]);
+    inv[&Name::WoodenLog] -= 1;
+    let s2 = Strategy::from(inv.clone(), vec![Action::Dismantle(100)]);
+    // inventory in strategy 2 is strictly worse
+    assert!(s1 > s2);
+    assert!(s2 < s1);
+    assert_ne!(s1, s2);
+
+    let s2 = Strategy::from(inv.clone(), vec![]);
+    // inventory in strategy 2 is still strictly worse
+    assert!(s1 > s2);
+    assert!(s2 < s1);
+    assert_ne!(s1, s2);
 }
 
 #[test]

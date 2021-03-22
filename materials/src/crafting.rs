@@ -41,83 +41,70 @@ pub enum Action {
     Upgrade,
     Dismantle(u64),
     Trade,
-    Terminate(bool), // success or failure
 }
+
 #[derive(Debug, Eq)]
-pub struct Strategy(Vec<Action>);
+pub struct Strategy{
+    inventory: Inventory,
+    actions: Vec<Action>,
+}
 
 impl Strategy {
-    pub fn new() -> Strategy {
-        let mut vec = Vec::new();
-        Strategy(vec)
+    pub fn new(inventory: Inventory) -> Strategy {
+        Strategy::from(inventory, Vec::new())
     }
 
-    pub fn from(vec: Vec<Action>) -> Strategy {
-        Strategy(vec)
-    }
-
-    pub fn into_vec(self) -> Vec<Action> {
-        self.0
-    }
-
-    pub fn add(self, action: Action) -> Strategy {
-        let Strategy(mut vec) = self;
-        vec.push(action);
-        Strategy(vec)
-    }
-
-    pub fn concat(self, other: Strategy) -> Strategy {
-        let Strategy(_other) = other;
-        self.extend(_other)
-    }
-
-    pub fn extend(self, vec: Vec<Action>) -> Strategy {
-        let Strategy(mut _vec) = self;
-        _vec.extend(vec);
-        Strategy(_vec)
-    }
-
-    pub fn terminal(&self) -> bool {
-        let Strategy(inner) = self;
-        if inner.len() == 0 {
-            return false
-        }
-        match inner[inner.len() -1] {
-            Action::Terminate(_) => true,
-            _ => false
+    pub fn from(inventory: Inventory, vec: Vec<Action>) -> Strategy {
+        Strategy{
+            inventory,
+            actions: vec,
         }
     }
 
-    fn cost(&self) -> u64 {
-        let Strategy(strat) = self;
-        let mut self_cost = 0;
-        for action in strat.iter() {
-            match action {
-                Action::Dismantle(cost) => { self_cost += cost },
-                Action::Terminate(success) => return if *success { 0 } else { u64::MAX },
-                _ => {},
-            }
+    pub fn get_actions(self) -> Vec<Action> {
+        self.actions
+    }
+
+    pub fn add_action(self, action: Action) -> Strategy {
+        let Strategy{ mut actions, inventory } = self;
+        actions.push(action);
+        Strategy{ actions, inventory }
+    }
+
+    pub fn extend_actions(self, vec: Vec<Action>) -> Strategy {
+        let Strategy{ mut actions, inventory } = self;
+        actions.extend(vec);
+        Strategy{ actions, inventory }
+    }
+
+    pub fn merge(self, other: Strategy) -> Strategy {
+        let mut actions = self.actions.clone();
+        actions.extend(other.actions.clone());
+        Strategy {
+            inventory: other.inventory.clone(),
+            actions: actions,
         }
-        return self_cost
     }
 }
 
 impl Clone for Strategy {
 
     fn clone(&self) -> Strategy {
-        let Strategy(actions) = self;
-        Strategy(actions.clone())
+        let Strategy{ inventory, actions } = self;
+        Strategy{
+            inventory: inventory.clone(),
+            actions: actions.clone()
+        }
     }
 }
 
 impl Ord for Strategy {
     fn cmp(&self, other: &Self) -> Ordering {
-        let (c1, c2) = (self.cost(), other.cost());
-        let (Strategy(s1), Strategy(s2)) = (self, other);
-        return if c1 == c2 {
-            s1.len().cmp(&s2.len())
+        let (v1, v2) = (self.inventory.log_value(), other.inventory.log_value());
+        return if v1 == v2 {
+            other.actions.len().cmp(&self.actions.len())
         } else {
-            c1.cmp(&c2)
+            v1.cmp(&v2)
         }
     }
 }
@@ -130,9 +117,8 @@ impl PartialOrd for Strategy {
 
 impl PartialEq for Strategy {
     fn eq(&self, other: &Self) -> bool {
-        let (c1, c2) = (self.cost(), other.cost());
-        let (Strategy(s1), Strategy(s2)) = (self, other);
-        c1 == c2 && s1.len() == s2.len()
+        let (v1, v2) = (self.inventory.log_value(), other.inventory.log_value());
+        v1 == v2 && self.actions.len() == other.actions.len()
     }
 }
 
@@ -556,7 +542,7 @@ impl Inventory {
     }
 
     pub fn migrate(&self, start: &Class, end: &Class, mut max_dismantle: usize) -> (Inventory, Strategy) {
-        let mut strategy = Strategy::new();
+        let mut strategy = Strategy::new(self.clone());
         if start == end {
             return (self.clone(), strategy) // nothing to do
         }
@@ -567,14 +553,14 @@ impl Inventory {
 
         let mut idx = base_idx + max_dismantle;
         while idx > base_idx {
-            strategy = strategy.add(Action::Dismantle(new_inv[idx]));
+            strategy = strategy.add_action(Action::Dismantle(new_inv[idx]));
             let (_, qty) = Items[idx].dismantle(new_inv[idx]);
             new_inv[idx] = 0;
             idx -= 1;
             new_inv[idx] += qty;
         }
         let result_idx = Items::first_of(end);
-        strategy = strategy.add(Action::Trade);
+        strategy = strategy.add_action(Action::Trade);
         return (new_inv.trade(&Items[base_idx].1, &Items[result_idx].1, -1), strategy);
     }
 
@@ -583,7 +569,7 @@ impl Inventory {
         let (inv, s2) = inv.migrate(&Class::Fish, to_class, max_steps);
         let (inv, s3) = inv.migrate(&Class::Fruit, to_class, max_steps);
         let (inv, s4) = inv.migrate(&Class::Log, to_class, max_steps);
-        return (inv, s1.concat(s2).concat(s3).concat(s4))
+        return (inv, s1.merge(s2).merge(s3).merge(s4))
     }
 
     /// What this inventory should look like in the provided area
@@ -615,7 +601,7 @@ impl Inventory {
             },
             // Make sure nothing is in rubies and have things in logs as the universal currency
             TradeTable::A11 => self.migrate_all(&Class::Log, all),
-            _ => (self.clone(), Strategy::new())
+            _ => (self.clone(), Strategy::new(self.clone()))
         };
         if let Some(mut new_inv) = new_inv.next_area() {
             return new_inv.future_version(end)
