@@ -1,6 +1,12 @@
 use crate::crafting::{Name, TradeTable, Inventory, Item, Items, Class, Strategy, Action};
 
 #[test]
+fn test_logs_required_for_upgrade() {
+    assert_eq!(3*15*100*10, Items[&Name::EpicFish].logs_required_for_upgrade(10, TradeTable::A10));
+    assert_eq!(12*15*100, Items[&Name::Banana].logs_required_for_upgrade(100, TradeTable::A10));
+}
+
+#[test]
 fn test_adjustment() {
     let mut inv = Inventory::new(TradeTable::A1);
     inv[&Name::Apple] += 89000;

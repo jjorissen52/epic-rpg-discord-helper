@@ -343,6 +343,28 @@ impl Item {
         }
         (item, amount, available - total_cost)
     }
+
+    pub fn logs_required_for_upgrade(&self, mut amount: u64, area: TradeArea) -> u64 {
+        let Item(class, name, _) = self;
+        let end_idx = Items::index_of(&name);
+        let start_idx = Items::first_of(&class);
+        let mut logs_required = 0;
+        for _ in 0..amount {
+            let mut required_per_item = 1;
+            let mut idx = end_idx;
+            while idx >= start_idx {
+                let Item(_, _, value_of_previous) = Items[idx];
+                required_per_item *= value_of_previous;
+                idx -= 1;
+            }
+            logs_required += required_per_item as u64;
+        }
+        if class == &Class::Log {
+            return logs_required;
+        }
+        let exchange_rate = TradeTable::rate_from_logs(area, &class).denominator;
+        logs_required * exchange_rate
+    }
 }
 
 pub struct Items;
