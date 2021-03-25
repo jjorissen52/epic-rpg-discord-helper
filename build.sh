@@ -76,6 +76,7 @@ shift $((OPTIND-1))
   # calculate whether files should be ignored based on our .gitignore config
   git check-ignore ./*
   git check-ignore ./epic/**/*
+  git check-ignore ./**/management/commands/*
   git check-ignore ./epic_reminder/*
   git check-ignore ./epic_reminder/**/*
   git check-ignore ./materials/*

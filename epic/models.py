@@ -83,6 +83,7 @@ class Profile(UpdateAble, models.Model):
     vote = models.BooleanField(default=True)
     hunt = models.BooleanField(default=True)
     adventure = models.BooleanField(default=True)
+    farm = models.BooleanField(default=True)
     training = models.BooleanField(default=True)
     duel = models.BooleanField(default=True)
     quest = models.BooleanField(default=True)
@@ -147,6 +148,7 @@ class CoolDown(models.Model):
         ("vote", "You can vote again. :ballot_box:"),
         ("hunt", "is on the hunt! :crossed_swords:"),
         ("adventure", "Let's go on an adventure! :woman_running:"),
+        ("farm", "Is plantin' some seed. :farmer:"),
         ("quest", "The townspeople need our help! "),
         ("training", "want to get buff? :man_lifting_weights:"),
         ("duel", "It's time to d-d-d-d-duel! :crossed_swords:"),
@@ -165,6 +167,7 @@ class CoolDown(models.Model):
         "vote": datetime.timedelta(hours=12),
         "hunt": datetime.timedelta(seconds=60),
         "adventure": datetime.timedelta(minutes=60),
+        "farm": datetime.timedelta(minutes=10),
         "quest": datetime.timedelta(hours=6),
         "training": datetime.timedelta(minutes=15),
         "duel": datetime.timedelta(hours=2),
@@ -182,6 +185,7 @@ class CoolDown(models.Model):
         # "": "vote", response does not give a cue
         "have already looked around": "hunt",
         "have already been in an adventure": "adventure",
+        "have already farmed": "farm",
         "have already claimed a quest": "quest",
         "have trained already": "training",
         "have been in a duel recently": "duel",
@@ -199,6 +203,7 @@ class CoolDown(models.Model):
         "hunt": lambda x: "hunt",
         "adv": lambda x: "adventure",
         "adventure": lambda x: "adventure",
+        "farm": lambda x: "farm",
         "quest": lambda x: "quest",
         "epic": lambda x: "quest" if "quest" in x else None,
         "tr": lambda x: "training",
