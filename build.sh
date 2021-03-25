@@ -53,7 +53,7 @@ while getopts ":t:psq" o; do
             if [ -z "${tags}" ]; then
               first_tag="${OPTARG}"
             fi
-            tags="${tags} -t ${OPTARG}";;
+            tags="${tags} ${OPTARG}";;
         p)
             push=1;;
         s)
@@ -80,16 +80,18 @@ shift $((OPTIND-1))
   git check-ignore ./epic_reminder/*
   git check-ignore ./epic_reminder/**/*
   git check-ignore ./materials/*
+  git check-ignore ./materials/tests/*
 } > .dockerignore
 
-if [ -z "${tags}" ]; then
-  tags="-t epic-reminder"
+if [ -z "${first_tag}" ]; then
+  first_tag="epic-reminder"
   nopush="1"
 fi
 
-docker build ${tags} .
+# shellcheck disable=SC2046
+docker build $(for tag in ${tags}; do echo -t "${tag}"; done) .
 if [ -z "$quiet" ]; then
-  docker run -it epic-reminder tree -a
+  docker run -it ${first_tag} tree -a
 
   >&2 echo -e "${red}Verify that the tree above does not show any files that should be excluded before pushing.${white}"
 
