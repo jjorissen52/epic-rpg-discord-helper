@@ -445,7 +445,7 @@ impl Index<&Name> for Items {
 #[non_exhaustive]
 pub struct TradeTable;
 
-pub struct ExchangeRate{numerator: u64, denominator: u64}
+pub struct ExchangeRate{pub numerator: u64, pub denominator: u64}
 pub type TradeArea = (usize, usize, usize, u8);
 
 impl Index<&Class> for TradeArea {
