@@ -39,11 +39,9 @@ enum Branch {
     Dismantle,
 }
 
-fn exec_branch(recipe_qty: (Item, u64), mut inv: Inventory, branch: &Branch) -> Vec<(u64, Strategy)> {
-    let mut possible_strategies: Vec<(u64, Strategy)> = Vec::new();
-    let (item, starting_qty) = recipe_qty;
-    let mut recipe_amount = starting_qty;
-    let Item(desired_class, desired_name, _) = item;
+fn exec_branch(mut recipe: Inventory, mut inv: Inventory, target: &Name, branch: &Branch) -> Vec<(Inventory, Strategy)> {
+    let mut possible_strategies: Vec<(Inventory, Strategy)> = Vec::new();
+    let Item(desired_class, desired_name, _) = Items[target];
     match branch {
         Branch::Trade => {
             // perform any free trades into the current recipe item's class
@@ -51,18 +49,18 @@ fn exec_branch(recipe_qty: (Item, u64), mut inv: Inventory, branch: &Branch) -> 
             let gaining = Items[Items::first_of(&desired_class)].1;
             let tradeable = [&Name::WoodenLog, &Name::NormieFish, &Name::Apple, &Name::Ruby];
             for losing in tradeable.iter() {
-                if recipe_amount == 0 {
-                    let recipe_reduction = starting_qty - recipe_amount;
-                    possible_strategies.push((recipe_reduction, Strategy::from(inv, actions.clone())))
-                }
-                inv = inv.trade(losing, &gaining, recipe_amount as i128);
-                let gained = inv[&gaining];
-                if gained != 0 {
-                    let adjustment = min(recipe_amount, gained);
-                    recipe_amount -= adjustment;
+                let before = inv[&gaining];
+                inv = inv.trade(losing, &gaining, -1);
+                let now = inv[&gaining];
+                if now != before {
+                    let adjustment = min(recipe[&gaining], now);
+                    recipe[&gaining] -= adjustment;
                     inv[&gaining] -= adjustment;
                     actions.push(Action::Trade)
                 }
+            }
+            if actions.len() != 0 {
+                possible_strategies.push((recipe, Strategy::from(inv, actions.clone())));
             }
             possible_strategies
         },
@@ -73,46 +71,46 @@ fn exec_branch(recipe_qty: (Item, u64), mut inv: Inventory, branch: &Branch) -> 
             // the current recipe item
             let mut dismantle_class: Class; let mut dismantle_name: Name;
             let mut to_try_dismantle: HashMap<Class, Name> = HashMap::new();
-            for (item, _) in inv.non_zero() {
-                Item(dismantle_class, dismantle_name, _) = item.clone();
+            // attempt dismantles for non-zero inventory items
+            for (inv_item, _) in inv.non_zero() {
+                Item(dismantle_class, dismantle_name, _) = inv_item.clone();
                 if dismantle_class == desired_class && Items::index_of(&desired_name) < Items::index_of(&dismantle_name) {
-                    // if it's the same class, only try to dismantle from above
+                    // If it's the same class, try to dismantle from above.
+                    // The hashmap entry will always be the first non-zero inventory item
+                    // of a tier higher than the current recipe item
                     to_try_dismantle.entry(dismantle_class).or_insert(dismantle_name);
-                } else if dismantle_class != desired_class {
-                    // if it's from a different class, try to dismantle from anywhere
+                } else if dismantle_class != desired_class && Items::first_of(&dismantle_class) < Items::index_of(&dismantle_name)  {
+                    // If it's from a different class, we can try to dismantle as long as it isn't already
+                    // the base tier of its class.
                     to_try_dismantle.entry(dismantle_class).or_insert(dismantle_name);
                 }
             }
             for (class, name) in to_try_dismantle.into_iter() {
+                let mut working_inv = inv.clone();
                 if desired_class == class {
-                    let recipe_item_idx = Items::index_of(&desired_name);
-                    let mut idx = recipe_item_idx + 1;
-                    let highest_idx = Items::last_of(&desired_class);
-                    // Look for any items that could possibly be dismantled
-                    while idx <= highest_idx {
-                        let losing = inv[idx];
-                        if losing != 0 {
-                            let (qty, remainder) = Items[idx]
-                                .dismantle_to(losing, &desired_name, starting_qty);
-                            // Subtract from the recipe cost either the quantity obtained from
-                            // dismantling or the amount required, whichever is smallest.
-                            // The rest of the items should be placed in the inventory.
-                            let recipe_reduction = min(qty, starting_qty);
-                            inv[idx] = remainder;
-                            inv[recipe_item_idx] = qty - recipe_reduction;
-
-                            // calculate the cost to record it in the strategy
-                            let cost = Item::dismantle_cost(idx - 1, highest_idx, qty);
-                            possible_strategies.push((recipe_reduction, Strategy::from(inv, vec![Action::Dismantle(cost)])));
-                            return possible_strategies
-                        }
-                        idx += 1;
-                    }
+                    let available = working_inv[&name];
+                    let (qty, remainder) = Items[&name].dismantle_to(available, &desired_name, recipe[target]);
+                    let recipe_reduction = min(qty, recipe[target]);
+                    working_inv[&desired_name] = qty - recipe_reduction;
+                    working_inv[&name] = remainder;
+                    recipe[target] -= recipe_reduction;
+                    possible_strategies.push((recipe, Strategy::from(working_inv, vec![Action::Dismantle(0)])));
                 } else {
                     // dismantle either until there will be enough for upgrades or we are out
                     // of items for the class
+                    let logs_required = Items[Items::index_of(target)].logs_required_for_upgrade(recipe[target], inv.get_area());
+                    let exchange_rate = if &class == &Class::Log { 1 } else {
+                        TradeTable::rate_from_logs(inv.get_area(), &class).denominator
+                    };
+                    // how many of the base tier of this class we will need
+                    let base_required = logs_required / exchange_rate + logs_required % exchange_rate;
+                    let base_tier_index = Items::first_of(&class);
+                    let base_name = Items[base_tier_index].1;
+                    let (result, remainder) = Items[&name].dismantle_to(working_inv[&name], &base_name, base_required);
+                    working_inv[&name] = remainder;
+                    working_inv[base_tier_index] = result;
+                    possible_strategies.push((recipe, Strategy::from(working_inv, vec![Action::Dismantle(0)])));
                 }
-                return possible_strategies
             }
             possible_strategies
         },
