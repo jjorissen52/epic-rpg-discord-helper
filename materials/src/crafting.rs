@@ -665,7 +665,9 @@ impl PartialOrd for Inventory {
     }
 
     fn lt(&self, other: &Self) -> bool {
-        !self.ge(other)
+        let self_items = self.inventory;
+        let other_items = other.inventory;
+        self_items.iter().enumerate().all(|(i, qty)| qty < &other_items[i])
     }
 
     fn le(&self, other: &Self) -> bool {
@@ -675,7 +677,9 @@ impl PartialOrd for Inventory {
     }
 
     fn gt(&self, other: &Self) -> bool {
-        !self.le(other)
+        let self_items = self.inventory;
+        let other_items = other.inventory;
+        self_items.iter().enumerate().all(|(i, qty)| qty > &other_items[i])
     }
 
     fn ge(&self, other: &Self) -> bool {
