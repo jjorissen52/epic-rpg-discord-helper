@@ -141,29 +141,27 @@ fn exec_branch(mut recipe: Inventory, mut inv: Inventory, target: &Name, branch:
 /// 3. Perform Upgrades:
 ///     There is no associated cost to the Upgrade action. This is sound as long as
 ///     the result of any Upgrade is actually used in the recipe.
-pub fn find_strategy(recipe: Inventory, inventory: Inventory) -> Option<Strategy> {
+pub fn find_strategy(recipe: Inventory, inventory: Inventory) -> Option<(Inventory, Strategy)> {
     if inventory >= recipe {
-        return Some(Strategy::new(inventory))
+        //     (remaining recipe, crafting strategy)
+        return Some((recipe, Strategy::new(inventory)))
     }
-    let mut strats: Vec<Strategy> = Vec::new();
+    let mut strats: Vec<(Inventory, Strategy)> = Vec::new();
     for (item, amount) in recipe.non_zero() {
         let Item(_, name, _) = item;
         for (i, branch) in [Branch::Trade, Branch::Upgrade, Branch::Dismantle].iter().enumerate() {
-            let possible_strategies = exec_branch((item, amount), inventory.clone(), branch);
+            let possible_strategies = exec_branch(recipe, inventory.clone(), &name, branch);
             if possible_strategies.len() != 0 {
-                for (reduction, strategy) in possible_strategies.iter() {
-                    let mut recipe = recipe.clone();
-                    recipe[&name] -= reduction;
-                    let further_strategy = find_strategy(recipe, strategy.inventory.clone());
-                    if let Some(_further_strategy) = further_strategy {
-                        strats.push(strategy.clone().merge(_further_strategy));
-                    }
+                for (mut recipe, strategy) in possible_strategies.iter() {
+                    if let Some((recipe, further_strategy)) = find_strategy(recipe, strategy.inventory.clone()) {
+                        strats.push((recipe, strategy.clone().merge(further_strategy)));
+                    };
                 }
             }
         }
     }
-    if let Some(successful_strategy) = strats.iter().max() {
-       return Some(successful_strategy.clone())
+    if let Some((r, successful_strategy)) = strats.iter().filter(|(r, s)| s.inventory >= r.clone()).max() {
+       return Some((r.clone(), successful_strategy.clone()))
     }
     None
 }
