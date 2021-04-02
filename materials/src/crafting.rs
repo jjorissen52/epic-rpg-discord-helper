@@ -352,7 +352,7 @@ impl Item {
         for _ in 0..amount {
             let mut required_per_item = 1;
             let mut idx = end_idx;
-            while idx >= start_idx {
+            while idx > start_idx {
                 let Item(_, _, value_of_previous) = Items[idx];
                 required_per_item *= value_of_previous;
                 idx -= 1;
