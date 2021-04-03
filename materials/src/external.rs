@@ -43,8 +43,9 @@ fn exec_branch(mut recipe: Inventory, mut inv: Inventory, target: &Name, branch:
     let mut possible_strategies: Vec<(Inventory, Strategy)> = Vec::new();
     let Item(desired_class, desired_name, _) = Items[target];
     match branch {
+        // perform any free trades into the current recipe item's class
         Branch::Trade => {
-            // perform any free trades into the current recipe item's class
+            if !Items[target].is_tradeable() { return possible_strategies }
             let mut actions: Vec<Action> = Vec::new();
             let gaining = Items[Items::first_of(&desired_class)].1;
             let tradeable = [&Name::WoodenLog, &Name::NormieFish, &Name::Apple, &Name::Ruby];
@@ -62,13 +63,12 @@ fn exec_branch(mut recipe: Inventory, mut inv: Inventory, target: &Name, branch:
             if actions.len() != 0 {
                 possible_strategies.push((recipe, Strategy::from(inv, actions.clone())));
             }
-            possible_strategies
         },
+        // potentially several strategies will result from this branch
         Branch::Dismantle => {
-            // potentially several strategies will result from this branch
-
             // find next non-zero inventory item and dismantle from it to
             // the current recipe item
+            if !Items[target].is_craftable() { return possible_strategies }
             let mut dismantle_class: Class; let mut dismantle_name: Name;
             let mut to_try_dismantle: HashMap<Class, Name> = HashMap::new();
             // attempt dismantles for non-zero inventory items
@@ -112,10 +112,37 @@ fn exec_branch(mut recipe: Inventory, mut inv: Inventory, target: &Name, branch:
                     possible_strategies.push((recipe, Strategy::from(working_inv, vec![Action::Dismantle(0)])));
                 }
             }
-            possible_strategies
         },
-        Branch::Upgrade => possible_strategies,
+        // Starting with the item closest to the desired recipe item,
+        // attempt to upgrade from it to the next tier
+        Branch::Upgrade => {
+            if !Items[target].is_craftable() { return possible_strategies }
+            let mut should_craft = recipe.clone();
+            let mut working_inv = inv.clone();
+            let (start, end) = (Items::index_of(&target), Items::first_of(&desired_class));
+            let mut idx = start;
+            while idx > end {
+                let desired_amount = should_craft[idx];
+                let current_amount = working_inv[idx];
+                let num_lower_tier_for_ug = Items[idx - 1].required_for_upgrade(&Items[idx].1);
+                // if we already have enough of the higher tier, we craft none of the lower tier
+                let num_lower_tier_needed = num_lower_tier_for_ug * (desired_amount - min(current_amount, desired_amount));
+                // if we already have enough of the lower tier, we craft none, otherwise, we craft the difference
+                should_craft[idx - 1] = num_lower_tier_needed - min(working_inv[idx - 1], num_lower_tier_needed);
+                idx -= 1;
+            }
+            while idx < start {
+                let (_, crafted, remainder) = Items[idx].upgrade_to(working_inv[idx], &Items[idx + 1].1, should_craft[idx + 1]);
+                working_inv[idx] = remainder;
+                working_inv[idx + 1] = crafted;
+                idx += 1
+            }
+            if working_inv != inv {
+                possible_strategies.push((recipe, Strategy::from(working_inv, vec![Action::Upgrade])))
+            }
+        },
     }
+    possible_strategies
 }
 
 /// Find a strategy to construct the recipe from the provided inventory.
@@ -235,4 +262,37 @@ fn test_can_craft_with_dismantles_and_trades() {
 
     let recipe = Inventory::from(TradeTable::A1, vec![(&Name::NormieFish, 960), (&Name::WoodenLog, 1)]);
     assert!(!can_craft(recipe.clone(), inv.clone()));
+}
+
+#[test]
+fn test_can_craft_with_upgrades() {
+    let recipe = Inventory::from(TradeTable::A1, vec![(&Name::MegaLog, 1)]);
+    let inv = Inventory::from(TradeTable::A1, vec![(&Name::WoodenLog, 2500)]);
+    assert!(can_craft(recipe, inv));
+
+    let recipe = Inventory::from(TradeTable::A1, vec![(&Name::GoldenFish, 10)]);
+    let inv = Inventory::from(TradeTable::A1, vec![(&Name::WoodenLog, 25)]);
+    assert!(!can_craft(recipe, inv));
+}
+
+#[test]
+fn test_can_craft() {
+    //  5 :ruby: + 1 :MEGASUPEREPICwoodenlog: + 400 :woodenlog:
+    // equivalent to 2500 + 2500 + 400 logs
+    let recipe = Inventory::from(TradeTable::A10, vec![
+        (&Name::Ruby, 5), (&Name::MegaLog, 1), (&Name::WoodenLog, 400)
+    ]);
+    let inv = recipe.clone();
+    assert!(can_craft(recipe, inv));
+
+    let inv = Inventory::from(TradeTable::A10, vec![
+        (&Name::Ruby, 10), (&Name::WoodenLog, 400)
+    ]);
+    assert!(can_craft(recipe, inv));
+
+    // upgrade + trade not working
+    let inv = Inventory::from(TradeTable::A10, vec![
+        (&Name::SuperLog, 100000), (&Name::WoodenLog, 400)
+    ]);
+    assert!(can_craft(recipe, inv));
 }

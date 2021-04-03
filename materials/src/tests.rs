@@ -116,7 +116,13 @@ fn test_upgrade() {
     let epic_fish = Items[&Name::EpicFish];
     assert_eq!(maybe_epic_fish, epic_fish);
     assert_eq!(result, 1);
-    assert_eq!(remainder, 501)
+    assert_eq!(remainder, 501);
+
+    let (maybe_epic_fish, result, remainder) = Items[&Name::NormieFish].upgrade_to(16, &Name::EpicFish, 2);
+    let epic_fish = Items[&Name::EpicFish];
+    assert_eq!(epic_fish, maybe_epic_fish);
+    assert_eq!(result, 0);
+    assert_eq!(remainder, 16);
 }
 
 #[test]

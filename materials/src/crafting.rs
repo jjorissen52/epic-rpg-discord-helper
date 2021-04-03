@@ -11,6 +11,7 @@ pub enum Class {
     Gem,
     Lootbox,
     Cookie,
+    Part,
 }
 
 #[derive(Debug, Copy, Clone, Eq, PartialEq, Hash)]
@@ -34,6 +35,13 @@ pub enum Name {
     EdgyLootbox,
     OmegaLootbox,
     GodlyLootbox,
+    Cookie,
+    WolfSkin,
+    ZombieEye,
+    UnicornHorn,
+    MermaidHair,
+    Chip,
+    DragonScale,
 }
 
 #[derive(Debug, Copy, Clone, Eq, PartialEq)]
@@ -326,22 +334,35 @@ impl Item {
         let end = Items::index_of(to);
         let start = Items::index_of(name);
 
-        let mut cost: u64 = 1;
-        for i in (start..end + 1).rev() {
-            let Item(_, _, value) = Items[i];
-            cost *= value as u64;
-        }
+        let mut cost = &self.required_for_upgrade(to);
 
+        // if the cost is too much, we
+        // will only upgrade as much as possible
+        // (there will be no wasted upgrades)
         if amount * cost > available {
             amount = available / cost;
         }
+        // how much of the starting item we will spend
         let total_cost = amount * cost;
         let (mut item, mut cost, mut remainder) = (self.clone(), total_cost, 0 as  u64);
         for i in start..end {
             (item, cost, remainder) = Items[i].upgrade(cost);
             assert_eq!(remainder, 0);
         }
+        // (target item, target item count, remainder)
         (item, amount, available - total_cost)
+    }
+
+    pub fn required_for_upgrade(&self, to: &Name) -> u64 {
+        assert_eq!(self.0, Items[to].0); // must have same class
+        let start = Items::index_of(&self.1);
+        let end = Items::index_of(to);
+        assert!(end > start); // must be an upgrade
+        let mut cost = 1;
+        for i in start..end {
+            cost *= Items[i+1].2
+        };
+        cost as u64
     }
 
     pub fn logs_required_for_upgrade(&self, mut amount: u64, area: TradeArea) -> u64 {
@@ -369,7 +390,7 @@ impl Item {
 
 pub struct Items;
 impl Items {
-    pub const INV_SIZE: usize = 19;
+    pub const INV_SIZE: usize = 26;
 
     const ITEMS: [Item; Items::INV_SIZE] = [
         Item(Class::Log, Name::WoodenLog, 1),
@@ -391,6 +412,13 @@ impl Items {
         Item(Class::Lootbox, Name::EdgyLootbox, 1),
         Item(Class::Lootbox, Name::OmegaLootbox, 1),
         Item(Class::Lootbox, Name::GodlyLootbox, 1),
+        Item(Class::Cookie, Name::Cookie, 1),
+        Item(Class::Part, Name::WolfSkin, 1),
+        Item(Class::Part, Name::ZombieEye, 1),
+        Item(Class::Part, Name::UnicornHorn, 1),
+        Item(Class::Part, Name::MermaidHair, 1),
+        Item(Class::Part, Name::Chip, 1),
+        Item(Class::Part, Name::DragonScale, 1),
     ];
 
     pub fn index_of(name: &Name) -> usize {
@@ -594,7 +622,9 @@ impl Inventory {
                 normie_fish, golden_fish, epic_fish,
                 apple, banana,
                 ruby,
-                0, 0, 0, 0, 0, 0, 0
+                0, 0, 0, 0, 0, 0, 0, // lootboxes
+                0, // cookie
+                0, 0, 0, 0, 0, 0 // parts
             ]
         }
     }
