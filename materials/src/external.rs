@@ -229,4 +229,10 @@ fn test_can_craft_with_dismantles_and_trades() {
     let recipe = Inventory::from(TradeTable::A1, vec![(&Name::NormieFish, 20*12), (&Name::WoodenLog, 20*5)]);
     let inv = Inventory::from(TradeTable::A1, vec![(&Name::EpicFish, 1)]);
     assert!(can_craft(recipe.clone(), inv.clone()));
+
+    let recipe = Inventory::from(TradeTable::A1, vec![(&Name::NormieFish, 960)]);
+    assert!(can_craft(recipe.clone(), inv.clone()));
+
+    let recipe = Inventory::from(TradeTable::A1, vec![(&Name::NormieFish, 960), (&Name::WoodenLog, 1)]);
+    assert!(!can_craft(recipe.clone(), inv.clone()));
 }
