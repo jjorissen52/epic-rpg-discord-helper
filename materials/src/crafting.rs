@@ -655,7 +655,13 @@ impl Inventory {
 
 impl Ord for Inventory {
     fn cmp(&self, other: &Self) -> Ordering {
-        self.cmp(other)
+        // this implementation results in unstable sorting.
+        if self == other {return Ordering::Equal}
+        if self > other {return Ordering::Greater}
+        if self < other {return Ordering::Less}
+        // if neither inventory has strictly more or less items,
+        // they can be compared on log value.
+        self.log_value().cmp(&other.log_value())
     }
 }
 
