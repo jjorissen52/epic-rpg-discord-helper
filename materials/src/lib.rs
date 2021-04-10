@@ -28,9 +28,18 @@ pub fn future(
     Err(exceptions::PyValueError::new_err(format!("A{} is not a valid area!", area)))
 }
 
+#[pyfunction]
+pub fn can_craft(
+    recipe: [u64; 26],
+    inventory: [u64; 26],
+) -> bool {
+   external::can_craft(recipe, inventory)
+}
+
 #[pymodule]
 fn materials(py: Python, m: &PyModule) -> PyResult<()> {
     m.add_function(wrap_pyfunction!(future, m)?).unwrap();
-
+    m.add_function(wrap_pyfunction!(can_craft, m)?).unwrap();
+    m.add("INVENTORY_SIZE", crafting::Items::INV_SIZE);
     Ok(())
 }

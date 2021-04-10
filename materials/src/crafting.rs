@@ -464,7 +464,9 @@ impl Index<&Name> for Items {
 pub struct TradeTable;
 
 pub struct ExchangeRate{pub numerator: u64, pub denominator: u64}
-pub type TradeArea = (usize, usize, usize, u8);
+
+#[derive(Debug, Copy, Clone, Eq, PartialEq)]
+pub struct TradeArea(usize, usize, usize, u8);
 
 impl Index<&Class> for TradeArea {
     type Output = usize;
@@ -480,58 +482,42 @@ impl Index<&Class> for TradeArea {
 }
 
 impl TradeTable {
+    const NUM_AREAS: usize = 15;
     //          ratio of (fish, apple, ruby):log
-    pub const A1: TradeArea = (1, 0, 0, 1);
-    pub const A2: TradeArea = (1, 0, 0, 2);
-    pub const A3: TradeArea = (1, 3, 0, 3);
-    pub const A4: TradeArea = (2, 4, 0, 4);
-    pub const A5: TradeArea = (2, 4, 450, 5);
-    pub const A6: TradeArea = (3, 15, 675, 6);
-    pub const A7: TradeArea = (3, 15, 675, 7);
-    pub const A8: TradeArea = (3, 8, 675, 8);
-    pub const A9: TradeArea = (2, 12, 850, 9);
-    pub const A10: TradeArea = (3, 12, 500, 10);
-    pub const A11: TradeArea = (3, 8, 500, 11);
-    pub const A12: TradeArea = (3, 8, 350, 12);
-    pub const A13: TradeArea = (3, 8, 350, 13);
-    pub const A14: TradeArea = (3, 8, 350, 14);
+    pub const A1: TradeArea = TradeArea(1, 0, 0, 1);
+    pub const A2: TradeArea = TradeArea(1, 0, 0, 2);
+    pub const A3: TradeArea = TradeArea(1, 3, 0, 3);
+    pub const A4: TradeArea = TradeArea(2, 4, 0, 4);
+    pub const A5: TradeArea = TradeArea(2, 4, 450, 5);
+    pub const A6: TradeArea = TradeArea(3, 15, 675, 6);
+    pub const A7: TradeArea = TradeArea(3, 15, 675, 7);
+    pub const A8: TradeArea = TradeArea(3, 8, 675, 8);
+    pub const A9: TradeArea = TradeArea(2, 12, 850, 9);
+    pub const A10: TradeArea = TradeArea(3, 12, 500, 10);
+    pub const A11: TradeArea = TradeArea(3, 8, 500, 11);
+    pub const A12: TradeArea = TradeArea(3, 8, 350, 12);
+    pub const A13: TradeArea = TradeArea(3, 8, 350, 13);
+    pub const A14: TradeArea = TradeArea(3, 8, 350, 14);
+    pub const A15: TradeArea = TradeArea(2, 4, 250, 15);
+    const AREAS: [TradeArea; TradeTable::NUM_AREAS] = [
+        TradeTable::A1, TradeTable::A2, TradeTable::A3, TradeTable::A4,
+        TradeTable::A5, TradeTable::A6, TradeTable::A7, TradeTable::A8,
+        TradeTable::A9, TradeTable::A10, TradeTable::A11, TradeTable::A12,
+        TradeTable::A13, TradeTable::A14, TradeTable::A15,
+    ];
 
     pub fn from_usize(area: usize) -> Option<TradeArea> {
-        match area {
-            1 => Some(TradeTable::A1),
-            2 => Some(TradeTable::A2),
-            3 => Some(TradeTable::A3),
-            4 => Some(TradeTable::A4),
-            5 => Some(TradeTable::A5),
-            6 => Some(TradeTable::A6),
-            7 => Some(TradeTable::A7),
-            8 => Some(TradeTable::A8),
-            9 => Some(TradeTable::A9),
-            10 => Some(TradeTable::A10),
-            11 => Some(TradeTable::A11),
-            12 => Some(TradeTable::A12),
-            13 => Some(TradeTable::A13),
-            14 => Some(TradeTable::A14),
-            _ => None
-        }
+        if area > 15 { None } else { Some(TradeTable[area - 1]) }
     }
 
     pub fn next_area(area: TradeArea) -> Option<TradeArea> {
-        match area {
-            TradeTable::A1 => Some(TradeTable::A2),
-            TradeTable::A2 => Some(TradeTable::A3),
-            TradeTable::A3 => Some(TradeTable::A4),
-            TradeTable::A4 => Some(TradeTable::A5),
-            TradeTable::A5 => Some(TradeTable::A6),
-            TradeTable::A6 => Some(TradeTable::A7),
-            TradeTable::A7 => Some(TradeTable::A8),
-            TradeTable::A8 => Some(TradeTable::A9),
-            TradeTable::A9 => Some(TradeTable::A10),
-            TradeTable::A10 => Some(TradeTable::A11),
-            TradeTable::A11 => Some(TradeTable::A12),
-            TradeTable::A12 => Some(TradeTable::A13),
-            TradeTable::A13 => Some(TradeTable::A14),
-            _ => None,
+        if area == TradeTable[TradeTable::AREAS.len() - 1] {
+            None
+        } else {
+            let TradeArea(_, _, _, area_number) = area;
+            // area numbers are one-indexed while
+            // TradeTable::AREAS is zero-indexed
+            Some(TradeTable[area_number as usize])
         }
     }
 
@@ -547,6 +533,14 @@ impl TradeTable {
             numerator: area[from] as u64,
             denominator: 1
         };
+    }
+}
+
+impl Index<usize> for TradeTable {
+    type Output = TradeArea;
+
+    fn index(&self, index: usize) -> &Self::Output {
+        &TradeTable::AREAS[index]
     }
 }
 
@@ -590,12 +584,19 @@ impl Inventory {
         }
     }
 
-    pub fn from(area: TradeArea, vec: Vec<(&Name, u64)>) -> Inventory {
+    pub fn from_vec(area: TradeArea, vec: Vec<(&Name, u64)>) -> Inventory {
         let mut inv = Inventory::new(area);
         for (&name, qty) in vec.iter() {
             inv[&name] = *qty;
         }
         inv
+    }
+
+    pub fn from_array(area: TradeArea, inv: [u64; Items::INV_SIZE]) -> Inventory {
+        Inventory::from_vec(
+            area,
+            inv.iter().enumerate().map(|(idx, qty)| (&Items[idx].1, *qty)).collect()
+        )
     }
 
     pub fn itemized(
@@ -604,6 +605,9 @@ impl Inventory {
         normie_fish: u64, golden_fish: u64, epic_fish: u64,
         apple: u64, banana: u64,
         ruby: u64,
+        common: u64, uncommon: u64, rare: u64, epic: u64, edgy: u64, omega: u64, godly: u64,
+        cookie: u64,
+        skin: u64, eye: u64, horn: u64, hair: u64, chip: u64, scale: u64,
     ) -> Inventory {
         Inventory{
             area,
@@ -612,9 +616,9 @@ impl Inventory {
                 normie_fish, golden_fish, epic_fish,
                 apple, banana,
                 ruby,
-                0, 0, 0, 0, 0, 0, 0, // lootboxes
-                0, // cookie
-                0, 0, 0, 0, 0, 0 // parts
+                common, uncommon, rare, epic, edgy, omega, godly, // lootboxes
+                cookie, // cookie
+                skin, eye, horn, hair, chip, scale // parts
             ]
         }
     }

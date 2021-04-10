@@ -18,7 +18,9 @@ pub fn future_logs(
         wooden_log, epic_log, super_log, mega_log, hyper_log, ultra_log,
         normie_fish, golden_fish, epic_fish,
         apple, banana,
-        ruby
+        ruby,
+        0, 0, 0, 0, 0, 0, 0,
+        0, 0, 0, 0, 0, 0, 0
     ).log_value())
 }
 
@@ -176,7 +178,7 @@ fn clamp<T: PartialOrd>(input: T, min: T, max: T) -> T {
 /// 3. Perform Upgrades:
 ///     There is no associated cost to the Upgrade action. This is sound as long as
 ///     the result of any Upgrade is actually used in the recipe.
-pub fn find_strategy(
+fn find_strategy(
     mut recipe: Inventory,
     mut inventory: Inventory,
     last_branch: Option<&Branch>,
@@ -213,114 +215,124 @@ pub fn find_strategy(
     None
 }
 
-pub fn can_craft(recipe: Inventory, inventory: Inventory) -> bool {
+fn _can_craft(recipe: Inventory, inventory: Inventory) -> bool {
     if let Some(_) = find_strategy(recipe, inventory, None) {
        return true
     }
     return false;
 }
 
+pub fn can_craft(
+    recipe: [u64; 26],
+    inventory: [u64; 26],
+) -> bool {
+    _can_craft(
+        Inventory::from_array(TradeTable::A10, recipe),
+        Inventory::from_array(TradeTable::A10, inventory)
+    )
+}
+
 #[test]
 fn test_find_strategy_terminates() {
     find_strategy(Inventory::new(TradeTable::A1), Inventory::new(TradeTable::A1), None);
 
-    let recipe = Inventory::from(TradeTable::A1, vec![(&Name::WoodenLog, 10)]);
-    let inv = Inventory::from(TradeTable::A1, vec![(&Name::WoodenLog, 0)]);
+    let recipe = Inventory::from_vec(TradeTable::A1, vec![(&Name::WoodenLog, 10)]);
+    let inv = Inventory::from_vec(TradeTable::A1, vec![(&Name::WoodenLog, 0)]);
     find_strategy(recipe, inv, None);
 }
 
 #[test]
 fn test_can_craft_with_trades() {
 
-    let recipe = Inventory::from(TradeTable::A1, vec![(&Name::NormieFish, 10)]);
-    let inv = Inventory::from(TradeTable::A1, vec![(&Name::WoodenLog, 10)]);
-    assert!(can_craft(recipe.clone(), inv.clone()));
+    let recipe = Inventory::from_vec(TradeTable::A1, vec![(&Name::NormieFish, 10)]);
+    let inv = Inventory::from_vec(TradeTable::A1, vec![(&Name::WoodenLog, 10)]);
+    assert!(_can_craft(recipe.clone(), inv.clone()));
 
-    let recipe = Inventory::from(TradeTable::A10, vec![(&Name::NormieFish, 10)]);
-    let inv = Inventory::from(TradeTable::A10, vec![(&Name::WoodenLog, 10)]);
-    assert!(!can_craft(recipe.clone(), inv.clone()));
+    let recipe = Inventory::from_vec(TradeTable::A10, vec![(&Name::NormieFish, 10)]);
+    let inv = Inventory::from_vec(TradeTable::A10, vec![(&Name::WoodenLog, 10)]);
+    assert!(!_can_craft(recipe.clone(), inv.clone()));
 
-    let recipe = Inventory::from(TradeTable::A6, vec![(&Name::WoodenLog, 10)]);
-    let inv = Inventory::from(TradeTable::A6, vec![(&Name::Apple, 2)]);
-    assert!(can_craft(recipe.clone(), inv.clone()));
+    let recipe = Inventory::from_vec(TradeTable::A6, vec![(&Name::WoodenLog, 10)]);
+    let inv = Inventory::from_vec(TradeTable::A6, vec![(&Name::Apple, 2)]);
+    assert!(_can_craft(recipe.clone(), inv.clone()));
 
     // demonstrates a bug in the current implementation
-    let recipe = Inventory::from(TradeTable::A3, vec![(&Name::WoodenLog, 10)]);
-    let inv = Inventory::from(TradeTable::A3, vec![(&Name::Apple, 2)]);
-    assert!(!can_craft(recipe.clone(), inv.clone()));
+    let recipe = Inventory::from_vec(TradeTable::A3, vec![(&Name::WoodenLog, 10)]);
+    let inv = Inventory::from_vec(TradeTable::A3, vec![(&Name::Apple, 2)]);
+    assert!(!_can_craft(recipe.clone(), inv.clone()));
 }
 
 #[test]
 fn test_can_craft_with_dismantles() {
-    let recipe = Inventory::from(TradeTable::A6, vec![(&Name::NormieFish, 24)]);
-    let inv = Inventory::from(TradeTable::A6, vec![(&Name::EpicFish, 2)]);
+    let recipe = Inventory::from_vec(TradeTable::A6, vec![(&Name::NormieFish, 24)]);
+    let inv = Inventory::from_vec(TradeTable::A6, vec![(&Name::EpicFish, 2)]);
 
-    assert!(can_craft(recipe.clone(), inv.clone()));
+    assert!(_can_craft(recipe.clone(), inv.clone()));
 
-    let recipe = Inventory::from(TradeTable::A6, vec![(&Name::WoodenLog, 163_840)]);
-    let inv = Inventory::from(TradeTable::A6, vec![(&Name::UltraLog, 2)]);
-    assert!(can_craft(recipe.clone(), inv.clone()));
+    let recipe = Inventory::from_vec(TradeTable::A6, vec![(&Name::WoodenLog, 163_840)]);
+    let inv = Inventory::from_vec(TradeTable::A6, vec![(&Name::UltraLog, 2)]);
+    assert!(_can_craft(recipe.clone(), inv.clone()));
 
-    let recipe = Inventory::from(TradeTable::A6, vec![(&Name::WoodenLog, 163_841)]);
-    assert!(!can_craft(recipe.clone(), inv.clone()));
+    let recipe = Inventory::from_vec(TradeTable::A6, vec![(&Name::WoodenLog, 163_841)]);
+    assert!(!_can_craft(recipe.clone(), inv.clone()));
 
-    let recipe = Inventory::from(TradeTable::A10, vec![(&Name::UltraLog, 1)]);
-    let inv = Inventory::from(TradeTable::A10, vec![(&Name::Banana, 1)]);
-    assert!(!can_craft(recipe.clone(), inv.clone()));
+    let recipe = Inventory::from_vec(TradeTable::A10, vec![(&Name::UltraLog, 1)]);
+    let inv = Inventory::from_vec(TradeTable::A10, vec![(&Name::Banana, 1)]);
+    assert!(!_can_craft(recipe.clone(), inv.clone()));
 }
 
 #[test]
 fn test_can_craft_with_dismantles_and_trades() {
     // recipe equivalent of fish sword
-    let recipe = Inventory::from(TradeTable::A1, vec![(&Name::NormieFish, 20*12), (&Name::WoodenLog, 20*5)]);
-    let inv = Inventory::from(TradeTable::A1, vec![(&Name::EpicFish, 1)]);
-    assert!(can_craft(recipe.clone(), inv.clone()));
+    let recipe = Inventory::from_vec(TradeTable::A1, vec![(&Name::NormieFish, 20*12), (&Name::WoodenLog, 20*5)]);
+    let inv = Inventory::from_vec(TradeTable::A1, vec![(&Name::EpicFish, 1)]);
+    assert!(_can_craft(recipe.clone(), inv.clone()));
 
-    let recipe = Inventory::from(TradeTable::A1, vec![(&Name::NormieFish, 960)]);
-    assert!(can_craft(recipe.clone(), inv.clone()));
+    let recipe = Inventory::from_vec(TradeTable::A1, vec![(&Name::NormieFish, 960)]);
+    assert!(_can_craft(recipe.clone(), inv.clone()));
 
-    let recipe = Inventory::from(TradeTable::A1, vec![(&Name::NormieFish, 960), (&Name::WoodenLog, 1)]);
-    assert!(!can_craft(recipe.clone(), inv.clone()));
+    let recipe = Inventory::from_vec(TradeTable::A1, vec![(&Name::NormieFish, 960), (&Name::WoodenLog, 1)]);
+    assert!(!_can_craft(recipe.clone(), inv.clone()));
 
     // ruby sword
-    let recipe = Inventory::from(TradeTable::A10, vec![
+    let recipe = Inventory::from_vec(TradeTable::A10, vec![
         (&Name::Ruby, 5), (&Name::MegaLog, 1), (&Name::WoodenLog, 400)
     ]);
-    let inv = Inventory::from(TradeTable::A10, vec![
+    let inv = Inventory::from_vec(TradeTable::A10, vec![
         (&Name::MegaLog, 100000), (&Name::WoodenLog, 400)
     ]);
-    assert!(can_craft(recipe, inv));
+    assert!(_can_craft(recipe, inv));
 }
 
 #[test]
 fn test_can_craft_with_upgrades() {
-    let recipe = Inventory::from(TradeTable::A1, vec![(&Name::MegaLog, 1)]);
-    let inv = Inventory::from(TradeTable::A1, vec![(&Name::WoodenLog, 2500)]);
-    assert!(can_craft(recipe, inv));
+    let recipe = Inventory::from_vec(TradeTable::A1, vec![(&Name::MegaLog, 1)]);
+    let inv = Inventory::from_vec(TradeTable::A1, vec![(&Name::WoodenLog, 2500)]);
+    assert!(_can_craft(recipe, inv));
 
-    let recipe = Inventory::from(TradeTable::A1, vec![(&Name::GoldenFish, 10)]);
-    let inv = Inventory::from(TradeTable::A1, vec![(&Name::WoodenLog, 25)]);
-    assert!(!can_craft(recipe, inv));
+    let recipe = Inventory::from_vec(TradeTable::A1, vec![(&Name::GoldenFish, 10)]);
+    let inv = Inventory::from_vec(TradeTable::A1, vec![(&Name::WoodenLog, 25)]);
+    assert!(!_can_craft(recipe, inv));
 }
 
 #[test]
 fn test_can_craft() {
     // ruby sword
     // equivalent to 2500 + 2500 + 400 logs
-    let recipe = Inventory::from(TradeTable::A10, vec![
+    let recipe = Inventory::from_vec(TradeTable::A10, vec![
         (&Name::Ruby, 5), (&Name::MegaLog, 1), (&Name::WoodenLog, 400)
     ]);
     let inv = recipe.clone();
-    assert!(can_craft(recipe, inv));
+    assert!(_can_craft(recipe, inv));
 
-    let inv = Inventory::from(TradeTable::A10, vec![
+    let inv = Inventory::from_vec(TradeTable::A10, vec![
         (&Name::Ruby, 10), (&Name::WoodenLog, 400)
     ]);
-    assert!(can_craft(recipe, inv));
+    assert!(_can_craft(recipe, inv));
 
     // upgrade + trade not working
-    let inv = Inventory::from(TradeTable::A10, vec![
+    let inv = Inventory::from_vec(TradeTable::A10, vec![
         (&Name::SuperLog, 100000), (&Name::WoodenLog, 400)
     ]);
-    assert!(can_craft(recipe, inv));
+    assert!(_can_craft(recipe, inv));
 }

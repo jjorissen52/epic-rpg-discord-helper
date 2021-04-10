@@ -18,7 +18,7 @@ fn test_adjustment() {
 #[test]
 fn test_trade() {
     let apples = 89000;
-    let mut inv = Inventory::from(TradeTable::A3, vec![(&Name::Apple, apples)]);
+    let mut inv = Inventory::from_vec(TradeTable::A3, vec![(&Name::Apple, apples)]);
     inv = inv.trade(&Name::Apple, &Name::WoodenLog, -1);
     assert_eq!(inv[&Name::WoodenLog], apples*3);
     inv = inv.trade(&Name::WoodenLog, &Name::Apple, -1);
@@ -67,7 +67,7 @@ fn test_dismantle_cost() {
 
 #[test]
 fn test_migrate() {
-    let mut inv = Inventory::from(
+    let mut inv = Inventory::from_vec(
         TradeTable::A2, vec![(&Name::EpicFish, 10), (&Name::GoldenFish, 0), (&Name::NormieFish, 0)]
     );
     let inv = inv.migrate(&Class::Fish, &Class::Log, 5);
@@ -127,13 +127,13 @@ fn test_upgrade() {
 
 #[test]
 fn test_strategy(){
-    let inv = Inventory::from(TradeTable::A3, vec![(&Name::WoodenLog, 10)]);
+    let inv = Inventory::from_vec(TradeTable::A3, vec![(&Name::WoodenLog, 10)]);
     let ug = Strategy::from(inv.clone(), vec![Action::Upgrade]);
     let dg = Strategy::from(inv.clone(), vec![Action::Dismantle(100)]);
     // end inventory is the same and same number of steps, so strategies are equivalent
     assert_eq!(dg, ug);
 
-    let mut inv = Inventory::from(TradeTable::A3, vec![(&Name::WoodenLog, 10)]);
+    let mut inv = Inventory::from_vec(TradeTable::A3, vec![(&Name::WoodenLog, 10)]);
     let s1 = Strategy::from(inv.clone(), vec![Action::Upgrade]);
     inv[&Name::WoodenLog] -= 1;
     let s2 = Strategy::from(inv.clone(), vec![Action::Dismantle(100)]);
@@ -152,7 +152,7 @@ fn test_strategy(){
 #[test]
 fn it_works() {
     let apples = 89000;
-    let mut inv = Inventory::from(TradeTable::A7, vec![(&Name::Apple, apples)]);
+    let mut inv = Inventory::from_vec(TradeTable::A7, vec![(&Name::Apple, apples)]);
     inv = inv.trade(&Name::Apple, &Name::WoodenLog, -1).next_area().unwrap(); // trade in A7
     inv = inv.trade(&Name::WoodenLog, &Name::Apple, -1).next_area().unwrap(); // A8
     inv = inv.trade(&Name::Apple, &Name::NormieFish, -1).next_area().unwrap(); // A9
