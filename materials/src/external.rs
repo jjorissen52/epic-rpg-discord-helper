@@ -262,6 +262,15 @@ fn test_can_craft_with_dismantles_and_trades() {
 
     let recipe = Inventory::from(TradeTable::A1, vec![(&Name::NormieFish, 960), (&Name::WoodenLog, 1)]);
     assert!(!can_craft(recipe.clone(), inv.clone()));
+
+    // ruby sword
+    let recipe = Inventory::from(TradeTable::A10, vec![
+        (&Name::Ruby, 5), (&Name::MegaLog, 1), (&Name::WoodenLog, 400)
+    ]);
+    let inv = Inventory::from(TradeTable::A10, vec![
+        (&Name::MegaLog, 100000), (&Name::WoodenLog, 400)
+    ]);
+    assert!(can_craft(recipe, inv));
 }
 
 #[test]
@@ -277,7 +286,7 @@ fn test_can_craft_with_upgrades() {
 
 #[test]
 fn test_can_craft() {
-    //  5 :ruby: + 1 :MEGASUPEREPICwoodenlog: + 400 :woodenlog:
+    // ruby sword
     // equivalent to 2500 + 2500 + 400 logs
     let recipe = Inventory::from(TradeTable::A10, vec![
         (&Name::Ruby, 5), (&Name::MegaLog, 1), (&Name::WoodenLog, 400)
