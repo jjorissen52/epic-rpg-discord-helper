@@ -33,7 +33,8 @@ fn test_future() {
     assert_eq!(res, 1_687_500);
 }
 
-enum Branch {
+#[derive(Debug, PartialEq)]
+pub enum Branch {
     Trade,
     Upgrade,
     Dismantle,
@@ -132,9 +133,10 @@ fn exec_branch(mut recipe: Inventory, mut inv: Inventory, target: &Name, branch:
                 idx -= 1;
             }
             while idx < start {
-                let (_, crafted, remainder) = Items[idx].upgrade_to(working_inv[idx], &Items[idx + 1].1, should_craft[idx + 1]);
+                let (available, crafting, amount_to_craft) = (working_inv[idx], &Items[idx + 1].1, should_craft[idx + 1]);
+                let (_, crafted, remainder) = Items[idx].upgrade_to(available, crafting, amount_to_craft);
                 working_inv[idx] = remainder;
-                working_inv[idx + 1] = crafted;
+                working_inv[idx + 1] += crafted;
                 idx += 1
             }
             if working_inv != inv {
@@ -179,28 +181,33 @@ fn clamp<T: PartialOrd>(input: T, min: T, max: T) -> T {
 /// 3. Perform Upgrades:
 ///     There is no associated cost to the Upgrade action. This is sound as long as
 ///     the result of any Upgrade is actually used in the recipe.
-pub fn find_strategy(mut recipe: Inventory, mut inventory: Inventory) -> Option<(Inventory, Strategy)> {
-    if inventory >= recipe {
-        //     (remaining recipe, crafting strategy)
-        return Some((recipe, Strategy::new(inventory)))
-    }
+pub fn find_strategy(
+    mut recipe: Inventory,
+    mut inventory: Inventory,
+    last_branch: Option<&Branch>,
+) -> Option<(Inventory, Strategy)> {
     // remove from consideration items we already have
     for (item, amount) in recipe.non_zero() {
         let reduction = clamp(inventory[&item.1], 0, amount);
         recipe[&item.1] -=  reduction;
         inventory[&item.1] -= reduction;
     }
+    if inventory >= recipe {
+        //     (remaining recipe, crafting strategy)
+        return Some((recipe, Strategy::new(inventory)))
+    }
     let mut strats: Vec<(Inventory, Strategy)> = Vec::new();
     for (item, amount) in recipe.non_zero() {
         let Item(_, name, _) = item;
         for (i, branch) in [Branch::Trade, Branch::Upgrade, Branch::Dismantle].iter().enumerate() {
+            if let Some(_last_branch) = last_branch {
+                if _last_branch == branch { continue }
+            }
             let possible_strategies = exec_branch(recipe, inventory.clone(), &name, branch);
-            if possible_strategies.len() != 0 {
-                for (mut recipe, strategy) in possible_strategies.iter() {
-                    if let Some((recipe, further_strategy)) = find_strategy(recipe, strategy.inventory.clone()) {
-                        strats.push((recipe, strategy.clone().merge(further_strategy)));
-                    };
-                }
+            for (mut recipe, strategy) in possible_strategies.iter() {
+                if let Some((recipe, further_strategy)) = find_strategy(recipe, strategy.inventory.clone(), Some(branch)) {
+                    strats.push((recipe, strategy.clone().merge(further_strategy)));
+                };
             }
         }
     }
@@ -212,20 +219,19 @@ pub fn find_strategy(mut recipe: Inventory, mut inventory: Inventory) -> Option<
 }
 
 pub fn can_craft(recipe: Inventory, inventory: Inventory) -> bool {
-    if let Some(_) = find_strategy(recipe, inventory) {
+    if let Some(_) = find_strategy(recipe, inventory, None) {
        return true
     }
     return false;
 }
 
-
 #[test]
 fn test_find_strategy_terminates() {
-    find_strategy(Inventory::new(TradeTable::A1), Inventory::new(TradeTable::A1));
+    find_strategy(Inventory::new(TradeTable::A1), Inventory::new(TradeTable::A1), None);
 
     let recipe = Inventory::from(TradeTable::A1, vec![(&Name::WoodenLog, 10)]);
     let inv = Inventory::from(TradeTable::A1, vec![(&Name::WoodenLog, 0)]);
-    find_strategy(recipe, inv);
+    find_strategy(recipe, inv, None);
 }
 
 #[test]
