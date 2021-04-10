@@ -40,8 +40,8 @@ pub enum Branch {
     Dismantle,
 }
 
-fn exec_branch(mut recipe: Inventory, mut inv: Inventory, target: &Name, branch: &Branch) -> Vec<(Inventory, Strategy)> {
-    let mut possible_strategies: Vec<(Inventory, Strategy)> = Vec::new();
+fn exec_branch(recipe: Inventory, mut inv: Inventory, target: &Name, branch: &Branch) -> Vec<Strategy> {
+    let mut possible_strategies: Vec<Strategy> = Vec::new();
     let Item(desired_class, desired_name, _) = Items[target];
     match branch {
         // perform any free trades into the current recipe item's class
@@ -55,14 +55,11 @@ fn exec_branch(mut recipe: Inventory, mut inv: Inventory, target: &Name, branch:
                 inv = inv.trade(losing, &gaining, -1);
                 let now = inv[&gaining];
                 if now != before {
-                    let adjustment = min(recipe[&gaining], now);
-                    recipe[&gaining] -= adjustment;
-                    inv[&gaining] -= adjustment;
                     actions.push(Action::Trade)
                 }
             }
             if actions.len() != 0 {
-                possible_strategies.push((recipe, Strategy::from(inv, actions.clone())));
+                possible_strategies.push(Strategy::from(inv, actions.clone()));
             }
         },
         // potentially several strategies will result from this branch
@@ -91,11 +88,9 @@ fn exec_branch(mut recipe: Inventory, mut inv: Inventory, target: &Name, branch:
                 if desired_class == class {
                     let available = working_inv[&name];
                     let (qty, remainder) = Items[&name].dismantle_to(available, &desired_name, recipe[target]);
-                    let recipe_reduction = min(qty, recipe[target]);
-                    working_inv[&desired_name] = qty - recipe_reduction;
                     working_inv[&name] = remainder;
-                    recipe[target] -= recipe_reduction;
-                    possible_strategies.push((recipe, Strategy::from(working_inv, vec![Action::Dismantle(0)])));
+                    working_inv[&desired_name] = qty;
+                    possible_strategies.push(Strategy::from(working_inv, vec![Action::Dismantle(0)]));
                 } else {
                     // dismantle either until there will be enough for upgrades or we are out
                     // of items for the class
@@ -110,7 +105,7 @@ fn exec_branch(mut recipe: Inventory, mut inv: Inventory, target: &Name, branch:
                     let (result, remainder) = Items[&name].dismantle_to(working_inv[&name], &base_name, base_required);
                     working_inv[&name] = remainder;
                     working_inv[base_tier_index] = result;
-                    possible_strategies.push((recipe, Strategy::from(working_inv, vec![Action::Dismantle(0)])));
+                    possible_strategies.push(Strategy::from(working_inv, vec![Action::Dismantle(0)]));
                 }
             }
         },
@@ -140,7 +135,7 @@ fn exec_branch(mut recipe: Inventory, mut inv: Inventory, target: &Name, branch:
                 idx += 1
             }
             if working_inv != inv {
-                possible_strategies.push((recipe, Strategy::from(working_inv, vec![Action::Upgrade])))
+                possible_strategies.push(Strategy::from(working_inv, vec![Action::Upgrade]))
             }
         },
     }
@@ -204,7 +199,7 @@ pub fn find_strategy(
                 if _last_branch == branch { continue }
             }
             let possible_strategies = exec_branch(recipe, inventory.clone(), &name, branch);
-            for (mut recipe, strategy) in possible_strategies.iter() {
+            for strategy in possible_strategies.iter() {
                 if let Some((recipe, further_strategy)) = find_strategy(recipe, strategy.inventory.clone(), Some(branch)) {
                     strats.push((recipe, strategy.clone().merge(further_strategy)));
                 };
