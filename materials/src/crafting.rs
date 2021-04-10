@@ -105,8 +105,7 @@ impl Strategy {
         let (Item(litem_cls, _, _), Item(gitem_cls, _, _)) = (litem, gitem);
 
         // panic for un-tradeable
-        Item::guard_tradeable(&litem_cls);
-        Item::guard_tradeable(&gitem_cls);
+        Item::guard_craftable(&litem_cls);
 
         if litem_cls == gitem_cls {
             return self
@@ -249,7 +248,7 @@ impl Item {
         return result * decay_bottom.pow(decay_times as u32) / decay_top.pow(decay_times as u32) - result
     }
 
-    pub fn is_tradeable(&self) -> bool {
+    pub fn is_craftable(&self) -> bool {
         let Item(class, _, _) = &self;
         match class {
             Class::Log => true,
@@ -260,18 +259,8 @@ impl Item {
         }
     }
 
-    pub fn is_craftable(&self) -> bool {
-        let Item(class, _, _) = &self;
-        match class {
-            Class::Log => true,
-            Class::Fish => true,
-            Class::Fruit => true,
-            _ => false,
-        }
-    }
-
-    fn guard_tradeable(cls: &Class) {
-        if !Items[Items::first_of(cls)].is_tradeable() {
+    fn guard_craftable(cls: &Class) {
+        if !Items[Items::first_of(cls)].is_craftable() {
             panic!(format!("Class {:?} cannot be traded to or from.", cls))
         }
     }
@@ -484,7 +473,7 @@ impl Index<&Class> for TradeArea {
             Class::Fish => &self.0,
             Class::Fruit => &self.1,
             Class::Gem => &self.2,
-            _ => { Item::guard_tradeable(index); return &0 }
+            _ => { Item::guard_craftable(index); return &0 }
         }
     }
 }

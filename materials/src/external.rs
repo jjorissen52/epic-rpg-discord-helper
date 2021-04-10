@@ -45,7 +45,7 @@ fn exec_branch(mut recipe: Inventory, mut inv: Inventory, target: &Name, branch:
     match branch {
         // perform any free trades into the current recipe item's class
         Branch::Trade => {
-            if !Items[target].is_tradeable() { return possible_strategies }
+            if !Items[target].is_craftable() { return possible_strategies }
             let mut actions: Vec<Action> = Vec::new();
             let gaining = Items[Items::first_of(&desired_class)].1;
             let tradeable = [&Name::WoodenLog, &Name::NormieFish, &Name::Apple, &Name::Ruby];
