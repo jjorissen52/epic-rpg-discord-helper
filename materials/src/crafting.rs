@@ -2,6 +2,7 @@
 
 use std::cmp::{min, Ordering};
 use std::ops::{Index, IndexMut};
+use core::fmt;
 
 #[derive(Debug, Copy, Clone, Eq, PartialEq, Hash)]
 pub enum Class {
@@ -551,7 +552,7 @@ impl TradeTable {
 
 #[derive(Debug, Copy, Clone, Eq)]
 pub struct Inventory {
-    inventory: [u64; Items::INV_SIZE],
+    pub inventory: [u64; Items::INV_SIZE],
     area: TradeArea,
 }
 
@@ -723,5 +724,15 @@ impl PartialEq for Inventory {
 
     fn ne(&self, other: &Self) -> bool {
         !self.eq(other)
+    }
+}
+
+impl fmt::Display for Inventory {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        let mut out = format!("Inventory{{\n");
+        for (item, qty) in self.non_zero() {
+            out = format!("{}\t{:?}: {},\n", out, item.1, qty)
+        }
+        write!(f, "{}}})", out)
     }
 }
