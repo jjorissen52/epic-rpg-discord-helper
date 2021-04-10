@@ -145,6 +145,17 @@ fn exec_branch(mut recipe: Inventory, mut inv: Inventory, target: &Name, branch:
     possible_strategies
 }
 
+fn clamp<T: PartialOrd>(input: T, min: T, max: T) -> T {
+    debug_assert!(min <= max, "min must be less than or equal to max");
+    if input < min {
+        min
+    } else if input > max {
+        max
+    } else {
+        input
+    }
+}
+
 /// Find a strategy to construct the recipe from the provided inventory.
 ///
 /// A Strategy represents the set of actions required to make the translation
@@ -168,10 +179,16 @@ fn exec_branch(mut recipe: Inventory, mut inv: Inventory, target: &Name, branch:
 /// 3. Perform Upgrades:
 ///     There is no associated cost to the Upgrade action. This is sound as long as
 ///     the result of any Upgrade is actually used in the recipe.
-pub fn find_strategy(recipe: Inventory, inventory: Inventory) -> Option<(Inventory, Strategy)> {
+pub fn find_strategy(mut recipe: Inventory, mut inventory: Inventory) -> Option<(Inventory, Strategy)> {
     if inventory >= recipe {
         //     (remaining recipe, crafting strategy)
         return Some((recipe, Strategy::new(inventory)))
+    }
+    // remove from consideration items we already have
+    for (item, amount) in recipe.non_zero() {
+        let reduction = clamp(inventory[&item.1], 0, amount);
+        recipe[&item.1] -=  reduction;
+        inventory[&item.1] -= reduction;
     }
     let mut strats: Vec<(Inventory, Strategy)> = Vec::new();
     for (item, amount) in recipe.non_zero() {
@@ -187,6 +204,7 @@ pub fn find_strategy(recipe: Inventory, inventory: Inventory) -> Option<(Invento
             }
         }
     }
+
     if let Some((r, successful_strategy)) = strats.iter().filter(|(r, s)| s.inventory >= r.clone()).max() {
        return Some((r.clone(), successful_strategy.clone()))
     }
