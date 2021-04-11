@@ -30,13 +30,39 @@ class TestFuture(TestCase):
 
 
 class TestCanCraft(TestCase):
+    real_inv = crafting.Inventory(
+        **{
+            item: int(qty)
+            for item, qty in {
+                "apple": "171799",
+                "banana": "54",
+                "golden_fish": "17",
+                "wooden_log": "167",
+                "epic_log": "24",
+                "super_log": "15",
+                "wolf_skin": "61",
+                "zombie_eye": "56",
+                "unicorn_horn": "60",
+                "mermaid_hair": "28",
+                "dragon_scale": "3",
+                "common": "16",
+                "uncommon": "5",
+                "rare": "53",
+                "epic": "3",
+                "edgy": "4",
+                "cookie": "14657",
+            }.items()
+        }
+    )
+
     def test_ruby_sword(self):
         inventory = crafting.Inventory(wooden_log=400, super_log=1000)
         self.assertTrue(crafting.can_craft(RUBY_SWORD, inventory))
         inventory = crafting.Inventory(hyper_log=1)
         self.assertTrue(crafting.can_craft(RUBY_SWORD, inventory))
-
         inventory = crafting.Inventory(wooden_log=1000, super_log=1)
+        self.assertFalse(crafting.can_craft(RUBY_SWORD, inventory))
+        inventory = crafting.Inventory(wooden_log=1000, mermaid_hair=5)
         self.assertFalse(crafting.can_craft(RUBY_SWORD, inventory))
 
     def test_edgy_armor(self):
@@ -44,3 +70,6 @@ class TestCanCraft(TestCase):
         self.assertTrue(crafting.can_craft(EDGY_ARMOR, inventory))
         inventory = crafting.Inventory(wolf_skin=65, zombie_eye=52, unicorn_horn=53, mermaid_hair=27)
         self.assertFalse(crafting.can_craft(EDGY_ARMOR, inventory))
+
+    def test_real(self):
+        self.assertTrue(crafting.can_craft(RUBY_SWORD, self.real_inv))

@@ -73,6 +73,7 @@ fn exec_branch(recipe: Inventory, mut inv: Inventory, target: &Name, branch: &Br
             let mut to_try_dismantle: HashMap<Class, Name> = HashMap::new();
             // attempt dismantles for non-zero inventory items
             for (inv_item, _) in inv.non_zero() {
+                if !inv_item.is_craftable() { continue };
                 Item(dismantle_class, dismantle_name, _) = inv_item.clone();
                 if dismantle_class == desired_class && Items::index_of(&desired_name) < Items::index_of(&dismantle_name) {
                     // If it's the same class, try to dismantle from above.
@@ -330,9 +331,19 @@ fn test_can_craft() {
     ]);
     assert!(_can_craft(recipe, inv));
 
-    // upgrade + trade not working
     let inv = Inventory::from_vec(TradeTable::A10, vec![
         (&Name::SuperLog, 100000), (&Name::WoodenLog, 400)
+    ]);
+    assert!(_can_craft(recipe, inv));
+
+    let inv = Inventory::from_vec(TradeTable::A10, vec![
+        (&Name::MermaidHair, 1), (&Name::WoodenLog, 400)
+    ]);
+    assert!(!_can_craft(recipe, inv));
+
+    // takes way too long
+    let inv = Inventory::from_vec(TradeTable::A10, vec![
+        (&Name::Apple, 171_000), (&Name::Banana, 37)
     ]);
     assert!(_can_craft(recipe, inv));
 }
