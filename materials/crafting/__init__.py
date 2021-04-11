@@ -1,4 +1,5 @@
 import materials
+from . import recipes
 from .models import Inventory
 
 

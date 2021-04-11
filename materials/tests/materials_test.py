@@ -1,6 +1,7 @@
 from unittest import TestCase
 
 import crafting
+from crafting.recipes import RUBY_SWORD, EDGY_ARMOR
 
 
 class TestFuture(TestCase):
@@ -30,18 +31,16 @@ class TestFuture(TestCase):
 
 class TestCanCraft(TestCase):
     def test_ruby_sword(self):
-        recipe = crafting.Inventory(wooden_log=400, mega_log=1, ruby=5)
         inventory = crafting.Inventory(wooden_log=400, super_log=1000)
-        self.assertTrue(crafting.can_craft(recipe, inventory))
+        self.assertTrue(crafting.can_craft(RUBY_SWORD, inventory))
         inventory = crafting.Inventory(hyper_log=1)
-        self.assertTrue(crafting.can_craft(recipe, inventory))
+        self.assertTrue(crafting.can_craft(RUBY_SWORD, inventory))
 
         inventory = crafting.Inventory(wooden_log=1000, super_log=1)
-        self.assertFalse(crafting.can_craft(recipe, inventory))
+        self.assertFalse(crafting.can_craft(RUBY_SWORD, inventory))
 
     def test_edgy_armor(self):
-        recipe = crafting.Inventory(wolf_skin=50, zombie_eye=50, unicorn_horn=50, mermaid_hair=35, chip=15)
         inventory = crafting.Inventory(wolf_skin=65, zombie_eye=52, unicorn_horn=53, mermaid_hair=37, chip=15)
-        self.assertTrue(crafting.can_craft(recipe, inventory))
+        self.assertTrue(crafting.can_craft(EDGY_ARMOR, inventory))
         inventory = crafting.Inventory(wolf_skin=65, zombie_eye=52, unicorn_horn=53, mermaid_hair=27)
-        self.assertFalse(crafting.can_craft(recipe, inventory))
+        self.assertFalse(crafting.can_craft(EDGY_ARMOR, inventory))
