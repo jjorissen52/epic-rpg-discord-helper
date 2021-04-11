@@ -7,3 +7,5 @@ recipe_map = {
     "ruby_sword": RUBY_SWORD,
     "edgy_armor": EDGY_ARMOR,
 }
+
+recipe_name_index = {idx: name for idx, name in enumerate(recipe_map)}

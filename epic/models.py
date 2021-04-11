@@ -1,5 +1,5 @@
 import re
-from typing import Optional, Tuple, Union
+from typing import Optional, Tuple, Union, List
 
 import pytz
 import datetime
@@ -12,8 +12,9 @@ from django.db import models, transaction
 from django.core.validators import MaxValueValidator, MinValueValidator
 
 from . import inventory
+from .inventory import parse_inventory
 from .mixins import UpdateAble
-from .utils import tokenize, int_from_token, ErrorMessage, NormalMessage
+from .utils import tokenize, int_from_token, ErrorMessage, NormalMessage, RCDMessage, defaults_from, SuccessMessage
 from .managers import ProfileManager, GamblingStatsManager, HuntManager, GroupActivityManager
 
 
@@ -665,29 +666,53 @@ class Sentinel(models.Model):
 
     @staticmethod
     def act(embed, profile: Profile, caller: str):
+        results = []
         if caller == "inventory":
-            return Sentinel.maybe_logs_message(embed, profile)
+            for trigger in Sentinel.objects.filter(trigger=0, profile__uid=profile.uid, action="logs"):
+                results.extend(trigger.logs_message(embed, profile))
+            for trigger in Sentinel.objects.filter(trigger=0, profile__uid=profile.uid, action="can_craft"):
+                results.extend(trigger.can_craft_message(embed, profile))
+        return results
 
-    @staticmethod
-    def maybe_logs_message(embed, profile: Profile):
-        trigger = Sentinel.objects.filter(trigger=0, profile__uid=profile.uid, action="logs").first()
-        if trigger:
-            future_logs, future_available = inventory.calculate_log_future(
-                trigger.metadata.get("area", 5), *(field.value for field in embed.fields)
+    def logs_message(self, embed, profile: Profile) -> List[RCDMessage]:
+        area, snoop = defaults_from(self.metadata, {"area": 5, "snoop": None})
+        future_logs, future_available = inventory.calculate_log_future(area, *(field.value for field in embed.fields))
+        self.delete()
+        if not future_available:
+            return [ErrorMessage(f"<@!{profile.uid}> Sorry, log futures are broken.")]
+        results = []
+        if snoop:
+            results.append(f"<@!{snoop}> Psssstt... **{profile.last_known_nickname}** opened their inventory!")
+        results.append(
+            NormalMessage(
+                f"<@!{profile.uid}> Hmm... well it seems to me, if you play "
+                f"your cards right, you'll have **{future_logs:,}**  logs "
+                "in area 10!",
+                title=f"Logs (Area {area})",
             )
-            snoop = trigger.metadata.get("snoop", None)
-            trigger.delete()
-            if not future_available:
-                return ErrorMessage(f"<@!{profile.uid}> Sorry, log futures are broken.")
-            results = []
-            if snoop:
-                results.append(f"<@!{snoop}> Psssstt... **{profile.last_known_nickname}** opened their inventory!")
-            results.append(
-                NormalMessage(
-                    f"<@!{profile.uid}> Hmm... well it seems to me, if you play "
-                    f"your cards right, you'll have **{future_logs:,}**  logs "
-                    "in area 10!",
-                    title=f"Logs (Area {trigger.metadata['area']})",
-                )
-            )
-            return results
+        )
+        return results
+
+    def can_craft_message(self, embed, profile: Profile) -> List[RCDMessage]:
+        area, snoop, recipe = defaults_from(self.metadata, {"area": 5, "snoop": None, "recipe": None})
+        # self.delete()
+        if not recipe:
+            return [ErrorMessage(f"<@!{profile.uid}> Sorry, I don't know what the recipe was supposed to be.")]
+        print(1)
+        print(parse_inventory(*(field.value for field in embed.fields)))
+        return []
+        can_craft, future_available = inventory.can_craft(area, recipe, *(field.value for field in embed.fields))
+        print(can_craft)
+        if not future_available:
+            return [ErrorMessage(f"<@!{profile.uid}> Sorry, the craft feature is broken.")]
+        results = []
+        if snoop:
+            results.append(f"<@!{snoop}> Psssstt... **{profile.last_known_nickname}** opened their inventory!")
+        title = f"Craft (Area {area})"
+        message = (
+            SuccessMessage(f"<@!{profile.uid}> Yes, you can craft `{recipe}`!", title=title)
+            if can_craft
+            else NormalMessage(f"<@!{profile.uid}> It looks like you can't craft `{recipe}` yet.", title=title)
+        )
+        results.append(message)
+        return results

@@ -83,3 +83,7 @@ def to_human_readable(delta: datetime.timedelta):
     hours = (total_seconds % (3600 * 24) - minutes - seconds) // 3600
     days = (total_seconds - hours - minutes - seconds) // (3600 * 24)
     return days, hours, minutes, seconds
+
+
+def defaults_from(dict_obj, defaults):
+    return [dict_obj.get(key, defaults[key]) for key in defaults]

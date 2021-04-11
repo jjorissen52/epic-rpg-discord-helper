@@ -1,6 +1,8 @@
 import re
 from typing import Tuple
 
+from epic.crafting.recipes import recipe_map
+
 FUTURE_AVAILABLE = True
 
 try:
@@ -51,11 +53,14 @@ def parse_inventory(*values):
 def calculate_log_future(area: int, *values: Tuple[str]):
     if not FUTURE_AVAILABLE:
         return 0, False
-    return crafting.Inventory(area, **{name: int(qty) for name, qty in parse_inventory(*values).items()}).future()
+    return crafting.Inventory(area, **{name: int(qty) for name, qty in parse_inventory(*values).items()}).future(), True
 
 
-def can_craft(area: int, recipe: int, *values: Tuple[str]):
-    pass
+def can_craft(area: int, recipe: str, *values: Tuple[str]):
+    if not FUTURE_AVAILABLE:
+        return False, False
+    inventory = crafting.Inventory(area, **{name: int(qty) for name, qty in parse_inventory(*values).items()})
+    return crafting.can_craft(recipe_map[recipe], inventory), True
 
 
 if __name__ == "__main__":

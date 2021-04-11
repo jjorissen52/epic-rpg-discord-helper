@@ -11,6 +11,7 @@ from django.forms.models import model_to_dict
 from django.core.exceptions import ValidationError
 
 from epic.cmd.registry import default_registry
+from epic.crafting.recipes import recipe_name_index, recipe_map
 from epic.models import Channel, CoolDown, Profile, Server, JoinCode, Gamble, Hunt, Event, Sentinel
 from epic.utils import tokenize, ErrorMessage, NormalMessage, HelpMessage, SuccessMessage, to_human_readable
 from epic.history.scrape import scrape_channels, scrape_channel
@@ -634,7 +635,7 @@ def logs(client, tokens, message, server, profile, msg, help=None):
         • `rcd logs @kevin` how many logs is Kevin gonna have in area A10?
 
     """
-    if help:
+    if help or not tokens:
         return {"msg": HelpMessage(logs.__doc__)}
 
     full_message, metadata = " ".join(tokens), {"area": 5}
@@ -643,8 +644,8 @@ def logs(client, tokens, message, server, profile, msg, help=None):
         area = int(area_indicator.groups()[0])
         start, end = area_indicator.span()
         tokens, metadata["area"] = tokenize(f"{full_message[0:start]}{full_message[end:]}"), area
-    if metadata["area"] > 10:
-        return {"msg": ErrorMessage("This command is only supported for areas 10 and below.", title="Logs Error")}
+    if not 1 <= metadata["area"] <= 15:
+        return {"msg": ErrorMessage("Only areas 1-15 are valid!", title="Logs Error")}
 
     mentioned_profile = Profile.from_tag(tokens[-1], client, server, message)
     if mentioned_profile:
@@ -666,6 +667,63 @@ def logs(client, tokens, message, server, profile, msg, help=None):
         "msg": NormalMessage(
             "Okay, the next time I see your inventory, I'll say how many logs you should have in Area 10.",
             title=f"Logs ({_area})",
+        )
+    }
+
+
+@register({"craft", "c"})
+def craft(client, tokens, message, server, profile, msg, help=None):
+    """
+    Ask whether you can craft the given recipe!
+    **Note: This feature is not finalized and the usage pattern is subject to change.**
+
+    Usage:
+        • `rcd c|craft [list|<recipe_name>|<recipe_number>] [a{0-15}] `
+    Example:
+        • `rcd craft list` Show the list of available recipes
+        • `rcd c 1 a3` Can I craft the ruby sword given that I'm in A3?
+        • `rcd craft a5 ruby sword` Can I craft the ruby sword now that I'm in A5?
+    """
+    if help or not tokens:
+        return {"msg": HelpMessage(craft.__doc__)}
+
+    full_message, metadata = " ".join(tokens), {"area": 5}
+    area_indicator = re.search(r" [aA](\d{1,2})", full_message)
+    if area_indicator:
+        area = int(area_indicator.groups()[0])
+        start, end = area_indicator.span()
+        tokens, metadata["area"] = tokenize(f"{full_message[0:start]}{full_message[end:]}"), area
+    if not 1 <= metadata["area"] <= 15:
+        return {"msg": ErrorMessage("Only areas 1-15 are valid!", title="Craft Error")}
+    target = re.sub(r"[^\w]+", "_", " ".join(tokens[1:]))
+    if target.isdigit():
+        target = recipe_name_index.get(int(target), "")
+    if target not in recipe_map:
+        return {"msg": ErrorMessage(f"No such recipe `{target}`", title="Craft Error")}
+    metadata["recipe"] = target
+
+    mentioned_profile = Profile.from_tag(tokens[-1], client, server, message)
+    if mentioned_profile:
+        profile, metadata["snoop"] = mentioned_profile, profile.uid
+
+    open_sentinels = list(Sentinel.objects.filter(trigger=0, profile=profile, action="can_craft"))
+    len(open_sentinels) == 0 and Sentinel.objects.create(
+        trigger=0, profile=profile, action="can_craft", metadata=metadata
+    )
+    for sentinel in open_sentinels:
+        sentinel.metadata.get("snoop", -1) == metadata.get("snoop", -1) and sentinel.update(metadata=metadata)
+
+    _area = f'Area {metadata["area"]}'
+    if metadata.get("snoop", None):
+        return {
+            "msg": NormalMessage(
+                "Busybody, eh? Okay, I'll check next time they open their inventory.", title=f"Snoop Craft ({_area})"
+            )
+        }
+    return {
+        "msg": NormalMessage(
+            "Okay, the next time I see your inventory, I'll say whether you can craft this recipe.",
+            title=f"Can Craft ({_area})",
         )
     }
 
