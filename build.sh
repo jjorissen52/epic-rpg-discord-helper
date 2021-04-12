@@ -113,7 +113,10 @@ if [ -n "${push}" ]; then
   if [ -n "${nopush}" ]; then
     >&2 echo -e "${red}Cannot push with no provided tag.${white}" || exit 1
   fi
-  docker push ${first_tag} --all-tags
+  set +e
+  error="$(docker push ${first_tag} --all-tags 2>&1)"
+  if [ $? -ne 0 ]; then
+    >&2 echo -e "${red}encountered error=${error}; pushing with ${first_tag} only.${white}"
+    docker push ${first_tag}
+  fi
 fi
-
-exit 0
