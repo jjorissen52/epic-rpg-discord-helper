@@ -319,6 +319,14 @@ fn test_can_craft_with_upgrades() {
     let recipe = Inventory::from_vec(TradeTable::A1, vec![(&Name::GoldenFish, 10)]);
     let inv = Inventory::from_vec(TradeTable::A1, vec![(&Name::WoodenLog, 25)]);
     assert!(!_can_craft(recipe, inv));
+
+    let recipe = Inventory::from_vec(
+        TradeTable::A10, vec![(&Name::WoodenLog, 1000), (&Name::UltraLog, 1)]
+    );
+    let inv = Inventory::from_vec(
+        TradeTable::A10, vec![(&Name::Apple, 170_000)]
+    );
+    assert!(_can_craft(recipe, inv));
 }
 
 #[test]

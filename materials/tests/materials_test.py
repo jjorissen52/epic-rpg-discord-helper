@@ -1,7 +1,7 @@
 from unittest import TestCase
 
 import crafting
-from crafting.recipes import RUBY_SWORD, EDGY_ARMOR
+from crafting.recipes import RUBY_SWORD, EDGY_ARMOR, EDGY_SWORD
 
 
 class TestFuture(TestCase):
@@ -73,3 +73,4 @@ class TestCanCraft(TestCase):
 
     def test_real(self):
         self.assertTrue(crafting.can_craft(RUBY_SWORD, self.real_inv))
+        self.assertTrue(crafting.can_craft(EDGY_SWORD, self.real_inv))
