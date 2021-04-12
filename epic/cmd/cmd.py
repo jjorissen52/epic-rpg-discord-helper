@@ -11,7 +11,7 @@ from django.forms.models import model_to_dict
 from django.core.exceptions import ValidationError
 
 from epic.cmd.registry import default_registry
-from epic.crafting.recipes import recipe_name_index, recipe_map
+from epic.crafting.recipes import full_index, full_map
 from epic.models import Channel, CoolDown, Profile, Server, JoinCode, Gamble, Hunt, Event, Sentinel
 from epic.utils import tokenize, ErrorMessage, NormalMessage, HelpMessage, SuccessMessage, to_human_readable
 from epic.history.scrape import scrape_channels, scrape_channel
@@ -678,29 +678,54 @@ def craft(client, tokens, message, server, profile, msg, help=None):
     **Note: This feature is not finalized and the usage pattern is subject to change.**
 
     Usage:
-        • `rcd c|craft [list|<recipe_name>|<recipe_number>] [a{0-15}] `
+        • `rcd c|craft [list] [gear|food] [<recipe_name>|<recipe_number>] [a{0-15}] `
     Example:
-        • `rcd craft list` Show the list of available recipes
-        • `rcd c 1 a3` Can I craft the ruby sword given that I'm in A3?
-        • `rcd craft a5 ruby sword` Can I craft the ruby sword now that I'm in A5?
+        • `rcd craft list gear` Show the list of available gear recipes
+        • `rcd c gear 1 a3` Can I craft the wooden sword given that I'm in A3?
+        • `rcd craft a5 gear ruby sword` Can I craft the ruby sword now that I'm in A5?
     """
     if help or not tokens:
         return {"msg": HelpMessage(craft.__doc__)}
 
-    full_message, metadata = " ".join(tokens), {"area": 5}
-    area_indicator = re.search(r" [aA](\d{1,2})", full_message)
+    _original_tokens = [*tokens]
+    tokens = tokens[1:]
+    full_message, target, metadata = " ".join(tokens), "", {"area": 5}
+    area_indicator = re.search(r"[aA](\d{1,2})", full_message)
     if area_indicator:
         area = int(area_indicator.groups()[0])
         start, end = area_indicator.span()
         tokens, metadata["area"] = tokenize(f"{full_message[0:start]}{full_message[end:]}"), area
-    if not 1 <= metadata["area"] <= 15:
-        return {"msg": ErrorMessage("Only areas 1-15 are valid!", title="Craft Error")}
-    target = re.sub(r"[^\w]+", "_", " ".join(tokens[1:]))
-    if target.isdigit():
-        target = recipe_name_index.get(int(target), "")
-    if target not in recipe_map:
+        if not 1 <= metadata["area"] <= 15:
+            return {"msg": ErrorMessage("Only areas 1-15 are valid!", title="Craft Error")}
+        full_message = " ".join(tokens)
+
+    target_indicator = re.search(r"(list)? ?(food|gear)? ?([\w\- ]+|\d{1,2})?", full_message)
+    should_list, recipe_type, target = target_indicator.groups()
+    if not recipe_type:
+        tokens = tokens[1:] if should_list else tokens
+        return {
+            "msg": ErrorMessage(
+                "Incorrect usage; expected a recipe type, got: " f"`{' '.join(tokens)}`", title="Recipe Error"
+            )
+        }
+    elif not should_list and not target:
+        return {"msg": ErrorMessage(f"You must provide a target, e.g.: `craft gear 1`", title="Recipe Error")}
+
+    if should_list:
+        recipe_list = "\n".join(
+            [f"{number + 1:>2} => {name.replace('_', ' '):<15}" for number, name in full_index[recipe_type].items()]
+        )
+        if not recipe_list:
+            return {"msg": ErrorMessage(f"No such recipe type `{recipe_type}`", title="Recipe List Error")}
+        return {"msg": NormalMessage(f"```{recipe_list}```", title="Recipe List")}
+    elif target:
+        target = (
+            full_index[recipe_type].get(int(target) - 1, "") if target.isdigit() else re.sub(r"[^\w]+", "_", target)
+        )
+
+    if target not in full_map[recipe_type]:
         return {"msg": ErrorMessage(f"No such recipe `{target}`", title="Craft Error")}
-    metadata["recipe"] = target
+    metadata.update({"recipe": target, "type": recipe_type})
 
     mentioned_profile = Profile.from_tag(tokens[-1], client, server, message)
     if mentioned_profile:
@@ -722,7 +747,8 @@ def craft(client, tokens, message, server, profile, msg, help=None):
         }
     return {
         "msg": NormalMessage(
-            "Okay, the next time I see your inventory, I'll say whether you can craft this recipe.",
+            "Okay, the next time I see your inventory, "
+            f"I'll say whether you can craft `{target.replace('_', ' ')}`.",
             title=f"Can Craft ({_area})",
         )
     }

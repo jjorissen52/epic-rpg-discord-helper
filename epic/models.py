@@ -694,21 +694,20 @@ class Sentinel(models.Model):
         return results
 
     def can_craft_message(self, embed, profile: Profile) -> List[RCDMessage]:
-        area, snoop, recipe = defaults_from(self.metadata, {"area": 5, "snoop": None, "recipe": None})
-        # self.delete()
-        if not recipe:
+        area, snoop, recipe, _type = defaults_from(
+            self.metadata, {"area": 5, "snoop": None, "recipe": None, "type": None}
+        )
+        self.delete()
+        if not recipe or not _type:
             return [ErrorMessage(f"<@!{profile.uid}> Sorry, I don't know what the recipe was supposed to be.")]
-        print(1)
-        print(parse_inventory(*(field.value for field in embed.fields)))
-        return []
-        can_craft, future_available = inventory.can_craft(area, recipe, *(field.value for field in embed.fields))
-        print(can_craft)
+        can_craft, future_available = inventory.can_craft(area, _type, recipe, *(field.value for field in embed.fields))
         if not future_available:
             return [ErrorMessage(f"<@!{profile.uid}> Sorry, the craft feature is broken.")]
         results = []
         if snoop:
             results.append(f"<@!{snoop}> Psssstt... **{profile.last_known_nickname}** opened their inventory!")
         title = f"Craft (Area {area})"
+        recipe = recipe.replace("_", " ")
         message = (
             SuccessMessage(f"<@!{profile.uid}> Yes, you can craft `{recipe}`!", title=title)
             if can_craft

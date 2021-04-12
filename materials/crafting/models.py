@@ -45,15 +45,18 @@ Items = Enum(item_names)
 class Inventory:
     inventory = None
     area = None
+    level = None
 
-    def __init__(self, area=10, **kwargs):
+    def __init__(self, area=10, level=1, **kwargs):
         self.inventory = [0] * len(item_names)
         for item_name, qty in kwargs.items():
             idx = item_map[getattr(Items, item_name)]
             assert isinstance(qty, int)
             self.inventory[idx] = qty
         assert isinstance(area, int) and 1 <= area <= 15
+        assert isinstance(level, int) and level > 0
         self.area = area
+        self.level = level
 
     def future(self):
         return materials.future(self.area, *self.inventory[:12])
