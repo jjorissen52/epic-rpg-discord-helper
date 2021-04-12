@@ -80,6 +80,8 @@ shift $((OPTIND-1))
   git check-ignore ./epic_reminder/*
   git check-ignore ./epic_reminder/**/*
   git check-ignore ./materials/*
+  git check-ignore ./materials/.*
+  git check-ignore ./materials/**/__pycache__
   git check-ignore ./materials/tests/*
 } > .dockerignore
 
@@ -104,7 +106,7 @@ if [ -z "$quiet" ]; then
 fi
 
 if [ -z "${skip_tests}" ]; then
-  docker run -w=/app/materials epic-reminder python -m unittest discover -p "*test.py"
+  docker run -w=/app/materials ${first_tag} python -m unittest discover -p "*test.py"
 fi
 
 if [ -n "${push}" ]; then
