@@ -73,16 +73,16 @@ shift $((OPTIND-1))
   echo ".*"
   echo build.sh
   echo Dockerfile
-  # calculate whether files should be ignored based on our .gitignore config
+
+  # the below section calculates whether files should be ignored based on our .gitignore config
   git check-ignore ./*
-  git check-ignore ./epic/**/*
-  git check-ignore ./**/management/commands/*
-  git check-ignore ./epic_reminder/*
-  git check-ignore ./epic_reminder/**/*
+  # check anything except the crafting symlink
+  git check-ignore $(find ./epic* -type file)
+  # check based on ignored directories
+  git check-ignore $(find ./epic* -type dir)
   git check-ignore ./materials/*
   git check-ignore ./materials/.*
-  git check-ignore ./materials/**/__pycache__
-  git check-ignore ./materials/tests/*
+  git check-ignore $(find ./materials/* -maxdepth 2 -type dir)
 } > .dockerignore
 
 if [ -z "${first_tag}" ]; then
