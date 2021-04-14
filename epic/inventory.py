@@ -1,7 +1,7 @@
 import re
 from typing import Tuple
 
-from epic.crafting.recipes import full_map
+from epic.crafting import Inventory
 
 FUTURE_AVAILABLE = True
 
@@ -56,11 +56,11 @@ def calculate_log_future(area: int, *values: Tuple[str]):
     return crafting.Inventory(area, **{name: int(qty) for name, qty in parse_inventory(*values).items()}).future(), True
 
 
-def can_craft(area: int, type: str, recipe: str, *values: Tuple[str]):
+def can_craft(area: int, recipe: Inventory, *values: Tuple[str]):
     if not FUTURE_AVAILABLE:
         return False, False
     inventory = crafting.Inventory(area, **{name: int(qty) for name, qty in parse_inventory(*values).items()})
-    return crafting.can_craft(full_map[type][recipe], inventory), True
+    return crafting.can_craft(recipe, inventory), True
 
 
 if __name__ == "__main__":
@@ -72,6 +72,6 @@ if __name__ == "__main__":
         "**SUPER log**: 38\n<:MEGASUPEREPICwoodenlog:545396411316043776> **MEGA log**: 6\n"
         "<:wolfskin:541384010690199552> **wolf skin**: 3\n<:zombieeye:542483215122694166> **zombie eye**: 3"
         "\n<:unicornhorn:545329267425149112> **unicorn horn**: 19"
-        "\n<:dragonscale:619991355317289007> **dragon scale**: 3"
+        "\n<:dragonscale:619991355317289007> **dragon scale**: 3",
     )
     print(calculate_log_future(5, inventory))

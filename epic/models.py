@@ -7,12 +7,12 @@ import datetime
 from decimal import Decimal
 
 from asgiref.sync import sync_to_async
+from epic.crafting import Inventory
 
 from django.db import models, transaction
 from django.core.validators import MaxValueValidator, MinValueValidator
 
 from . import inventory
-from .inventory import parse_inventory
 from .mixins import UpdateAble
 from .utils import tokenize, int_from_token, ErrorMessage, NormalMessage, RCDMessage, defaults_from, SuccessMessage
 from .managers import ProfileManager, GamblingStatsManager, HuntManager, GroupActivityManager
@@ -694,24 +694,26 @@ class Sentinel(models.Model):
         return results
 
     def can_craft_message(self, embed, profile: Profile) -> List[RCDMessage]:
-        area, snoop, recipe, _type = defaults_from(
-            self.metadata, {"area": 5, "snoop": None, "recipe": None, "type": None}
+        area, snoop, recipe, recipe_name = defaults_from(
+            self.metadata, {"area": 5, "snoop": None, "recipe": None, "name": None}
         )
         self.delete()
-        if not recipe or not _type:
+        if not recipe or not recipe_name:
             return [ErrorMessage(f"<@!{profile.uid}> Sorry, I don't know what the recipe was supposed to be.")]
-        can_craft, future_available = inventory.can_craft(area, _type, recipe, *(field.value for field in embed.fields))
+        can_craft, future_available = inventory.can_craft(
+            area, Inventory(**recipe), *(field.value for field in embed.fields)
+        )
         if not future_available:
             return [ErrorMessage(f"<@!{profile.uid}> Sorry, the craft feature is broken.")]
         results = []
         if snoop:
             results.append(f"<@!{snoop}> Psssstt... **{profile.last_known_nickname}** opened their inventory!")
         title = f"Craft (Area {area})"
-        recipe = recipe.replace("_", " ")
+        recipe_name = recipe_name.replace("_", " ")
         message = (
-            SuccessMessage(f"<@!{profile.uid}> Yes, you can craft `{recipe}`!", title=title)
+            SuccessMessage(f"<@!{profile.uid}> Yes, you can craft `{recipe_name}`!", title=title)
             if can_craft
-            else NormalMessage(f"<@!{profile.uid}> It looks like you can't craft `{recipe}` yet.", title=title)
+            else NormalMessage(f"<@!{profile.uid}> It looks like you can't craft `{recipe_name}` yet.", title=title)
         )
         results.append(message)
         return results

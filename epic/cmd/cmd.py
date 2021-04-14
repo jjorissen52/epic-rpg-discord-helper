@@ -725,7 +725,7 @@ def craft(client, tokens, message, server, profile, msg, help=None):
 
     if target not in full_map[recipe_type]:
         return {"msg": ErrorMessage(f"No such recipe `{target}`", title="Craft Error")}
-    metadata.update({"recipe": target, "type": recipe_type})
+    metadata.update({"recipe": full_map[recipe_type][target].to_dict(), "name": target})
 
     mentioned_profile = Profile.from_tag(tokens[-1], client, server, message)
     if mentioned_profile:

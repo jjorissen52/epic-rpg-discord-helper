@@ -5,7 +5,7 @@ class Enum(set):
     def __getattr__(self, name):
         if name in self:
             return name
-        raise AttributeError
+        raise AttributeError(f"{name} is not a member.")
 
 
 item_names = [
@@ -62,4 +62,8 @@ class Inventory:
         return materials.future(self.area, *self.inventory[:12])
 
     def to_dict(self):
-        return {item_names[idx]: qty for idx, qty in enumerate(self.inventory)}
+        return {
+            **{item_names[idx]: qty for idx, qty in enumerate(self.inventory)},
+            "level": self.level,
+            "area": self.area,
+        }
