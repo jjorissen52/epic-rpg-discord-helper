@@ -1,3 +1,5 @@
+from typing import Union
+
 import materials
 
 
@@ -57,6 +59,29 @@ class Inventory:
         assert isinstance(level, int) and level > 0
         self.area = area
         self.level = level
+
+    @classmethod
+    def _get_idx(cls, key: Union[int, str]):
+        return item_map[getattr(Items, key)] if isinstance(key, str) else key
+
+    def __getitem__(self, item: Union[int, str]) -> int:
+        return self.inventory[self._get_idx(item)]
+
+    def __setitem__(self, key: Union[int, str], value: int):
+        self.inventory[self._get_idx(key)] = value
+
+    def __add__(self, other: "Inventory"):
+        new = Inventory(area=self.area)
+        for idx in range(len(self.inventory)):
+            new[idx] = self.inventory[idx] + other.inventory[idx]
+        return new
+
+    def __mul__(self, other: int):
+        assert other >= 0, "Can only multiply by 0+"
+        new = Inventory(area=self.area)
+        for _ in range(other):
+            new = new + self
+        return new
 
     def future(self):
         return materials.future(self.area, *self.inventory[:12])

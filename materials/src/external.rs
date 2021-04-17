@@ -219,14 +219,52 @@ fn _can_craft(recipe: Inventory, inventory: Inventory) -> bool {
 }
 
 pub fn can_craft(
-    recipe: [u64; 26],
-    inventory: [u64; 26],
+    recipe: [u64; Items::INV_SIZE],
+    inventory: [u64; Items::INV_SIZE],
     area: usize,
 ) -> bool {
     _can_craft(
         Inventory::from_array(TradeTable::from_usize(area).unwrap(), recipe),
         Inventory::from_array(TradeTable::from_usize(area).unwrap(), inventory)
     )
+}
+
+fn _how_many(
+    recipe: Inventory,
+    inventory: Inventory,
+) -> usize {
+    fn factor() -> usize { 2 };
+    fn find_upper_bound(
+        recipe: Inventory,
+        inventory: Inventory,
+        current: usize,
+    ) -> usize {
+        return if _can_craft(recipe, inventory) {
+            find_upper_bound(recipe * factor(), inventory, current * factor())
+        } else {
+            current
+        }
+    }
+    fn midpoint(a: usize, b: usize) -> usize { (b - a) / 2 + a }
+    let (mut a, mut b) = (0, find_upper_bound(recipe * factor(), inventory, factor()));
+    while b - a > 1 {
+        let midpoint = midpoint(a, b);
+        if _can_craft(recipe * midpoint, inventory) { a = midpoint } else { b = midpoint }
+    }
+    return if _can_craft(recipe * a, inventory) { a } else { b }
+}
+
+pub fn how_many(
+    recipe: [u64; Items::INV_SIZE],
+    inventory: [u64; Items::INV_SIZE],
+    area: usize,
+) -> (usize, [u64; Items::INV_SIZE]) {
+    let recipe = Inventory::from_array(TradeTable::from_usize(area).unwrap(), recipe);
+    let result = _how_many(
+        recipe,
+        Inventory::from_array(TradeTable::from_usize(area).unwrap(), inventory),
+    );
+    return (result, (recipe * result).inventory)
 }
 
 #[test]
@@ -361,4 +399,14 @@ fn test_can_craft_only() {
     ]);
     // assert!(_can_craft(recipe, inv));
     dbg!(find_strategy(recipe, inv, None, 0).unwrap().1.inventory.log_value());
+}
+
+#[test]
+fn test_how_many() {
+    // apple=25, banana=6
+    let recipe = Inventory::from_vec(
+        TradeTable::A10, vec![(&Name::Apple, 25), (&Name::Banana, 6)]
+    );
+    let inv = Inventory::from_vec(TradeTable::A10, vec![(&Name::Apple, 100_000)]);
+    assert_eq!(_how_many(recipe, inv), 869)
 }

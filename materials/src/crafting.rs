@@ -1,7 +1,7 @@
 #![allow(dead_code)]
 
 use std::cmp::{min, Ordering};
-use std::ops::{Index, IndexMut};
+use std::ops::{Index, IndexMut, Mul, Add};
 use core::fmt;
 
 #[derive(Debug, Copy, Clone, Eq, PartialEq, Hash)]
@@ -728,6 +728,33 @@ impl PartialEq for Inventory {
 
     fn ne(&self, other: &Self) -> bool {
         !self.eq(other)
+    }
+}
+
+impl Add for Inventory {
+    type Output = Inventory;
+
+    fn add(self, rhs: Self) -> Self::Output {
+        let mut inv = self.clone();
+        for (idx, amount) in rhs.inventory.into_iter().enumerate() {
+            inv[idx] += amount;
+        }
+        inv
+    }
+}
+
+impl Mul<usize> for Inventory {
+    type Output = Inventory;
+
+    fn mul(self, rhs: usize) -> Self::Output {
+        let mut inv = self.clone();
+        if rhs == 0 {
+            return Inventory::new(self.get_area());
+        }
+        for _ in 0..(rhs - 1) {
+            inv = inv + self.clone();
+        }
+        inv
     }
 }
 

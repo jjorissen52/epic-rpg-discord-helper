@@ -1,7 +1,7 @@
 from unittest import TestCase
 
 import crafting
-from crafting.recipes import RUBY_SWORD, EDGY_ARMOR, EDGY_SWORD
+from crafting.recipes import RUBY_SWORD, EDGY_ARMOR, EDGY_SWORD, FRUIT_SALAD
 
 
 class TestFuture(TestCase):
@@ -74,3 +74,12 @@ class TestCanCraft(TestCase):
     def test_real(self):
         self.assertTrue(crafting.can_craft(RUBY_SWORD, self.real_inv))
         self.assertTrue(crafting.can_craft(EDGY_SWORD, self.real_inv))
+
+
+class TestHowMany(TestCase):
+    def test_how_many_fruit_salad(self):
+        expected = 869
+        inv = crafting.Inventory(area=10, apple=100_000)
+        how_many, total_recipe = crafting.how_many(FRUIT_SALAD, inv)
+        self.assertEqual(how_many, expected)
+        self.assertEqual((FRUIT_SALAD * expected).inventory, total_recipe)

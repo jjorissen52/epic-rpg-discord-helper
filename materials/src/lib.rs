@@ -31,17 +31,27 @@ pub fn future(
 
 #[pyfunction]
 pub fn can_craft(
-    recipe: [u64; 26],
-    inventory: [u64; 26],
+    recipe: [u64; crafting::Items::INV_SIZE],
+    inventory: [u64; crafting::Items::INV_SIZE],
     area: usize,
 ) -> bool {
    external::can_craft(recipe, inventory, area)
+}
+
+#[pyfunction]
+pub fn how_many(
+    recipe: [u64; crafting::Items::INV_SIZE],
+    inventory: [u64; crafting::Items::INV_SIZE],
+    area: usize,
+) -> (usize, [u64; crafting::Items::INV_SIZE]) {
+    external::how_many(recipe, inventory, area)
 }
 
 #[pymodule]
 fn materials(py: Python, m: &PyModule) -> PyResult<()> {
     m.add_function(wrap_pyfunction!(future, m)?).unwrap();
     m.add_function(wrap_pyfunction!(can_craft, m)?).unwrap();
+    m.add_function(wrap_pyfunction!(how_many, m)?).unwrap();
     m.add("INVENTORY_SIZE", crafting::Items::INV_SIZE);
     Ok(())
 }

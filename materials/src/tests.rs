@@ -99,6 +99,15 @@ fn test_migrate_all() {
 
 
 #[test]
+fn test_multiplication() {
+    let logs = 2500;
+    let inv = Inventory::from_vec(TradeTable::A1, vec![(&Name::WoodenLog, logs)]);
+    assert_eq!((inv * 0)[&Name::WoodenLog], logs * 0);
+    assert_eq!((inv * 1)[&Name::WoodenLog], logs * 1);
+    assert_eq!((inv * 3)[&Name::WoodenLog], logs * 3);
+}
+
+#[test]
 fn test_upgrade() {
     let (maybe_epic_log, result, remainder) = Items[&Name::WoodenLog].upgrade(53);
     let epic_log = Items[&Name::EpicLog];
