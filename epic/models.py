@@ -672,6 +672,8 @@ class Sentinel(models.Model):
                 results.extend(trigger.logs_message(embed, profile))
             for trigger in Sentinel.objects.filter(trigger=0, profile__uid=profile.uid, action="can_craft"):
                 results.extend(trigger.can_craft_message(embed, profile))
+            for trigger in Sentinel.objects.filter(trigger=0, profile__uid=profile.uid, action="how_many"):
+                results.extend(trigger.how_many_message(embed, profile))
         return results
 
     def logs_message(self, embed, profile: Profile) -> List[RCDMessage]:
@@ -714,6 +716,29 @@ class Sentinel(models.Model):
             SuccessMessage(f"<@!{profile.uid}> Yes, you can craft `{recipe_name}`!", title=title)
             if can_craft
             else NormalMessage(f"<@!{profile.uid}> It looks like you can't craft `{recipe_name}` yet.", title=title)
+        )
+        results.append(message)
+        return results
+
+    def how_many_message(self, embed, profile: Profile) -> List[RCDMessage]:
+        area, snoop, recipe, recipe_name = defaults_from(
+            self.metadata, {"area": 5, "snoop": None, "recipe": None, "name": None}
+        )
+        self.delete()
+        if not recipe or not recipe_name:
+            return [ErrorMessage(f"<@!{profile.uid}> Sorry, I don't know what the recipe was supposed to be.")]
+        how_many, total_recipe = inventory.how_many(area, Inventory(**recipe), *(field.value for field in embed.fields))
+        if not total_recipe:
+            return [ErrorMessage(f"<@!{profile.uid}> Sorry, the howmany feature is broken.")]
+        _total_recipe = Inventory()
+        _total_recipe.inventory = total_recipe
+        results, title, recipe_name = [], f"How Many (Area {area})", recipe_name.replace("_", " ")
+        if snoop:
+            results.append(f"<@!{snoop}> Psssstt... **{profile.last_known_nickname}** opened their inventory!\n")
+        message = SuccessMessage(
+            f"<@!{profile.uid}> You can craft {how_many} of `{recipe_name}`!",
+            fields=[("Full Recipe", str(_total_recipe))],
+            title=title,
         )
         results.append(message)
         return results

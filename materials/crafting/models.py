@@ -7,7 +7,7 @@ class Enum(set):
     def __getattr__(self, name):
         if name in self:
             return name
-        raise AttributeError(f"{name} is not a member.")
+        raise AttributeError(name)
 
 
 item_names = [
@@ -92,3 +92,14 @@ class Inventory:
             "level": self.level,
             "area": self.area,
         }
+
+    def __str__(self):
+        string = "\n"
+        non_zero = {item: self[item] for item in item_names if self[item]}
+        if not non_zero:
+            return ""
+        max_name_length = max(map(len, non_zero))
+        for item, qty in non_zero.items():
+            string = f"{string}{item:>{max_name_length}}: {qty}\n"
+
+        return f"```{string}```"

@@ -11,6 +11,7 @@ from django.forms.models import model_to_dict
 from django.core.exceptions import ValidationError
 
 from epic.cmd.registry import default_registry
+from epic.crafting import Inventory, Items
 from epic.crafting.recipes import full_index, full_map
 from epic.models import Channel, CoolDown, Profile, Server, JoinCode, Gamble, Hunt, Event, Sentinel
 from epic.utils import tokenize, ErrorMessage, NormalMessage, HelpMessage, SuccessMessage, to_human_readable
@@ -745,6 +746,84 @@ def craft(client, tokens, message, server, profile, msg, help=None):
         "msg": NormalMessage(
             "Okay, the next time I see your inventory, "
             f"I'll say whether you can craft `{target.replace('_', ' ')}`.",
+            title=f"Can Craft ({_area})",
+        )
+    }
+
+
+@register({"howmany", "hm"})
+def how_many(client, tokens, message, server, profile, msg, help=None):
+    """
+    Ask how many of the given recipe you can craft.
+    Usage:
+        • `rcd hm|howmany [<recipe_name>|<recipe_number>|<itemized recipe>] [a{0-15}] `
+    Example:
+        • `rcd howmany fruit salad` How many fruit salads can I craft given that I'm in A5?
+        • `rcd hm fruit salad a10` How many fruit salads can I craft given that I'm in A10?
+        • `rcd hm apple=1 banana=1` How many times can I craft this custom recipe?
+        • `rcd hm apple` How many apples can I craft?
+    """
+    if help or not tokens:
+        return {"msg": HelpMessage(how_many.__doc__)}
+
+    _original_tokens = [*tokens]
+    tokens = tokens[1:]
+    full_message, target, metadata = " ".join(tokens), "", {"area": 5}
+    area_indicator = re.search(r"[aA](\d{1,2})", full_message)
+    if area_indicator:
+        area = int(area_indicator.groups()[0])
+        start, end = area_indicator.span()
+        tokens, metadata["area"] = tokenize(f"{full_message[0:start]}{full_message[end:]}"), area
+        if not 1 <= metadata["area"] <= 15:
+            return {"msg": ErrorMessage("Only areas 1-15 are valid!", title="How Many Error")}
+        full_message = " ".join(tokens)
+    target_indicator, recipe_name = re.search(r"^\s*([\w\- ]+|\d{1,2})\s*$", full_message), "custom"
+    if target_indicator:
+        target = target_indicator.groups()[0]
+        target = full_index.get(int(target) - 1, "") if target.isdigit() else re.sub(r"[^\w]+", "_", target)
+        if target not in full_map:
+            if target not in Items:
+                return {"msg": ErrorMessage(f"No such recipe `{target}`", title="How Many Error")}
+            # implicitly they have indicated that they want to know how many of an item they can have
+            recipe = Inventory(**{target: 1})
+        else:
+            recipe = full_map[target]
+        recipe_name = target
+    else:
+        items_list = re.findall(r"([\w\- ]+)=([1-9]+\d*)", full_message)
+        try:
+            recipe = Inventory(**{re.sub(r"[^\w]+", "_", item.strip()): int(qty) for item, qty in items_list})
+        except AttributeError as e:
+            return {
+                "msg": ErrorMessage(
+                    f"`{e.args[0]}` is not a valid item name. " f"Please remove any pluralization and try again.",
+                    title="How Many Error",
+                )
+            }
+    metadata.update({"recipe": recipe.to_dict(), "name": recipe_name})
+
+    mentioned_profile = Profile.from_tag(tokens[-1], client, server, message)
+    if mentioned_profile:
+        profile, metadata["snoop"] = mentioned_profile, profile.uid
+
+    open_sentinels = list(Sentinel.objects.filter(trigger=0, profile=profile, action="how_many"))
+    len(open_sentinels) == 0 and Sentinel.objects.create(
+        trigger=0, profile=profile, action="how_many", metadata=metadata
+    )
+    for sentinel in open_sentinels:
+        sentinel.metadata.get("snoop", -1) == metadata.get("snoop", -1) and sentinel.update(metadata=metadata)
+
+    _area = f'Area {metadata["area"]}'
+    if metadata.get("snoop", None):
+        return {
+            "msg": NormalMessage(
+                "Busybody, eh? Okay, I'll check next time they open their inventory.", title=f"Snoop How Many ({_area})"
+            )
+        }
+    return {
+        "msg": NormalMessage(
+            "Okay, the next time I see your inventory, "
+            f"I'll say how many of `{recipe_name}` you can craft.\n\n{recipe}",
             title=f"Can Craft ({_area})",
         )
     }

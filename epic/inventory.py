@@ -59,8 +59,20 @@ def calculate_log_future(area: int, *values: Tuple[str]):
 def can_craft(area: int, recipe: Inventory, *values: Tuple[str]):
     if not FUTURE_AVAILABLE:
         return False, False
-    inventory = crafting.Inventory(area, **{name: int(qty) for name, qty in parse_inventory(*values).items()})
-    return crafting.can_craft(recipe, inventory), True
+    return (
+        crafting.can_craft(
+            recipe, crafting.Inventory(area, **{name: int(qty) for name, qty in parse_inventory(*values).items()})
+        ),
+        True,
+    )
+
+
+def how_many(area: int, recipe: Inventory, *values: Tuple[str]):
+    if not FUTURE_AVAILABLE:
+        return 0, None
+    return crafting.how_many(
+        recipe, crafting.Inventory(area, **{name: int(qty) for name, qty in parse_inventory(*values).items()})
+    )
 
 
 if __name__ == "__main__":

@@ -2,7 +2,7 @@ from typing import Tuple, List
 
 import materials
 from . import recipes
-from .models import Inventory
+from .models import Inventory, Items
 
 
 def can_craft(recipe: Inventory, inventory: Inventory) -> bool:
