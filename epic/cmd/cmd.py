@@ -767,8 +767,13 @@ def how_many(client, tokens, message, server, profile, msg, help=None):
         return {"msg": HelpMessage(how_many.__doc__)}
 
     _original_tokens = [*tokens]
-    tokens = tokens[1:]
-    full_message, target, metadata = " ".join(tokens), "", {"area": 5}
+    target, metadata, tokens = "", {"area": 5}, tokens[1:]
+    mentioned_profile = Profile.from_tag(tokens[-1], client, server, message)
+    if mentioned_profile:
+        profile, metadata["snoop"] = mentioned_profile, profile.uid
+        tokens = tokens[:-1]
+    full_message = " ".join(tokens)
+
     area_indicator = re.search(r"[aA](\d{1,2})", full_message)
     if area_indicator:
         area = int(area_indicator.groups()[0])
