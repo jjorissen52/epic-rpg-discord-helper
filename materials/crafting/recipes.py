@@ -84,14 +84,18 @@ food_recipe_map = {
 }
 
 gear_name_index = {idx: name for idx, name in enumerate(gear_recipe_map)}
-food_name_index = {idx: name for idx, name in enumerate(food_recipe_map)}
+food_name_index = {idx + len(gear_recipe_map): name for idx, name in enumerate(food_recipe_map)}
 
 full_index = {
+    **food_name_index,
+    **gear_name_index,
     "food": food_name_index,
     "gear": gear_name_index,
 }
 
 full_map = {
+    **food_recipe_map,
+    **gear_recipe_map,
     "food": food_recipe_map,
     "gear": gear_recipe_map,
 }

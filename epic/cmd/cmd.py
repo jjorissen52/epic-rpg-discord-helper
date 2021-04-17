@@ -678,11 +678,11 @@ def craft(client, tokens, message, server, profile, msg, help=None):
     **Note: This feature is not finalized and the usage pattern is subject to change.**
 
     Usage:
-        • `rcd c|craft [list] [gear|food] [<recipe_name>|<recipe_number>] [a{0-15}] `
+        • `rcd c|craft [list gear|food] [<recipe_name>|<recipe_number>] [a{0-15}] `
     Example:
         • `rcd craft list gear` Show the list of available gear recipes
-        • `rcd c gear 1 a3` Can I craft the wooden sword given that I'm in A3?
-        • `rcd craft a5 gear ruby sword` Can I craft the ruby sword now that I'm in A5?
+        • `rcd c 1 a3` Can I craft the wooden sword given that I'm in A3?
+        • `rcd craft a5 ruby sword` Can I craft the ruby sword now that I'm in A5?
     """
     if help or not tokens:
         return {"msg": HelpMessage(craft.__doc__)}
@@ -701,7 +701,7 @@ def craft(client, tokens, message, server, profile, msg, help=None):
 
     target_indicator = re.search(r"(list)? ?(food|gear)? ?([\w\- ]+|\d{1,2})?", full_message)
     should_list, recipe_type, target = target_indicator.groups()
-    if not recipe_type:
+    if should_list and not recipe_type:
         tokens = tokens[1:] if should_list else tokens
         return {
             "msg": ErrorMessage(
@@ -709,23 +709,19 @@ def craft(client, tokens, message, server, profile, msg, help=None):
             )
         }
     elif not should_list and not target:
-        return {"msg": ErrorMessage(f"You must provide a target, e.g.: `craft gear 1`", title="Recipe Error")}
+        return {"msg": ErrorMessage(f"You must provide a target, e.g.: `craft 1`", title="Recipe Error")}
 
     if should_list:
         recipe_list = "\n".join(
             [f"{number + 1:>2} => {name.replace('_', ' '):<15}" for number, name in full_index[recipe_type].items()]
         )
-        if not recipe_list:
-            return {"msg": ErrorMessage(f"No such recipe type `{recipe_type}`", title="Recipe List Error")}
         return {"msg": NormalMessage(f"```{recipe_list}```", title="Recipe List")}
     elif target:
-        target = (
-            full_index[recipe_type].get(int(target) - 1, "") if target.isdigit() else re.sub(r"[^\w]+", "_", target)
-        )
+        target = full_index.get(int(target) - 1, "") if target.isdigit() else re.sub(r"[^\w]+", "_", target)
 
-    if target not in full_map[recipe_type]:
+    if target not in full_map:
         return {"msg": ErrorMessage(f"No such recipe `{target}`", title="Craft Error")}
-    metadata.update({"recipe": full_map[recipe_type][target].to_dict(), "name": target})
+    metadata.update({"recipe": full_map[target].to_dict(), "name": target})
 
     mentioned_profile = Profile.from_tag(tokens[-1], client, server, message)
     if mentioned_profile:
