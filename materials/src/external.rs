@@ -221,10 +221,11 @@ fn _can_craft(recipe: Inventory, inventory: Inventory) -> bool {
 pub fn can_craft(
     recipe: [u64; 26],
     inventory: [u64; 26],
+    area: usize,
 ) -> bool {
     _can_craft(
-        Inventory::from_array(TradeTable::A10, recipe),
-        Inventory::from_array(TradeTable::A10, inventory)
+        Inventory::from_array(TradeTable::from_usize(area).unwrap(), recipe),
+        Inventory::from_array(TradeTable::from_usize(area).unwrap(), inventory)
     )
 }
 

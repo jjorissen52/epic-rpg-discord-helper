@@ -33,8 +33,9 @@ pub fn future(
 pub fn can_craft(
     recipe: [u64; 26],
     inventory: [u64; 26],
+    area: usize,
 ) -> bool {
-   external::can_craft(recipe, inventory)
+   external::can_craft(recipe, inventory, area)
 }
 
 #[pymodule]
