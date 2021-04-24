@@ -457,15 +457,21 @@ class Hunt(UpdateAble, models.Model):
         name = self.profile.last_known_nickname if self.profile else "Anonymous"
         return f"{name} killed a {self.target}"
 
+    REGEXES = {
+        "target": re.compile(r"\*\*(?P<name>[^\*]+)\*\* found (?:and killed )?an? [^\*]+\*\*(?P<target>[^\*]+)\*\*"),
+        "target2": re.compile(r"while \*\*([^\*]+)\*\* found a <[^\>]+> \*\*([^\*]+)\*\*"),
+        "earnings": re.compile(r"Earned ([0-9,]+) coins and ([0-9,]+) XP"),
+        "earnings2": re.compile(r"\*\*([^\*]+)\*\* earned ([0-9\,]+) coins and ([0-9\,]+) XP"),
+        "earnings3": re.compile(r"while \*\*([^\*]+)\*\* earned ([0-9\,]+) coins and ([0-9\,]+) XP"),
+        "loot": re.compile(r"\*\*([^\*]+)\*\* got an? \*?\*?\s*<[^>]+>\s*?([\w ]+)\s*(?:<[^\>]+>)?\s*\*?\*?"),
+        "loot2": re.compile(r"\*\*([^\*]+)\*\* got an? \s*?([\w ]+)\s*(?:<[^\>]+>)?\s*\*?\*?\*?\*?\s*<[^>]+>"),
+    }
+
     @staticmethod
     def hunt_result_from_message(message):
-        target_regex = re.compile(r"\*\*(?P<name>[^\*]+)\*\* found and killed an? [^\*]+\*\*(?P<target>[^\*]+)\*\*")
-        earnings_regex = re.compile(r"Earned ([0-9,]+) coins and ([0-9,]+) XP")
-        loot_regex1 = re.compile(r"\*\*([^\*]+)\*\* got an? \*?\*?\s*<[^>]+>\s*?([\w ]+)\s*(?:<[^\>]+>)?\s*\*?\*?")
-        loot_regex2 = re.compile(r"\*\*([^\*]+)\*\* got an? \s*?([\w ]+)\s*(?:<[^\>]+>)?\s*\*?\*?\*?\*?\s*<[^>]+>")
-        target_match = target_regex.search(message.content)
-        earnings_match = earnings_regex.search(message.content)
-        loot_match = loot_regex1.search(message.content) or loot_regex2.search(message.content)
+        target_match = Hunt.REGEXES["target"].search(message.content)
+        earnings_match = Hunt.REGEXES["earnings"].search(message.content)
+        loot_match = Hunt.REGEXES["loot"].search(message.content) or Hunt.REGEXES["loot2"].search(message.content)
         if target_match and earnings_match:
             name, target = target_match.group(1), target_match.group(2)
             money, xp = earnings_match.group(1).replace(",", ""), earnings_match.group(2).replace(",", "")
@@ -477,20 +483,17 @@ class Hunt(UpdateAble, models.Model):
 
     @staticmethod
     def hunt_together_from_message(message):
-        target_regex = re.compile(
-            r"\*\*([^\*]+)\*\* found a <[^>]+> \*\*([^\*]+)\*\*, while \*\*([^\*]+)\*\* found a <[^\>]+> \*\*([^\*]+)\*\*"
+        target_match, target2_match = Hunt.REGEXES["target"].search(message.content), Hunt.REGEXES["target2"].search(
+            message.content
         )
-        earnings_regex = re.compile(
-            r"\*\*([^\*]+)\*\* earned ([0-9\,]+) coins and ([0-9\,]+) XP, while \*\*([^\*]+)\*\* earned ([0-9\,]+) coins and ([0-9\,]+) XP"
+        earnings_match, earnings_match2 = (
+            Hunt.REGEXES["earnings2"].search(message.content),
+            Hunt.REGEXES["earnings3"].search(message.content),
         )
-        loot_regex1 = re.compile(r"\*\*([^\*]+)\*\* got an? \*?\*?\s*<[^>]+>\s*?([\w ]+)\s*(?:<[^\>]+>)?\s*\*?\*?")
-        loot_regex2 = re.compile(r"\*\*([^\*]+)\*\* got an? \s*?([\w ]+)\s*(?:<[^\>]+>)?\s*\*?\*?\*?\*?\s*<[^>]+>")
-        target_match = target_regex.search(message.content)
-        earnings_match = earnings_regex.search(message.content)
-        loot_match = loot_regex1.search(message.content) or loot_regex2.search(message.content)
-        if target_match and earnings_match:
-            name1, target1, name2, target2 = target_match.groups()
-            name1, coins1, xp1, name2, coins2, xp2 = earnings_match.groups()
+        loot_match = Hunt.REGEXES["loot"].search(message.content) or Hunt.REGEXES["loot2"].search(message.content)
+        if all([target_match, target2_match, earnings_match, earnings_match2]):
+            name1, target1, name2, target2 = [*target_match.groups(), *target2_match.groups()]
+            name1, coins1, xp1, name2, coins2, xp2 = [*earnings_match.groups(), *earnings_match2.groups()]
             coins1, xp1, coins2, xp2 = [item.replace(",", "") for item in (coins1, xp1, coins2, xp2)]
             loot1, loot2 = "", ""
             if loot_match:
