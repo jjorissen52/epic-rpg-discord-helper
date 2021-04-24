@@ -217,7 +217,7 @@ class Client(discord.Client):
         await set_guild_membership(guild_id_map)
 
 
-if __name__ == "__main__":
+def main():
     from django.conf import settings
 
     intents = discord.Intents.default()
@@ -249,3 +249,7 @@ if __name__ == "__main__":
 
     bot.loop.create_task(notify())
     bot.run(settings.DISCORD_TOKEN)
+
+
+if __name__ == "__main__":
+    main()
