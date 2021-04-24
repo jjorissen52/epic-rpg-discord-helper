@@ -6,9 +6,9 @@ import logging
 from asgiref.sync import sync_to_async
 
 # imported for side effects which setup django apps
-from epic import inventory
 from epic_reminder import wsgi  # noqa
-from epic.models import CoolDown, Profile, Server, Gamble, Hunt, GroupActivity, Sentinel
+
+from epic.models import CoolDown, Profile, Gamble, Hunt, GroupActivity, Sentinel
 from epic.query import (
     get_instance,
     update_instance,
@@ -21,7 +21,7 @@ from epic.query import (
     update_hunt_results,
 )
 from epic.utils import tokenize, RCDMessage
-from epic.cmd import handle_rcd_command
+from epic.handlers.rcd import RCDHandler
 
 logger = logging.getLogger(__name__)
 
@@ -123,32 +123,11 @@ class Client(discord.Client):
         print("Logged on as {0}!".format(self.user))
 
     async def on_message(self, message):
-        if message.author == self.user:
-            return
-
-        server = await get_instance(Server, id=message.channel.guild.id)
-        if server and not server.active:
-            return
-
-        content = message.content[:150].lower()
-
-        if content.startswith("rcd") or content.startswith("rrd"):
-            if content.startswith("rcd"):
-                tokens = tokenize(message.content[3:])
-            else:
-                tokens = ["rd", *tokenize(message.content[3:])]
-            msg, coro = await handle_rcd_command(self, tokens, message, server, None, None)
-            embed = msg.to_embed()
-            await message.channel.send(embed=embed)
-            if coro:
-                coroutine_func, args = coro
-                completed_message = await coroutine_func(*args)
-                if isinstance(completed_message, RCDMessage):
-                    await message.channel.send(embed=completed_message.to_embed())
-                elif isinstance(completed_message, str):
-                    await message.channel.send(completed_message)
-                else:
-                    print(f"expected a string or RCDMessage, got {completed_message}")
+        handler = RCDHandler(self, message)
+        messages, (sync_function, *args) = await sync_to_async(handler.handle)()
+        await handler.send_messages(messages)
+        await handler.perform_coroutine(sync_function, *args)
+        server, content = await handler.aget_server(), handler.content
 
         if not server:
             return
