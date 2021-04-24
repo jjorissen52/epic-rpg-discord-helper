@@ -737,8 +737,8 @@ class Sentinel(models.Model):
             results.append(f"<@!{snoop}> Psssstt... **{profile.last_known_nickname}** opened their inventory!\n")
         message = SuccessMessage(
             f"<@!{profile.uid}> You can craft {how_many} of `{recipe_name}`!",
-            fields=[("Full Recipe", str(_total_recipe))],
             title=title,
+            **({"fields": [("Full Recipe", str(_total_recipe))]} if how_many else {}),
         )
         results.append(message)
         return results
