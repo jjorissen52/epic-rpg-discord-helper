@@ -20,8 +20,8 @@ from epic.query import (
     set_guild_membership,
     update_hunt_results,
 )
-from epic.utils import tokenize, RCDMessage
-from epic.handlers.rcd import RCDHandler
+from epic.utils import RCDMessage
+from epic.handlers import rcd, rpg
 
 logger = logging.getLogger(__name__)
 
@@ -123,11 +123,14 @@ class Client(discord.Client):
         print("Logged on as {0}!".format(self.user))
 
     async def on_message(self, message):
-        handler = RCDHandler(self, message)
+        handler = rcd.RCDHandler(self, message)
         messages, (sync_function, *args) = await sync_to_async(handler.handle)()
         await handler.send_messages(messages)
         await handler.perform_coroutine(sync_function, *args)
         server, content = await handler.aget_server(), handler.content
+
+        handler = rpg.CoolDownHandler(self, message, server)
+        await sync_to_async(handler.handle)()
 
         if not server:
             return
@@ -135,42 +138,6 @@ class Client(discord.Client):
         # we want to pull the results of Epic RPG's cooldown message
         if str(message.author) == "EPIC RPG#4117":
             return await process_rpg_messages(self, server, message)
-
-        if content.startswith("rpg"):
-            cooldown_type, default_duration = await sync_to_async(CoolDown.default_cmd_cd)(message.content[3:])
-            if not cooldown_type:
-                return
-            profile, _ = await get_instance(
-                Profile,
-                uid=message.author.id,
-                defaults={
-                    "last_known_nickname": message.author.name,
-                    "server": server,
-                    "channel": message.channel.id,
-                },
-            )
-            if profile.server_id != server.id or profile.channel != message.channel.id:
-                profile = await update_instance(profile, server_id=server.id, channel=message.channel.id)
-            if cooldown_type == "guild":
-                return await set_guild_cd(profile)
-            elif cooldown_type in {"hunt", "adventure"}:
-                _, _ = await sync_to_async(Hunt.initiated_hunt)(profile.uid, content)
-            elif cooldown_type in GroupActivity.ACTIVITY_SET:
-                tokens = tokenize(message.content[3:])
-                # when a group activity is actually a solo activity...
-                if tuple(tokens[:2]) not in {("big", "arena"), ("horse", "breeding"), ("not", "so")}:
-                    # need to know the difference between dungeon and miniboss here
-                    cooldown_type = "miniboss" if tokens[0] == "miniboss" else cooldown_type
-                    return await sync_to_async(GroupActivity.create_from_tokens)(
-                        cooldown_type, self, profile, server, message
-                    )
-            await upsert_cooldowns(
-                [
-                    CoolDown(profile=profile, type=cooldown_type).calculate_cd(
-                        profile=profile, duration=default_duration, type=cooldown_type
-                    )
-                ]
-            )
 
     async def on_message_edit(self, before, after):
         guild_name_regex = re.compile(r"\*\*(?P<guild_name>[^\*]+)\*\* members")

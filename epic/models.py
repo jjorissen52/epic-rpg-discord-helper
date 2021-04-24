@@ -48,6 +48,17 @@ class Guild(UpdateAble, models.Model):
         "epic.Profile", null=True, blank=True, on_delete=models.SET_NULL, related_name="has_raid_dibbs_for"
     )
 
+    @staticmethod
+    def set_cooldown_for(profile, after=None):
+        if not profile.player_guild:
+            return
+        now = datetime.datetime.now(tz=datetime.timezone.utc)
+        after = now + CoolDown.get_cooldown("guild") if not after else after
+        raid_dibbs_id = (
+            None if profile.player_guild.raid_dibbs_id == profile.uid else profile.player_guild.raid_dibbs_id
+        )
+        profile.player_guild.update(after=after, raid_dibbs_id=raid_dibbs_id)
+
     def __str__(self):
         return self.name
 

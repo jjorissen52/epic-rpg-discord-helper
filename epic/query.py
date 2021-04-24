@@ -9,8 +9,7 @@ from .models import CoolDown, Profile, Guild, Hunt
 from .utils import Enum
 
 
-@sync_to_async
-def upsert_cooldowns(cooldowns):
+def _upsert_cooldowns(cooldowns):
     q = Q(id=-1)
     cooldown_dict = {}
     # search for existing and update if they already exist
@@ -23,6 +22,11 @@ def upsert_cooldowns(cooldowns):
     # save left over as new
     for cooldown in cooldown_dict.values():
         cooldown.save()
+
+
+@sync_to_async
+def upsert_cooldowns(cooldowns):
+    return _upsert_cooldowns(cooldowns)
 
 
 # does not exist actions
