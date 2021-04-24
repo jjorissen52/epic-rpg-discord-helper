@@ -74,6 +74,7 @@ class NormalMessage(RCDMessage):
 
 class HelpMessage(RCDMessage):
     title = "Help"
+    color = 0xD703FC
 
 
 class SuccessMessage(RCDMessage):

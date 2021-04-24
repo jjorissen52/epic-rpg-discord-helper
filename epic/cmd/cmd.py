@@ -188,7 +188,7 @@ def _register(client, tokens, message, server, profile, msg, help=None):
     if tokens[0] != "register":
         return None
     if help or len(tokens) == 1:
-        return {"msg": HelpMessage(register.__doc__)}
+        return {"msg": HelpMessage(_register.__doc__)}
     if server:
         return {"msg": NormalMessage(f"{message.channel.guild.name} has already joined! Hello again!", title="Hi!")}
     if len(tokens) > 1:
