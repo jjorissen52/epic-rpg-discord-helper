@@ -185,8 +185,6 @@ def _register(client, tokens, message, server, profile, msg, help=None):
     Example:
         • `rcd register asdf` attempts to register the server using the join code `asdf`
     """
-    if tokens[0] != "register":
-        return None
     if help or len(tokens) == 1:
         return {"msg": HelpMessage(_register.__doc__)}
     if server:

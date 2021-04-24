@@ -112,7 +112,7 @@ def params_as_args(func):
                     },
                 )
                 params["profile"] = profile
-            elif not help and tokens and tokens[0] not in {"h", "help", "register"}:
+            elif not help and tokens and tokens[0] not in {"h", "help", "register", "join"}:
                 params["msg"] = ErrorMessage(
                     "You can only use `help` and `register` commands until "
                     f"{message.channel.guild.name} has used a join code."
