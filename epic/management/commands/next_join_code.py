@@ -15,4 +15,4 @@ class Command(BaseCommand):
 
         for code in JoinCode.objects.filter(claimed=False)[:num_codes]:
             sys.stdout.write(f"{code.code}\n")
-            sys.stdout.flush
+            sys.stdout.flush()

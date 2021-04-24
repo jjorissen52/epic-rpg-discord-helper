@@ -473,8 +473,7 @@ class Hunt(UpdateAble, models.Model):
             if loot_match:
                 loot = loot_match.group(2).strip()
             return name, target, money, xp, loot
-        else:
-            return
+        return ()
 
     @staticmethod
     def hunt_together_from_message(message):
@@ -508,8 +507,7 @@ class Hunt(UpdateAble, models.Model):
                 (name1, target1, coins1, xp1, loot1),
                 (name2, target2, coins2, xp2, loot2),
             )
-        else:
-            return
+        return ()
 
     @staticmethod
     @transaction.atomic

@@ -1,6 +1,7 @@
 import json
 from pathlib import Path
-from types import SimpleNamespace
+
+from epic.utils import recursive_namespace
 
 HISTORY_DIR = None
 
@@ -11,41 +12,6 @@ def get_history_dir():
     if not HISTORY_DIR:
         HISTORY_DIR = Path(settings.BASE_DIR) / "epic" / "import" / "history"
     return HISTORY_DIR
-
-
-class Namespace(SimpleNamespace):
-    def __init__(self, *args, **kwargs):
-        super().__init__(*args, **kwargs)
-        self._empty = not args and not kwargs
-
-    def __getattribute__(self, item):
-        try:
-            attr = super().__getattribute__(item)
-        except AttributeError:
-            return Namespace()
-        if attr is None:
-            return Namespace()
-        return attr
-
-    def __str__(self):
-        if self._empty:
-            return ""
-        return "Namespace Obj"
-
-    def __bool__(self):
-        return not self._empty
-
-
-def recursive_namespace(obj):
-    if isinstance(obj, dict):
-        for k, v in obj.items():
-            obj[k] = recursive_namespace(v)
-        return Namespace(**obj)
-    elif isinstance(obj, list):
-        for i in range(len(obj)):
-            obj[i] = recursive_namespace(obj[i])
-        return obj
-    return obj
 
 
 def gambling(file_name="/tmp/message_dump.json"):
@@ -137,7 +103,6 @@ if __name__ == "__main__":
 
     get_wsgi_application()
 
-    from django.conf import settings
     from epic.models import Gamble, Profile, Hunt
 
     fire.Fire(
