@@ -11,10 +11,11 @@ class RCDHandler(Handler):
         tokens = tokenize(self.content)
         if tokens and tokens[0] in ["rcd", "rrd"]:
             self.tokens = ["rd", *tokens[1:]] if tokens[0] == "rrd" else tokens[1:]
+            self.tokens = ["cd"] if not self.tokens else self.tokens
 
     @property
     def should_trigger(self):
-        if self.tokens and self.client.user:
+        if self.tokens and self.client.user != self.incoming.author:
             if self.server:
                 return self.server.active
             return True
@@ -22,6 +23,5 @@ class RCDHandler(Handler):
 
     def handle(self) -> Tuple[List[RCDMessage], Tuple[Optional[Callable]], tuple]:
         if not self.should_trigger:
-            print(1)
             return [], (None, ())
         return handle_rcd_command(self.client, self.tokens, self.incoming, self.server, None, None)
