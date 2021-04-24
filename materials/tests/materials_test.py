@@ -36,6 +36,7 @@ class TestCanCraft(TestCase):
             for item, qty in {
                 "apple": "171799",
                 "banana": "54",
+                "potato": "36",
                 "golden_fish": "17",
                 "wooden_log": "167",
                 "epic_log": "24",
@@ -56,13 +57,13 @@ class TestCanCraft(TestCase):
     )
 
     def test_ruby_sword(self):
-        inventory = crafting.Inventory(wooden_log=400, super_log=1000)
+        inventory = crafting.Inventory(wooden_log=400, super_log=1000, potato=37)
         self.assertTrue(crafting.can_craft(RUBY_SWORD, inventory))
-        inventory = crafting.Inventory(hyper_log=1)
+        inventory = crafting.Inventory(hyper_log=1, potato=36)
         self.assertTrue(crafting.can_craft(RUBY_SWORD, inventory))
-        inventory = crafting.Inventory(wooden_log=1000, super_log=1)
+        inventory = crafting.Inventory(wooden_log=1000, super_log=1, potato=36)
         self.assertFalse(crafting.can_craft(RUBY_SWORD, inventory))
-        inventory = crafting.Inventory(wooden_log=1000, mermaid_hair=5)
+        inventory = crafting.Inventory(wooden_log=1000, mermaid_hair=5, potato=36)
         self.assertFalse(crafting.can_craft(RUBY_SWORD, inventory))
 
     def test_edgy_armor(self):

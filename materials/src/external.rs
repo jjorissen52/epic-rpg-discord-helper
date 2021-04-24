@@ -21,6 +21,7 @@ pub fn future_logs(
         normie_fish, golden_fish, epic_fish,
         apple, banana,
         ruby,
+        0, 0, 0,
         0, 0, 0, 0, 0, 0, 0,
         0, 0, 0, 0, 0, 0, 0
     ).log_value())
@@ -32,7 +33,8 @@ fn test_future() {
         2,
         100_000, 0, 0, 0, 0, 0,
         0, 0, 0,
-        0, 0, 0
+        0, 0,
+        0,
     ).unwrap();
     assert_eq!(res, 1_687_500);
 }

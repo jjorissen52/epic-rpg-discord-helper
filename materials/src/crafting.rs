@@ -9,6 +9,7 @@ pub enum Class {
     Log = 0,
     Fish,
     Fruit,
+    Vegetable,
     Gem,
     Lootbox,
     Cookie,
@@ -29,6 +30,9 @@ pub enum Name {
     Apple,
     Banana,
     Ruby,
+    Bread,
+    Potato,
+    Carrot,
     CommonLootbox,
     UncommonLootbox,
     RareLootbox,
@@ -380,7 +384,7 @@ impl Item {
 
 pub struct Items;
 impl Items {
-    pub const INV_SIZE: usize = 26;
+    pub const INV_SIZE: usize = 29;
 
     const ITEMS: [Item; Items::INV_SIZE] = [
         Item(Class::Log, Name::WoodenLog, 1),
@@ -395,6 +399,9 @@ impl Items {
         Item(Class::Fruit, Name::Apple, 1),
         Item(Class::Fruit, Name::Banana, 15),
         Item(Class::Gem, Name::Ruby, 1),
+        Item(Class::Vegetable, Name::Bread, 1),
+        Item(Class::Vegetable, Name::Potato, 1),
+        Item(Class::Vegetable, Name::Carrot, 1),
         Item(Class::Lootbox, Name::CommonLootbox, 1),
         Item(Class::Lootbox, Name::UncommonLootbox, 1),
         Item(Class::Lootbox, Name::RareLootbox, 1),
@@ -605,6 +612,7 @@ impl Inventory {
         normie_fish: u64, golden_fish: u64, epic_fish: u64,
         apple: u64, banana: u64,
         ruby: u64,
+        bread: u64, potato: u64, carrot: u64,
         common: u64, uncommon: u64, rare: u64, epic: u64, edgy: u64, omega: u64, godly: u64,
         cookie: u64,
         skin: u64, eye: u64, horn: u64, hair: u64, chip: u64, scale: u64,
@@ -616,6 +624,7 @@ impl Inventory {
                 normie_fish, golden_fish, epic_fish,
                 apple, banana,
                 ruby,
+                bread, potato, carrot,
                 common, uncommon, rare, epic, edgy, omega, godly, // lootboxes
                 cookie, // cookie
                 skin, eye, horn, hair, chip, scale // parts

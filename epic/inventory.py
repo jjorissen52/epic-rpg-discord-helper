@@ -37,6 +37,9 @@ patterns = [
     re.compile(r"\*\*OMEGA lootbox\*\*: (?P<omega>\d+)"),
     re.compile(r"\*\*GODLY lootbox\*\*: (?P<godly>\d+)"),
     re.compile(r"\*\*arena cookie\*\*: (?P<cookie>\d+)"),
+    re.compile(r"\*\*potato\*\*: (?P<potato>\d+)"),
+    re.compile(r"\*\*carrot\*\*: (?P<carrot>\d+)"),
+    re.compile(r"\*\*bread\*\*: (?P<bread>\d+)"),
 ]
 
 
