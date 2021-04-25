@@ -9,7 +9,8 @@ from pathlib import Path
 from django.core.management import BaseCommand
 
 from epic.models import Hunt
-from epic.utils import recursive_namespace, ignore_broken_pipe
+from epic.utils import ignore_broken_pipe
+from epic.types.classes import Namespace
 
 
 class Command(BaseCommand):
@@ -28,7 +29,7 @@ class Command(BaseCommand):
             writer.writerow(["name", "target", "money", "xp", "loot"])
             for line in r.readlines():
                 parsed = json.loads(line)
-                h = recursive_namespace(parsed)
+                h = Namespace.from_collection(parsed)
                 if not h.content:
                     continue
                 hunt_result = Hunt.hunt_result_from_message(h)

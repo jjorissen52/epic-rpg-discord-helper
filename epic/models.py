@@ -14,7 +14,9 @@ from django.core.validators import MaxValueValidator, MinValueValidator
 
 from . import inventory
 from .mixins import UpdateAble
-from .utils import tokenize, int_from_token, ErrorMessage, NormalMessage, RCDMessage, defaults_from, SuccessMessage
+from .types import HandlerResult
+from .utils import tokenize, int_from_token, defaults_from
+from .types.classes import RCDMessage, ErrorMessage, NormalMessage, SuccessMessage
 from .managers import ProfileManager, GamblingStatsManager, HuntManager, GroupActivityManager
 
 
@@ -677,7 +679,7 @@ class Sentinel(models.Model):
         return self.save() or self  # return self if save returns nothing
 
     @staticmethod
-    def act(embed, profile: Profile, caller: str):
+    def act(embed, profile: Profile, caller: str) -> HandlerResult:
         results = []
         if caller == "inventory":
             for trigger in Sentinel.objects.filter(trigger=0, profile__uid=profile.uid, action="logs"):

@@ -3,11 +3,15 @@ import inspect
 from pipeline import execution_pipeline
 
 from epic.cmd import cmd  # must be imported to register commands
-from epic.utils import tokenize, ErrorMessage
+from epic.types import HandlerResult
+from epic.utils import tokenize
+from epic.types.classes import ErrorMessage
 
 
 @execution_pipeline(pre=cmd.register.registry)
-def handle_rcd_command(client, tokens, message, server, profile, msg, help=None, error=None, coro=None):
+def handle_rcd_command(
+    client, tokens, message, server, profile, msg, help=None, error=None, coro=None
+) -> HandlerResult:
     _msg, _coro = msg, (None, ())
     if (error and not isinstance(error, str)) or not msg:
         original_tokens = tokenize(message.content[:250], preserve_case=True)

@@ -14,7 +14,8 @@ from epic.cmd.registry import default_registry
 from epic.crafting import Inventory, Items
 from epic.crafting.recipes import full_index, full_map
 from epic.models import Channel, CoolDown, Profile, Server, JoinCode, Gamble, Hunt, Event, Sentinel
-from epic.utils import tokenize, ErrorMessage, NormalMessage, HelpMessage, SuccessMessage, to_human_readable
+from epic.utils import tokenize, to_human_readable
+from epic.types.classes import ErrorMessage, NormalMessage, HelpMessage, SuccessMessage
 from epic.history.scrape import scrape_channels, scrape_channel
 
 

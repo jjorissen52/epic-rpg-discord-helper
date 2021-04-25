@@ -3,7 +3,7 @@ from typing import List, Optional, Callable, Union
 from asgiref.sync import sync_to_async
 
 from epic.models import Server
-from epic.utils import recursive_namespace, RCDMessage
+from epic.types.classes import RCDMessage, Namespace
 
 
 class Handler:
@@ -18,7 +18,7 @@ class Handler:
 
     def __init__(self, client, incoming, server=None):
         self.client = client
-        self.incoming = recursive_namespace(incoming)
+        self.incoming = Namespace.from_collection(incoming)
         self.content = incoming.content[: self.content_limit].lower()
         self._server = server
 

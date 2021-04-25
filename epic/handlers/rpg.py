@@ -1,9 +1,8 @@
-from typing import Tuple, List, Optional, Callable
-
 from epic.handlers.base import Handler
 from epic.models import Profile, CoolDown, Guild, Hunt, GroupActivity, Sentinel, Gamble
 from epic.query import _upsert_cooldowns, update_hunt_results, _bulk_delete
-from epic.utils import tokenize, RCDMessage
+from epic.types import HandlerResult
+from epic.utils import tokenize
 
 
 class CoolDownHandler(Handler):
@@ -98,7 +97,7 @@ class RPGHandler(Handler):
             possible_userids = [str(m.id) for m in all_members if name == m.name]
             update_hunt_results(other, possible_userids)
 
-    def handle(self) -> Tuple[List[RCDMessage], Tuple[Optional[Callable], tuple]]:
+    def handle(self) -> HandlerResult:
         default_response = [], (None, ())
         if not self.should_trigger:
             return default_response

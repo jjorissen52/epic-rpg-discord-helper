@@ -6,7 +6,7 @@ from django.db.models import Q
 from django.db import transaction
 
 from .models import CoolDown, Profile, Guild, Hunt
-from .utils import Enum
+from .types.classes import Enum
 
 
 def _upsert_cooldowns(cooldowns):

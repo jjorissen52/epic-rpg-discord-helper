@@ -3,8 +3,7 @@ import functools
 import re
 
 from epic.models import Profile, Channel
-from epic.utils import ErrorMessage
-
+from epic.types.classes import ErrorMessage
 
 ParamTuple = collections.namedtuple("ParamTuple", "client,tokens,message,server,profile,msg,help")
 

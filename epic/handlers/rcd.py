@@ -1,8 +1,7 @@
-from typing import Optional, Tuple, List, Callable
-
 from epic.cmd import handle_rcd_command
 from epic.handlers.base import Handler
-from epic.utils import tokenize, RCDMessage
+from epic.types import HandlerResult
+from epic.utils import tokenize
 
 
 class RCDHandler(Handler):
@@ -21,7 +20,7 @@ class RCDHandler(Handler):
             return True
         return False
 
-    def handle(self) -> Tuple[List[RCDMessage], Tuple[Optional[Callable], tuple]]:
+    def handle(self) -> HandlerResult:
         if not self.should_trigger:
             return [], (None, ())
         return handle_rcd_command(self.client, self.tokens, self.incoming, self.server, None, None)

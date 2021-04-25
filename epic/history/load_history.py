@@ -1,7 +1,7 @@
 import json
 from pathlib import Path
 
-from epic.utils import recursive_namespace
+from epic.types.classes import Namespace
 
 HISTORY_DIR = None
 
@@ -21,7 +21,7 @@ def gambling(file_name="/tmp/message_dump.json"):
     with open(history_file, "r") as hist:
         for line in hist.readlines():
             parsed = json.loads(line)
-            h = recursive_namespace(parsed)
+            h = Namespace.from_collection(parsed)
             if h.embeds:
                 for embed in h.embeds:
                     if h.embeds[0].author.icon_url:
@@ -44,7 +44,7 @@ def hunt(file_name="/tmp/message_dump.json"):
     with open(history_file, "r") as hist:
         for line in hist.readlines():
             parsed = json.loads(line)
-            h = recursive_namespace(parsed)
+            h = Namespace.from_collection(parsed)
             if h.content:
                 hunt_result = Hunt.hunt_result_from_message(h)
                 if hunt_result:
