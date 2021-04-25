@@ -1,4 +1,3 @@
-import re
 import asyncio
 import discord
 import logging
@@ -12,7 +11,6 @@ from epic.models import GroupActivity
 from epic.query import (
     get_cooldown_messages,
     get_guild_cooldown_messages,
-    set_guild_membership,
 )
 from epic.handlers import rcd, rpg
 
@@ -37,27 +35,8 @@ class Client(discord.Client):
         await handler.perform_coroutine(handler.handle)
 
     async def on_message_edit(self, before, after):
-        guild_name_regex = re.compile(r"\*\*(?P<guild_name>[^\*]+)\*\* members")
-        player_name_regex = re.compile(r"\*\*(?P<player_name>[^\*]+)\*\*")
-        guild_membership = {}
-        guild_id_map = {}
-        for embed in after.embeds:
-            for field in embed.fields:
-                name_match = guild_name_regex.match(field.name)
-                if name_match:
-                    guild_membership[name_match.group(1)] = player_name_regex.findall(field.value)
-                break
-            break
-        for guild, membership_set in guild_membership.items():
-            guild_id_map[guild] = []
-            for member in membership_set:
-                # careful in case name contains multiple #
-                split_name = member.split("#")
-                name, discriminator = "#".join(split_name[:-1]), split_name[-1]
-                user = discord.utils.get(self.get_all_members(), name=name, discriminator=discriminator)
-                if user:
-                    guild_id_map[guild].append(user.id)
-        await set_guild_membership(guild_id_map)
+        handler = await sync_to_async(rpg.GuildListHandler)(self, after)
+        await sync_to_async(handler.handle)()
 
 
 def main():

@@ -127,11 +127,13 @@ def set_guild_cd(profile, after=None):
     Guild.objects.filter(profile__uid=profile.uid).update(after=after, raid_dibbs_id=raid_dibbs_id)
 
 
-@sync_to_async
-def set_guild_membership(guild_membership_dict):
+def _set_guild_membership(guild_membership_dict):
     for guild_name, member_id_list in guild_membership_dict.items():
         guild, _ = Guild.objects.get_or_create(name=guild_name)
         Profile.objects.filter(uid__in=member_id_list).update(player_guild=guild)
+
+
+set_guild_membership = sync_to_async(_set_guild_membership)
 
 
 @transaction.atomic

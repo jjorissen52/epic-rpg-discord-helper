@@ -1,6 +1,10 @@
+import re
+
+import discord
+
 from epic.handlers.base import Handler
 from epic.models import Profile, CoolDown, Guild, Hunt, GroupActivity, Sentinel, Gamble
-from epic.query import _upsert_cooldowns, update_hunt_results, _bulk_delete
+from epic.query import _upsert_cooldowns, update_hunt_results, _bulk_delete, _set_guild_membership
 from epic.types import HandlerResult
 from epic.utils import tokenize
 
@@ -8,8 +12,8 @@ from epic.utils import tokenize
 class CoolDownHandler(Handler):
     _profile = None
 
-    def __init__(self, clint, incoming, server=None):
-        super().__init__(clint, incoming, server)
+    def __init__(self, client, incoming, server=None):
+        super().__init__(client, incoming, server)
         tokens = tokenize(self.content)
         if tokens and tokens[0] == "rpg":
             self.tokens = tokens[1:]
@@ -64,8 +68,8 @@ class RPGHandler(Handler):
     profile = None
     embed = None
 
-    def __init__(self, clint, incoming, server=None):
-        super().__init__(clint, incoming, server)
+    def __init__(self, client, incoming, server=None):
+        super().__init__(client, incoming, server)
         if not self.should_trigger:
             return
         if self.incoming.embeds:
@@ -148,3 +152,39 @@ class RPGHandler(Handler):
                 if confirmed_group_activity:
                     confirmed_group_activity.save_as_cooldowns()
         return default_response
+
+
+class GuildListHandler(Handler):
+    embed = None
+
+    def __init__(self, client, incoming, server=None):
+        super().__init__(client, incoming, server)
+        if not self.should_trigger:
+            return
+        self.embed = self.incoming.embeds[0]
+
+    @property
+    def should_trigger(self):
+        return (
+            str(self.incoming.author) == "EPIC RPG#4117" and self.server and self.server.active and self.incoming.embeds
+        )
+
+    def handle(self):
+        guild_name_regex = re.compile(r"\*\*(?P<guild_name>[^\*]+)\*\* members")
+        player_name_regex = re.compile(r"\*\*(?P<player_name>[^\*]+)\*\*")
+        guild_membership = {}
+        guild_id_map = {}
+        for field in self.embed.fields:
+            name_match = guild_name_regex.match(field.name)
+            if name_match:
+                guild_membership[name_match.group(1)] = player_name_regex.findall(field.value)
+        for guild, membership_set in guild_membership.items():
+            guild_id_map[guild] = []
+            for member in membership_set:
+                # careful in case name contains multiple #
+                split_name = member.split("#")
+                name, discriminator = "#".join(split_name[:-1]), split_name[-1]
+                user = discord.utils.get(self.client.get_all_members(), name=name, discriminator=discriminator)
+                if user:
+                    guild_id_map[guild].append(user.id)
+        _set_guild_membership(guild_id_map)
