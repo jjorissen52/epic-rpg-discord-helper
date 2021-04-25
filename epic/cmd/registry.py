@@ -34,8 +34,12 @@ def init_registry(*wrappers):
     def protect(func):
         @functools.wraps(func)
         def protected_command(client, tokens, message, server, profile, *args):
-            if admin_protected[func.__name__] and not profile.admin_user:
-                return {"msg": ErrorMessage("Sorry, only administrative users can use this command.")}
+            if tokens[0] in admin_protected[func.__name__] and not profile.admin_user:
+                return {
+                    "msg": ErrorMessage(
+                        "Sorry, this command is restricted to administrative users.", title="Permission Denied"
+                    )
+                }
             return func(client, tokens, message, server, profile, *args)
 
         return protected_command
@@ -50,7 +54,7 @@ def init_registry(*wrappers):
             if entry_tokens or entry_patterns or param_filters:
                 _cmd = token_filter(_cmd, entry_tokens, entry_patterns, param_filters)
             if protected:
-                admin_protected[_cmd.__name__] = True
+                admin_protected[_cmd.__name__] = entry_tokens
                 _cmd = protect(_cmd)
             for w in wrappers:
                 _cmd = w(_cmd)
