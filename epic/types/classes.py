@@ -1,6 +1,9 @@
+import re
 from types import SimpleNamespace
 
 import discord
+
+from epic.utils import defaults_from, remove_span, replace_span
 
 
 class Enum(set):
@@ -16,14 +19,38 @@ class RCDMessage:
     footer = None
     fields = []
 
+    REGEXES = {
+        "title": re.compile(r"\s*(?<!#)#\s*([^#\n]+)\n"),
+        "fields": re.compile(r"\s*##\s*([^\n]+)\n([^#]*)"),
+        "nobreak": re.compile(r"«([^»]*)»"),
+    }
+
+    def markup_pass(self, msg, title, footer, fields):
+        title, fields = title, list(reversed(fields)) if fields else []
+        for nobreak_match in reversed(list(self.REGEXES["nobreak"].finditer(msg))):
+            # any text wrapped in "nobreak" indicators should have linebreaks removed
+            nobreak_content = " ".join(self.REGEXES["nobreak"].sub("\1", nobreak_match.groups()[0]).split())
+            msg = replace_span(msg, nobreak_content, nobreak_match.span())
+        title_match = self.REGEXES["title"].search(msg)
+        if title_match:
+            title, msg = title_match.groups()[0], remove_span(msg, title_match.span())
+        # go in reverse so the spans still point to valid indices as we iterate
+        for field_match in reversed(list(self.REGEXES["fields"].finditer(msg))):
+            section_name, section_content = field_match.groups()
+            fields.append((section_name, section_content))
+            msg = remove_span(msg, field_match.span())
+        return {"msg": msg, "title": title, "fields": reversed(fields), "footer": footer}
+
     def __init__(self, msg, title=None, footer=None, fields=None):
-        self.msg = msg
-        if title:
-            self.title = title
-        if footer:
-            self.footer = footer
-        if fields:
-            self.fields = fields
+        self.msg, self.title, self.footer, self.fields = defaults_from(
+            self.markup_pass(msg, title, footer, fields),
+            {
+                "msg": msg,
+                "title": title,
+                "footer": footer,
+                "fields": fields,
+            },
+        )
 
     def to_embed(self):
         kwargs = {"color": self.color, "description": self.msg}
@@ -49,6 +76,9 @@ class NormalMessage(RCDMessage):
 class HelpMessage(RCDMessage):
     title = "Help"
     color = 0xD703FC
+
+    def __init__(self, msg, title=None, footer=None, fields=None):
+        super(HelpMessage, self).__init__(msg, title, footer, fields)
 
 
 class SuccessMessage(RCDMessage):

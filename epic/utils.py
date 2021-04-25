@@ -39,6 +39,16 @@ def defaults_from(dict_obj, defaults):
     return [dict_obj.get(key, defaults[key]) for key in defaults]
 
 
+def remove_span(string: str, span: tuple):
+    span_begin, span_end = span
+    return f"{string[:span_begin]}{string[span_end:]}"
+
+
+def replace_span(string: str, new_string: str, span: tuple):
+    span_begin, span_end = span
+    return f"{string[:span_begin]}{new_string}{string[span_end:]}"
+
+
 def ignore_broken_pipe(func):
     @functools.wraps(func)
     def wrapper(*args, **kwargs):
