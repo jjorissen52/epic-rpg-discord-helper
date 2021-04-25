@@ -686,7 +686,7 @@ class Sentinel(models.Model):
                 results.extend(trigger.can_craft_message(embed, profile))
             for trigger in Sentinel.objects.filter(trigger=0, profile__uid=profile.uid, action="how_many"):
                 results.extend(trigger.how_many_message(embed, profile))
-        return results
+        return results, (None, ())
 
     def logs_message(self, embed, profile: Profile) -> List[RCDMessage]:
         area, snoop = defaults_from(self.metadata, {"area": 5, "snoop": None})

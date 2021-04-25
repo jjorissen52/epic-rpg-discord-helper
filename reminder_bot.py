@@ -8,114 +8,15 @@ from asgiref.sync import sync_to_async
 # imported for side effects which setup django apps
 from epic_reminder import wsgi  # noqa
 
-from epic.models import CoolDown, Profile, Gamble, Hunt, GroupActivity, Sentinel
+from epic.models import GroupActivity
 from epic.query import (
-    get_instance,
-    update_instance,
-    upsert_cooldowns,
-    bulk_delete,
     get_cooldown_messages,
     get_guild_cooldown_messages,
-    set_guild_cd,
     set_guild_membership,
-    update_hunt_results,
 )
-from epic.utils import RCDMessage
 from epic.handlers import rcd, rpg
 
 logger = logging.getLogger(__name__)
-
-
-async def process_rpg_messages(client, server, message):
-    rpg_cd_rd_cues, cooldown_cue, pet_screen_cue, inventory_cue = (
-        ["cooldowns", "ready"],
-        "cooldown",
-        "'s pets",
-        "'s inventory",
-    )
-    gambling_cues = set(Gamble.GAME_CUE_MAP.keys())
-    # arena is special case since it does not show an icon_url
-    group_cues = GroupActivity.ACTIVITY_SET - {"arena"}
-    cues = [*rpg_cd_rd_cues, *gambling_cues, *group_cues, cooldown_cue, pet_screen_cue, inventory_cue]
-    hunt_result = Hunt.hunt_result_from_message(message)
-    if hunt_result:
-        name, *other = hunt_result
-        possible_userids = [str(m.id) for m in client.get_all_members() if name == m.name]
-        return await update_hunt_results(other, possible_userids)
-    else:
-        hunt_together_result = Hunt.hunt_together_from_message(message)
-        if hunt_together_result:
-            all_members = set(client.get_all_members())
-            (name1, *other1), (name2, *other2) = hunt_together_result
-            possible_userids1 = [str(m.id) for m in all_members if name1 == m.name]
-            possible_userids2 = [str(m.id) for m in all_members if name2 == m.name]
-            await asyncio.gather(
-                update_hunt_results(other1, possible_userids1),
-                update_hunt_results(other2, possible_userids2),
-            )
-
-    profile = None
-    for embed in message.embeds:
-        # the user mentioned
-        profile = await sync_to_async(Profile.from_embed_icon)(client, server, message, embed)
-        if profile and any([cue in embed.author.name for cue in cues]):
-            # is the cooldowns list
-            if any([cue in embed.author.name for cue in rpg_cd_rd_cues]):
-                update, delete = CoolDown.from_cd(profile, [field.value for field in embed.fields])
-                await upsert_cooldowns(update)
-                await bulk_delete(CoolDown, delete)
-            elif cooldown_cue in embed.author.name:
-                for cue, cooldown_type in CoolDown.COOLDOWN_RESPONSE_CUE_MAP.items():
-                    if cue in str(embed.title):
-                        cooldowns = CoolDown.from_cooldown_reponse(profile, embed.title, cooldown_type)
-                        if cooldowns and cooldown_type == "guild":
-                            return await set_guild_cd(profile, cooldowns[0].after)
-                        await upsert_cooldowns(cooldowns)
-            elif pet_screen_cue in embed.author.name:
-                pet_cooldowns, _ = CoolDown.from_pet_screen(profile, [field.value for field in embed.fields])
-                return await upsert_cooldowns(pet_cooldowns)
-            elif inventory_cue in embed.author.name:
-                result = await sync_to_async(Sentinel.act)(embed, profile, caller="inventory")
-                if not isinstance(result, (tuple, list)):
-                    result = [result]
-                for r in result:
-                    if isinstance(r, RCDMessage):
-                        await message.channel.send(embed=r.to_embed())
-                    elif isinstance(r, str):
-                        await message.channel.send(r)
-                return
-
-            elif any([cue in embed.author.name for cue in gambling_cues]):
-                gamble = Gamble.from_results_screen(profile, embed)
-                if gamble:
-                    await gamble.asave()
-            elif any([cue in embed.author.name for cue in group_cues]):
-                for activity_type in group_cues:
-                    if activity_type in embed.author.name:
-                        group_activity_type = activity_type
-                        break
-                else:
-                    return
-                group_activity = await sync_to_async(GroupActivity.objects.latest_group_activity)(
-                    profile.uid, group_activity_type
-                )
-                if group_activity:
-                    confirmed_group_activity = await sync_to_async(group_activity.confirm_activity)(embed)
-                    if confirmed_group_activity:
-                        await sync_to_async(confirmed_group_activity.save_as_cooldowns)()
-        # special case of GroupActivity
-        arena_match = GroupActivity.REGEX_MAP["arena"].search(str(embed.description))
-        if arena_match:
-            name = arena_match.group(1)
-            group_activity = await sync_to_async(GroupActivity.objects.latest_group_activity)(name, "arena")
-            if group_activity:
-                confirmed_group_activity = await sync_to_async(group_activity.confirm_activity)(embed)
-                if confirmed_group_activity:
-                    await sync_to_async(confirmed_group_activity.save_as_cooldowns)()
-
-    if profile and (profile.server_id != server.id or profile.channel != message.channel.id):
-        profile = await update_instance(profile, server_id=server.id, channel=message.channel.id)
-    return
 
 
 class Client(discord.Client):
@@ -124,7 +25,7 @@ class Client(discord.Client):
 
     async def on_message(self, message):
         handler = rcd.RCDHandler(self, message)
-        messages, (sync_function, *args) = await sync_to_async(handler.handle)()
+        messages, (sync_function, args) = await sync_to_async(handler.handle)()
         await handler.send_messages(messages)
         await handler.perform_coroutine(sync_function, *args)
         server, content = await handler.aget_server(), handler.content
@@ -132,12 +33,8 @@ class Client(discord.Client):
         handler = rpg.CoolDownHandler(self, message, server)
         await sync_to_async(handler.handle)()
 
-        if not server:
-            return
-
-        # we want to pull the results of Epic RPG's cooldown message
-        if str(message.author) == "EPIC RPG#4117":
-            return await process_rpg_messages(self, server, message)
+        handler = await sync_to_async(rpg.RPGHandler)(self, message, server)
+        await handler.perform_coroutine(handler.handle)
 
     async def on_message_edit(self, before, after):
         guild_name_regex = re.compile(r"\*\*(?P<guild_name>[^\*]+)\*\* members")

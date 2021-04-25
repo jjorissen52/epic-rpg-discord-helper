@@ -24,9 +24,7 @@ def _upsert_cooldowns(cooldowns):
         cooldown.save()
 
 
-@sync_to_async
-def upsert_cooldowns(cooldowns):
-    return _upsert_cooldowns(cooldowns)
+upsert_cooldowns = sync_to_async(_upsert_cooldowns)
 
 
 # does not exist actions
@@ -60,8 +58,7 @@ def query_filter(model_class, **kwargs):
     return model_class.objects.filter(**kwargs)
 
 
-@sync_to_async
-def bulk_delete(model_class, kwargs_list=None, **kwargs):
+def _bulk_delete(model_class, kwargs_list=None, **kwargs):
     if kwargs_list and kwargs:
         raise ValueError("bulk_delete accepts either a list of dicts or some kwargs to filter on")
     q = Q(id=-1)
@@ -71,6 +68,9 @@ def bulk_delete(model_class, kwargs_list=None, **kwargs):
         return model_class.objects.filter(q).delete()
     if kwargs:
         return model_class.objects.filter(**kwargs).delete()
+
+
+bulk_delete = sync_to_async(_bulk_delete)
 
 
 @sync_to_async
@@ -134,7 +134,6 @@ def set_guild_membership(guild_membership_dict):
         Profile.objects.filter(uid__in=member_id_list).update(player_guild=guild)
 
 
-@sync_to_async
 @transaction.atomic
 def update_hunt_results(hunt_result, possible_userids):
     now = datetime.datetime.now(tz=datetime.timezone.utc)
