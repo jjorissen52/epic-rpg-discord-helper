@@ -1,7 +1,5 @@
 #!/usr/bin/env bash
 
-set -e
-
 lightgreen='\033[92m'
 red='\033[31m'
 cyan='\033[36m'
@@ -90,6 +88,7 @@ if [ -z "${first_tag}" ]; then
   nopush="1"
 fi
 
+set -e
 # shellcheck disable=SC2046
 docker build $(for tag in ${tags}; do echo -t "${tag}"; done) .
 if [ -z "$quiet" ]; then
