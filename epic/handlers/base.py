@@ -53,6 +53,9 @@ class Handler:
 
     async def perform_coroutine(self, coroutine: Optional[Callable], *args):
         if not coroutine:
-            return
-        message = await sync_to_async(coroutine)(*args)
-        await self.send_messages([message])
+            return [], (None, ())
+        messages, (sync_function, args) = await sync_to_async(coroutine)(*args)
+        if messages:
+            await self.send_messages(messages)
+        if sync_function:
+            return await self.perform_coroutine(sync_function, *args)
