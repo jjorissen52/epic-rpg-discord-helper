@@ -21,7 +21,7 @@ class RCDHandler(Handler):
             return True
         return False
 
-    def handle(self) -> Tuple[List[RCDMessage], Tuple[Optional[Callable]], tuple]:
+    def handle(self) -> Tuple[List[RCDMessage], Tuple[Optional[Callable], tuple]]:
         if not self.should_trigger:
             return [], (None, ())
         return handle_rcd_command(self.client, self.tokens, self.incoming, self.server, None, None)
