@@ -1,0 +1,20 @@
+{
+  "author": {
+    "id": 1,
+    "name": "JP",
+    "discriminator": "7416",
+    "bot": false,
+    "icon_url": null,
+    "guild": {
+      "name": "rpg bj all™",
+      "id": 384523404008488960
+    }
+  },
+  "created_at": "2021-04-27T22:39:04.081000",
+  "content": "rpg arena <@!2>",
+  "channel": {
+    "name": "botspam-rpg🤖",
+    "id": 437378354887262200
+  },
+  "embeds": []
+}

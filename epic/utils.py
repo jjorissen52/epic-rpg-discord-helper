@@ -13,7 +13,10 @@ def tokenize(cmd, preserve_case=False):
         return cmd
     if not preserve_case:
         cmd = cmd.lower()
-    return shlex.split(cmd)
+    try:
+        return shlex.split(cmd)
+    except ValueError:
+        return []
 
 
 def int_from_token(token):

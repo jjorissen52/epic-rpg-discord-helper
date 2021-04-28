@@ -78,7 +78,8 @@ class RPGHandler(Handler):
 
     @property
     def should_trigger(self):
-        return str(self.incoming.author) == "EPIC RPG#4117" and self.server and self.server.active
+        author_unique_name = f"{self.incoming.author.name}#{self.incoming.author.discriminator}"
+        return author_unique_name == "EPIC RPG#4117" and self.server and self.server.active
 
     def check_cues(self, *cues):
         for cue in cues:
@@ -101,12 +102,24 @@ class RPGHandler(Handler):
             possible_userids = [str(m.id) for m in all_members if name == m.name]
             update_hunt_results(other, possible_userids)
 
+    def handle_arena(self):
+        arena_match = GroupActivity.REGEX_MAP["arena"].search(str(self.embed.description))
+        if arena_match:
+            name = arena_match.group(1)
+            group_activity = GroupActivity.objects.latest_group_activity(name, "arena")
+            if group_activity:
+                confirmed_group_activity = group_activity.confirm_activity(self.embed)
+                if confirmed_group_activity:
+                    confirmed_group_activity.save_as_cooldowns()
+
     def handle(self) -> HandlerResult:
         default_response = [], (None, ())
         if not self.should_trigger:
             return default_response
         self.process_hunt_response()
         if not self.profile:
+            # special case of GroupActivity
+            self.handle_arena()
             return default_response
         if self.profile.server_id != self.server.id or self.profile.channel != self.incoming.channel.id:
             self.profile.update(server_id=self.server.id, channel=self.incoming.channel.id)
@@ -130,23 +143,14 @@ class RPGHandler(Handler):
             return default_response
         if self.check_cues("'s inventory"):
             return [], (Sentinel.act, (self.embed, self.profile, "inventory"))
-        if self.check_cues(Gamble.GAME_CUE_MAP):
+        if self.check_cues(*Gamble.GAME_CUE_MAP):
             gamble = Gamble.from_results_screen(self.profile, self.embed)
             gamble.save()
             return default_response
 
-        # special case of GroupActivity
-        arena_match = GroupActivity.REGEX_MAP["arena"].search(str(self.embed.description))
         group_activity_type = self.check_cues(*(GroupActivity.ACTIVITY_SET - {"arena"}))
         if group_activity_type:
             group_activity = GroupActivity.objects.latest_group_activity(self.profile.uid, group_activity_type)
-            if group_activity:
-                confirmed_group_activity = group_activity.confirm_activity(self.embed)
-                if confirmed_group_activity:
-                    confirmed_group_activity.save_as_cooldowns()
-        elif arena_match:
-            name = arena_match.group(1)
-            group_activity = GroupActivity.objects.latest_group_activity(name, "arena")
             if group_activity:
                 confirmed_group_activity = group_activity.confirm_activity(self.embed)
                 if confirmed_group_activity:

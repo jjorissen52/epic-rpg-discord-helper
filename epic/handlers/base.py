@@ -1,3 +1,4 @@
+import inspect
 from typing import List, Optional, Callable, Union
 
 from asgiref.sync import sync_to_async
@@ -19,7 +20,7 @@ class Handler:
     def __init__(self, client, incoming, server=None):
         self.client = client
         self.incoming = Namespace.from_collection(incoming)
-        self.content = incoming.content[: self.content_limit].lower()
+        self.content = self.incoming.content[: self.content_limit].lower()
         self._server = server
 
     def should_trigger(self):
@@ -54,8 +55,10 @@ class Handler:
     async def perform_coroutine(self, coroutine: Optional[Callable], *args):
         if not coroutine:
             return [], (None, ())
-        messages, (sync_function, args) = await sync_to_async(coroutine)(*args)
+        if not inspect.iscoroutinefunction(coroutine):
+            coroutine = sync_to_async(coroutine)
+        messages, (next_coroutine, args) = await coroutine(*args)
         if messages:
             await self.send_messages(messages)
-        if sync_function:
-            return await self.perform_coroutine(sync_function, *args)
+        if next_coroutine:
+            return await self.perform_coroutine(next_coroutine, *args)

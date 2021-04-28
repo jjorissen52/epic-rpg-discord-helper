@@ -23,9 +23,7 @@ class Client(discord.Client):
 
     async def on_message(self, message):
         handler = rcd.RCDHandler(self, message)
-        messages, (sync_function, args) = await sync_to_async(handler.handle)()
-        await handler.send_messages(messages)
-        await handler.perform_coroutine(sync_function, *args)
+        await handler.perform_coroutine(handler.handle)
         server, content = await handler.aget_server(), handler.content
 
         handler = rpg.CoolDownHandler(self, message, server)

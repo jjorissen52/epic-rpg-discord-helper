@@ -1,5 +1,5 @@
-from typing import Tuple, List, Optional, Callable
+from typing import Tuple, List, Optional, Callable, Union
 
 from epic.types.classes import RCDMessage
 
-HandlerResult = Tuple[List[RCDMessage], Tuple[Optional[Callable], tuple]]
+HandlerResult = Tuple[List[Union[RCDMessage, str]], Tuple[Optional[Callable], tuple]]

@@ -14,6 +14,7 @@ from epic.cmd.registry import default_registry
 from epic.crafting import Inventory, Items
 from epic.crafting.recipes import full_index, full_map
 from epic.models import Channel, CoolDown, Profile, Server, JoinCode, Gamble, Hunt, Event, Sentinel
+from epic.types import HandlerResult
 from epic.utils import tokenize, to_human_readable
 from epic.types.classes import ErrorMessage, NormalMessage, HelpMessage, SuccessMessage
 from epic.history.scrape import scrape_channels, scrape_channel
@@ -1088,14 +1089,16 @@ def scrape(client, tokens, message, server, profile, msg, help=None):
     scope = "all" if not limit else f"last {limit}"
     if channels:
 
-        async def _scrape_channels():
+        async def _scrape_channels() -> HandlerResult:
             files, elapsed = await scrape_channels(channels, limit)
             newline = "\n"
-            return SuccessMessage(
-                f"Scrape completed in {elapsed} seconds.",
-                title="Scrape Completed.",
-                fields=(("Files", f"The following files were generated: ```\n{newline.join(files)}\n```"),),
-            )
+            return [
+                SuccessMessage(
+                    f"Scrape completed in {elapsed} seconds.",
+                    title="Scrape Completed.",
+                    fields=(("Files", f"The following files were generated: ```\n{newline.join(files)}\n```"),),
+                )
+            ], (None, ())
 
         return {
             "msg": SuccessMessage(f"Beginning Scrape of {scope} messages in all known channels."),
@@ -1103,11 +1106,13 @@ def scrape(client, tokens, message, server, profile, msg, help=None):
         }
     else:
 
-        async def _scrape_channel():
+        async def _scrape_channel() -> HandlerResult:
             start = int(time.time())
             file = f"/tmp/{start}_{message.channel.id}_dump.json"
             file, elapsed = await scrape_channel(message.channel, start, file, limit)
-            return f"<@!{message.author.id}> Your scrape has completed after {elapsed:,} seconds. Results in `{file}`."
+            return [
+                f"<@!{message.author.id}> Your scrape has completed " f"after {elapsed:,} seconds. Results in `{file}`."
+            ], (None, ())
 
         return {
             "msg": SuccessMessage(f"Beginning Scrape of {scope} messages in this channel."),

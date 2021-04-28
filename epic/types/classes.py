@@ -99,6 +99,9 @@ class Namespace(SimpleNamespace):
             return Namespace()
         return attr
 
+    def __call__(self, *args, **kwargs):
+        raise Exception("Attempted call", args, kwargs)
+
     def __str__(self):
         if self._empty:
             return ""
