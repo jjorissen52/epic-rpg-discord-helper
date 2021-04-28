@@ -118,8 +118,9 @@ class RPGHandler(Handler):
             return default_response
         self.process_hunt_response()
         if not self.profile:
-            # special case of GroupActivity
-            self.handle_arena()
+            if self.embed:
+                # special case of GroupActivity
+                self.handle_arena()
             return default_response
         if self.profile.server_id != self.server.id or self.profile.channel != self.incoming.channel.id:
             self.profile.update(server_id=self.server.id, channel=self.incoming.channel.id)
