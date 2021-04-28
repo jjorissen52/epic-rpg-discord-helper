@@ -15,6 +15,7 @@ logger.add_handler(handler)
 def get_author(author):
     return (
         {
+            "id": author.id,
             "name": author.name,
             "discriminator": author.discriminator,
             "bot": author.bot,
