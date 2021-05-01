@@ -23,20 +23,31 @@ class RCDMessage:
         "title": re.compile(r"\s*(?<!#)#\s*([^#\n]+)\n"),
         "fields": re.compile(r"\s*##\s*([^\n]+)\n([^#]*)"),
         "nobreak": re.compile(r"«([^»]*)»"),
+        "verbatim": re.compile(
+            r"(?:[\t ]*)```([\w]+)?\n(.*)\n(?:[ \t]+)?```", re.DOTALL
+        ),  # re.DOTALL makes .* match newlines
+        "within_verbatim": re.compile(r"\s+([^\n]*)\n"),
     }
 
     def markup_pass(self, msg, title, footer, fields):
-        title, fields = title, list(reversed(fields)) if fields else []
-        for nobreak_match in reversed(list(self.REGEXES["nobreak"].finditer(msg))):
+        title, fields = title, list(fields)[::-1] if fields else []
+        # go in reverse so the spans still point to valid indices as we iterate
+        for nobreak_match in list(self.REGEXES["nobreak"].finditer(msg))[::-1]:
             # any text wrapped in "nobreak" indicators should have linebreaks removed
             nobreak_content = " ".join(self.REGEXES["nobreak"].sub("\1", nobreak_match.groups()[0]).split())
             msg = replace_span(msg, nobreak_content, nobreak_match.span())
         title_match = self.REGEXES["title"].search(msg)
         if title_match:
             title, msg = title_match.groups()[0], remove_span(msg, title_match.span())
-        # go in reverse so the spans still point to valid indices as we iterate
-        for field_match in reversed(list(self.REGEXES["fields"].finditer(msg))):
+        for verbatim_match in list(self.REGEXES["verbatim"].finditer(msg))[::-1]:
+            language, content = verbatim_match.groups()
+            content = "\n".join(self.REGEXES["within_verbatim"].findall(f"{content}\n"))
+            msg = replace_span(msg, f"```{language if language else ''}\n{content}\n```", verbatim_match.span())
+        for field_match in list(self.REGEXES["fields"].finditer(msg))[::-1]:
             section_name, section_content = field_match.groups()
+            # adding this character https://unicode-table.com/en/200B/ prevents the first item from being
+            # de-dented ¯\_(ツ)_/¯
+            section_content = f"\u200b{section_content}" if not section_content.startswith("```") else section_content
             fields.append((section_name, section_content))
             msg = remove_span(msg, field_match.span())
         return {"msg": msg, "title": title, "fields": reversed(fields), "footer": footer}

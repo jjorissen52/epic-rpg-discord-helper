@@ -26,10 +26,10 @@ register = default_registry
 @register({"h", "help"})
 def _help(client, tokens, message, server, profile, msg, help=None):
     """
-        # EPIC Helper Bot Help
-        You can use `rcd help` on any command to see its usage.
+    # EPIC Helper Bot Help
+    You can use `rcd help` on any command to see its usage.
 
-        ## Examples
+    ## Examples
     ```
     rcd help logs
     rcd h join
@@ -37,19 +37,20 @@ def _help(client, tokens, message, server, profile, msg, help=None):
     rcd h stats gambling
     ```
 
-        ## Available Commands
-            • `help`, `h`: Get help with any command
-            • `join`, `register`: Register your server with the bot
-            • `profile`, `p`: Manage or view your profile
-            • `notify`: Manage your notification settings
-            • `cd`, `rd` (or just `rcd` and `rrd`): View EPIC Helper Bot's record of your cooldowns
-            • `whocan`, `w`: Ask "who can do this command right now?"
-            • `dibbs`, `d`: Claim dibbs on the next guild raid
-            • `stats`, `s`: View stats about your gameplay that EPIC Helper Bot has collected
-            • `logs`: Calculate the future log-value of your inventory
-            • `craft`, `c`: Ask "can I craft this recipe?"
-            • `howmany`, `hm`: Ask "how many of this recipe can I craft?"
-            • `info`, `i`: Information on various topics relating to the bot
+
+    ## Available Commands
+        • `help`, `h`: Get help with any command
+        • `join`, `register`: Register your server with the bot
+        • `profile`, `p`: Manage or view your profile
+        • `notify`: Manage your notification settings
+        • `cd`, `rd` (or just `rcd` and `rrd`): View EPIC Helper Bot's record of your cooldowns
+        • `whocan`, `w`: Ask "who can do this command right now?"
+        • `dibbs`, `d`: Claim dibbs on the next guild raid
+        • `stats`, `s`: View stats about your gameplay that EPIC Helper Bot has collected
+        • `logs`: Calculate the future log-value of your inventory
+        • `craft`, `c`: Ask "can I craft this recipe?"
+        • `howmany`, `hm`: Ask "how many of this recipe can I craft?"
+        • `info`, `i`: Information on various topics relating to the bot
     """
     if len(tokens) == 1:
         return {
@@ -66,12 +67,12 @@ def _help(client, tokens, message, server, profile, msg, help=None):
 )
 def cd(client, tokens, message, server, profile, msg, help=None):
     """
-        # EPIC Helper Cooldowns
-        Display when your cooldowns are expected to be done.
-        ## Usage
-            • `rcd cd [<cooldown_types>]` shows all cooldowns
-            • `rcd rd [<cooldown_types>]` shows ready cooldowns
-        ## Examples
+    # EPIC Helper Cooldowns
+    Display when your cooldowns are expected to be done.
+    ## Usage
+        • `rcd cd [<cooldown_types>]` shows all cooldowns
+        • `rcd rd [<cooldown_types>]` shows ready cooldowns
+    ## Examples
     ```
     rcd
     rcd cd
@@ -140,20 +141,20 @@ def cd(client, tokens, message, server, profile, msg, help=None):
 @register({"info", "i"})
 def info(client, tokens, message, server, profile, msg, help=None):
     """
-        # Info Help
-        Info about the bot and other supported topics.
-        Note: This command is in early development and the invocation format is likely to change.
+    # Info Help
+    Info about the bot and other supported topics.
+    Note: This command is in early development and the invocation format is likely to change.
 
-        ## Topics
-        • `0`, `cooldown mechanics`: Detailed EPIC Rpg Helper cooldown mechanics
-        • `1`, `default cooldowns`: EPIC Rpg's default cooldowns for all commands
-        • `2`, `global cooldowns`: EPIC Rpg Helper's active global cooldowns
-        • `3`, `my cooldowns`: My current calculated cooldown durations
+    ## Topics
+    • `0`, `cooldown mechanics`: Detailed EPIC Rpg Helper cooldown mechanics
+    • `1`, `default cooldowns`: EPIC Rpg's default cooldowns for all commands
+    • `2`, `global cooldowns`: EPIC Rpg Helper's active global cooldowns
+    • `3`, `my cooldowns`: My current calculated cooldown durations
 
-        ## Usage
-        • `rcd info|i <topic>|<topic number>`
+    ## Usage
+    • `rcd info|i <topic>|<topic number>`
 
-        ## Examples
+    ## Examples
     ```
     rcd info 1
     rcd info default cooldowns
@@ -524,16 +525,16 @@ def timeformat(client, tokens, message, server, profile, msg, help=None):
 @register({"multiplier", "mp"})
 def multiplier(client, tokens, message, server, profile, msg, help=None):
     """
-        # Multiplier Help
-        «Set a multiplier on your cooldowns to extend or reduce their frequency.
-        E.g. if you are a tier 3 donator, you may want to set your multiplier
-        to `0.65`.»
+    # Multiplier Help
+    «Set a multiplier on your cooldowns to extend or reduce their frequency.
+    E.g. if you are a tier 3 donator, you may want to set your multiplier
+    to `0.65`.»
 
-        Multipliers must be from [0 to 10).
+    Multipliers must be from [0 to 10).
 
-        ## Usage
-            • `rcd multiplier|mp <multiplier>`
-        ## Examples
+    ## Usage
+        • `rcd multiplier|mp <multiplier>`
+    ## Examples
     ```
     rcd multiplier 0.65
     rcd mp 0.85
@@ -906,15 +907,15 @@ def how_many(client, tokens, message, server, profile, msg, help=None):
 @register({"stats", "statistics", "s"})
 def stats_namespace(client, tokens, message, server, profile, msg, help=None):
     """
-        # Stats
-        Show various stats that have been aggregated by the bot.
+    # Stats
+    Show various stats that have been aggregated by the bot.
 
-        ## Available SubCommands
-        • `gambling`, `g`
-        • `hunts`, `hu`
-        • `drops`, `dr`
+    ## Available SubCommands
+    • `gambling`, `g`
+    • `hunts`, `hu`
+    • `drops`, `dr`
 
-        ## Examples
+    ## Examples
     ```
     rcd help stats gambling
     rcd stats gambling
@@ -1014,15 +1015,15 @@ def admin(client, tokens, message, server, profile, msg, help=None):
 @register({"event"}, protected=True)
 def event(client, tokens, message, server, profile, msg, help=None):
     """
-        # Event Help
-        Create and activate an event that has cooldown modifications. This will be active for all users.
+    # Event Help
+    Create and activate an event that has cooldown modifications. This will be active for all users.
 
-        ## Usage
-        • `rcd admin event upsert|show|delete "NAME" [param=value {param=value ...}]`
-        • `rcd admin event show NAME`
-        ## Example
-        «The below command will create or update the event XMAS 2020 to start at `2020-12-01T00:00` UTC,
-        end at `2020-01-01T00:00` UTC, and have cooldown for arena as 7200 seconds for the duration.»
+    ## Usage
+    • `rcd admin event upsert|show|delete "NAME" [param=value {param=value ...}]`
+    • `rcd admin event show NAME`
+    ## Example
+    «The below command will create or update the event XMAS 2020 to start at `2020-12-01T00:00` UTC,
+    end at `2020-01-01T00:00` UTC, and have cooldown for arena as 7200 seconds for the duration.»
     ```
     rcd admin event upsert "XMAS 2020" start=2020-12-01T00:00 end=2020-01-01T00:00 arena=60*60*12
     ```
