@@ -1,5 +1,5 @@
 use std::cmp::min;
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 
 use crate::crafting::{Action, Class, Inventory, Item, Items, Name, Strategy, TradeArea, TradeTable};
 use crate::utils::{clamp};
@@ -214,6 +214,26 @@ fn find_strategy(
 }
 
 fn _can_craft(recipe: Inventory, inventory: Inventory) -> bool {
+    // Modifying the inventory ahead of time is not an issue
+    // as long as we don't affect the "craftability"
+    let mut inventory = inventory.clone();
+    let mut first_relevant_class = Class::Log;
+    for (item, _) in recipe.non_zero() {
+        Item(first_relevant_class, ..) = item.into();
+        break;
+    }
+    let relevant_classes: HashSet<Class> = recipe.non_zero().iter().map(|(item, qty)| &item.0).cloned().collect();
+    for (item, _) in inventory.non_zero() {
+        // if it's irrelevant, we just go ahead and fully dismantle it if craftable
+        // or just remove it if not
+        if !relevant_classes.contains(&item.0) {
+            if item.is_craftable() {
+                inventory = inventory.migrate(&item.0, &first_relevant_class, usize::MAX);
+            } else {
+                inventory[&item.1] = 0;
+            }
+        }
+    }
     if let Some(_) = find_strategy(recipe, inventory, None, 0) {
        return true
     }
@@ -235,7 +255,7 @@ fn _how_many(
     recipe: Inventory,
     inventory: Inventory,
 ) -> usize {
-    fn factor() -> usize { 2 };
+    fn factor() -> usize { 5 };
     fn find_upper_bound(
         recipe: Inventory,
         inventory: Inventory,
@@ -248,7 +268,8 @@ fn _how_many(
         }
     }
     fn midpoint(a: usize, b: usize) -> usize { (b - a) / 2 + a }
-    let (mut a, mut b) = (0, find_upper_bound(recipe * factor(), inventory, factor()));
+    let mut b = find_upper_bound(recipe * factor(), inventory, factor());
+    let mut a = if b > factor() { b / factor() } else { 0 };
     while b - a > 1 {
         let midpoint = midpoint(a, b);
         if _can_craft(recipe * midpoint, inventory) { a = midpoint } else { b = midpoint }

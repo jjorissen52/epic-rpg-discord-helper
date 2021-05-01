@@ -1,3 +1,4 @@
+import time
 from unittest import TestCase
 
 import crafting
@@ -78,9 +79,40 @@ class TestCanCraft(TestCase):
 
 
 class TestHowMany(TestCase):
+    slow_inv = crafting.Inventory(
+        area=10,
+        golden_fish=66,
+        epic_fish=24,
+        wooden_log=7013,
+        epic_log=47,
+        super_log=12,
+        mega_log=6,
+        hyper_log=1,
+        ultra_log=2,
+        apple=1,
+        banana=43,
+        ruby=428,
+        wolf_skin=42,
+        zombie_eye=45,
+        unicorn_horn=62,
+        mermaid_hair=24,
+        chip=6,
+        dragon_scale=4,
+        potato=118,
+        carrot=180,
+        bread=128,
+    )
+
     def test_how_many_fruit_salad(self):
         expected = 869
         inv = crafting.Inventory(area=10, apple=100_000)
         how_many, total_recipe = crafting.how_many(FRUIT_SALAD, inv)
         self.assertEqual(how_many, expected)
         self.assertEqual((FRUIT_SALAD * expected).inventory, total_recipe)
+
+    def test_how_many_wooden_logs_duration(self):
+        expected = 10
+        wooden_log_recipe = crafting.Inventory(wooden_log=1)
+        start = time.time()
+        how_many, total_recipe = crafting.how_many(wooden_log_recipe, self.slow_inv)
+        self.assertTrue(time.time() - start <= expected)
