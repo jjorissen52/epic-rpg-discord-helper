@@ -36,7 +36,14 @@ fn test_future() {
         0, 0,
         0,
     ).unwrap();
-    assert_eq!(res, 1_687_500);
+    let res = future_logs(
+        10,
+        0, 0, 0, 0, 0, 2,
+        0, 0, 0,
+        0, 0,
+        0,
+    ).unwrap();
+    assert_eq!(res, 163840);
 }
 
 #[derive(Debug, PartialEq)]

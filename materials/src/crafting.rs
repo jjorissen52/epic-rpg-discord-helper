@@ -203,6 +203,8 @@ impl Strategy {
         let Strategy{ mut inventory, actions } = new_strategy;
         if let Some(inventory) = inventory.next_area() {
             return Strategy{ inventory, actions }.future_version(end)
+                .migrate_all(&Class::Fish, 10)
+                .migrate_all(&Class::Log, 10)
         }
         Strategy{ inventory, actions }
     }
