@@ -287,7 +287,9 @@ class CoolDown(models.Model):
             resolved = CoolDown.COMMAND_RESOLUTION_MAP.get(tokens[0], lambda x: None)("")
         else:
             cmd, *args = tokens
-            # mutli-arguments must be resolved in the basis of other args
+            if cmd == "ascended":
+                cmd, *args = args
+            # multi-arguments must be resolved in the basis of other args
             resolved = CoolDown.COMMAND_RESOLUTION_MAP.get(cmd, lambda x: None)(" ".join(args))
         if not resolved:
             return None, None
