@@ -49,7 +49,7 @@ class CoolDownHandler(Handler):
             Hunt.initiated_hunt(self.profile.uid, self.content)
         elif cooldown_type in GroupActivity.ACTIVITY_SET:
             # when a group activity is actually a solo activity...
-            if tuple(self.tokens[:2]) not in {("big", "arena"), ("horse", "breeding"), ("not", "so")}:
+            if tuple(self.tokens[:2]) not in {("big", "arena"), ("not", "so")}:
                 # need to know the difference between dungeon and miniboss here
                 cooldown_type = "miniboss" if self.tokens[0] == "miniboss" else cooldown_type
                 return GroupActivity.create_from_tokens(

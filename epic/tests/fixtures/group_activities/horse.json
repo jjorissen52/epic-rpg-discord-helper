@@ -1,0 +1,116 @@
+{
+  "breed": {
+    "initiate": {
+      "author": {
+        "id": 1,
+        "name": "Pirateninja27",
+        "discriminator": "7182",
+        "bot": false,
+        "icon_url": null,
+        "guild": {
+          "name": "rpg bj all™",
+          "id": 384523404008488960
+        }
+      },
+      "created_at": "2021-09-03T23:44:05.795000",
+      "content": "rpg horse breed <@!2>",
+      "channel": {
+        "name": "botspam-rpg🤖",
+        "id": 437378354887262200
+      },
+      "embeds": []
+    },
+    "confirm": {
+      "author": {
+        "id": 555955826880413700,
+        "name": "EPIC RPG",
+        "discriminator": "4117",
+        "bot": true,
+        "icon_url": null,
+        "guild": {
+          "name": "rpg bj all™",
+          "id": 384523404008488960
+        }
+      },
+      "created_at": "2021-09-03T23:44:10.620000",
+      "content": "",
+      "channel": {
+        "name": "botspam-rpg🤖",
+        "id": 437378354887262200
+      },
+      "embeds": [
+        {
+          "title": "Breeding request accepted!",
+          "description": "**Pirateninja27** got a tier VIII <:tier8mount:634227881366650884> horse (SUPER SPECIAL, level 30) it's called **Griffin** !\n**JP** got a tier VIII <:tier8mount:634227881366650884> horse (STRONG, level 29) it's called **uwu** !",
+          "footer": "EmbedProxy(text=\"Pirateninja27's accumulated failed attempts: 12\\nJP's accumulated failed attempts: 17\")",
+          "author": {
+            "id": null,
+            "name": "Pirateninja27's horse breeding",
+            "discriminator": null,
+            "bot": null,
+            "icon_url": "https://cdn.discordapp.com/avatars/1/c447e77be5ef0c6363a43884a9302673.png?size=512",
+            "guild": null
+          },
+          "fields": []
+        }
+      ]
+    }
+  },
+  "breeding": {
+    "initiate": {
+      "author": {
+        "id": 1,
+        "name": "Pirateninja27",
+        "discriminator": "7182",
+        "bot": false,
+        "icon_url": null,
+        "guild": {
+          "name": "rpg bj all™",
+          "id": 384523404008488960
+        }
+      },
+      "created_at": "2021-09-03T23:44:05.795000",
+      "content": "rpg horse breeding <@!2>",
+      "channel": {
+        "name": "botspam-rpg🤖",
+        "id": 437378354887262200
+      },
+      "embeds": []
+    },
+    "confirm": {
+      "author": {
+        "id": 555955826880413700,
+        "name": "EPIC RPG",
+        "discriminator": "4117",
+        "bot": true,
+        "icon_url": null,
+        "guild": {
+          "name": "rpg bj all™",
+          "id": 384523404008488960
+        }
+      },
+      "created_at": "2021-09-03T23:44:10.620000",
+      "content": "",
+      "channel": {
+        "name": "botspam-rpg🤖",
+        "id": 437378354887262200
+      },
+      "embeds": [
+        {
+          "title": "Breeding request accepted!",
+          "description": "**Pirateninja27** got a tier VIII <:tier8mount:634227881366650884> horse (SUPER SPECIAL, level 30) it's called **Griffin** !\n**JP** got a tier VIII <:tier8mount:634227881366650884> horse (STRONG, level 29) it's called **uwu** !",
+          "footer": "EmbedProxy(text=\"Pirateninja27's accumulated failed attempts: 12\\nJP's accumulated failed attempts: 17\")",
+          "author": {
+            "id": null,
+            "name": "Pirateninja27's horse breeding",
+            "discriminator": null,
+            "bot": null,
+            "icon_url": "https://cdn.discordapp.com/avatars/1/c447e77be5ef0c6363a43884a9302673.png?size=512",
+            "guild": null
+          },
+          "fields": []
+        }
+      ]
+    }
+  }
+}

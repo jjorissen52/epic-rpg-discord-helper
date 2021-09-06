@@ -241,7 +241,7 @@ class CoolDown(models.Model):
         "net": lambda x: "work",
         "boat": lambda x: "work",
         "bigboat": lambda x: "work",
-        "horse": lambda x: "horse" if any([o in x for o in ["training", "breeding", "race"]]) else None,
+        "horse": lambda x: "horse" if any([o in x for o in ["breed", "breeding", "race"]]) else None,
         "arena": lambda x: "arena",
         "big": lambda x: "arena" if "arena join" in x else None,
         "dung": lambda x: "dungeon",
