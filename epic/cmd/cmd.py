@@ -1,3 +1,4 @@
+import random
 import re
 import time
 import pytz
@@ -129,7 +130,9 @@ def cd(client, tokens, message, server, profile, msg, help=None):
         msg = (
             "All commands on cooldown! (You may need to use `rpg cd` to populate your cooldowns for the first time.)\n"
         )
-    return {"msg": NormalMessage(msg, title=f"**{nickname}'s** Cooldowns ({profile.timezone})")}
+    return NormalMessage(
+        msg, title=f"**{nickname}'s** Cooldowns", footer=f"using profile.timezone, change with rcd p tz"
+    )
 
 
 @register({"info", "i"})
@@ -254,6 +257,7 @@ def _profile(client, tokens, message, server, profile, msg, help=None):
         • `timeformat`, `tf`: Set the date and time formatting for your profile
         • `multiplier`, `mp`: Reduce or increase your cooldown durations
         • `notify`, `n`: Set which cooldowns the bot will notify you for
+        • `marry`: Indicate that you are married to another player
 
     ## Examples
         • `rcd profile` Displays your profile information
@@ -271,6 +275,7 @@ def _profile(client, tokens, message, server, profile, msg, help=None):
             *timeformat.entry_tokens,
             *multiplier.entry_tokens,
             *notify.entry_tokens,
+            *marry.entry_tokens,
         }:
             return {"tokens": tokens[1:]}
         maybe_profile = Profile.from_tag(tokens[1], client, server, message)
@@ -288,7 +293,8 @@ def _profile(client, tokens, message, server, profile, msg, help=None):
                 ("Timezone", f"`{profile.timezone}`"),
                 ("Time Format", f"`{profile.time_format}`"),
                 ("Cooldown Multiplier", f"`{profile.cooldown_multiplier}`"),
-                ("Notications Enabled", notifications),
+                ("Married", f"To <@!{profile.partner_id}>" if profile.partner_id else "Nope."),
+                ("Notifications Enabled", notifications),
             ),
         )
     }
@@ -570,6 +576,38 @@ def multiplier(client, tokens, message, server, profile, msg, help=None):
     return {"msg": SuccessMessage(f"Your Cooldown Multiplier is now `{tokens[1]}`.")}
 
 
+@register({"marry"})
+def marry(client, tokens, message, server, profile, msg, help=None):
+    """
+    # Marriage Help
+    «Indicate that you are married to another player. Used to track `hunt together`
+    results.»
+
+    ## Usage
+        • `rcd marry @<player>`
+    ## Examples
+    ```
+    rcd marry @your_friend
+    ```
+    """
+    partner = Profile.from_tag(tokens[-1], client, server, message)
+    if not partner:
+        return HelpMessage(marry.__doc__, title="Marriage Help")
+    if partner.pk == profile.pk:
+        return NormalMessage(
+            "I'm afraid I can't let you marry yourself... you'll ruin my statistics!",
+            title=":(",
+            footer="and marriage is only about statistics...",
+        )
+    message = f"<@!{profile.pk}> and <@!{partner.pk}> got married!!?!? "
+    message += random.choice(
+        ["I give it like, 3 months, tops.", "What a time to be alive!", "It's a match made in heaven :heart_eyes:"]
+    )
+    profile.update(partner=partner)
+    partner.update(parner=profile)
+    return NormalMessage(message, title="Witness the Newlyweds :wedding:!")
+
+
 @register({"dibbs", "dibbs?", "d", "d?"})
 def dibbs(client, tokens, message, server, profile, msg, help=None):
     """
@@ -782,6 +820,7 @@ def admin(client, tokens, message, server, profile, msg, help=None):
 
     ## Sub Commands:
         • `event`: Set global cooldown events
+        • `wed`: Shotgun wedding!
         • `ban`: Bye-bye, evil-doers.
         • `scrape`: Scrape message history off of a channel (for debugging purposes)
     """
@@ -921,3 +960,30 @@ def scrape(client, tokens, message, server, profile, msg, help=None):
             "msg": SuccessMessage(f"Beginning Scrape of {scope} messages in this channel."),
             "coro": (_scrape_channel, ()),
         }
+
+
+@register({"wed"}, protected=True)
+def wed(client, tokens, message, server, profile, msg, help=None):
+    """
+    # Wedding Help
+    «Ensure the blissful union of two players.»
+
+    ## Usage
+    • `rcd wed @player_one @player_two`
+    • `rcd admin wed @player_one @player_two`
+    """
+    if len(tokens) < 3:
+        return HelpMessage(wed.__doc__)
+    groom = Profile.from_tag(tokens[-2], client, server, message)
+    if not groom:
+        return HelpMessage(wed.__doc__)
+    return marry(
+        dict(
+            client=client,
+            message=message,
+            tokens=["marry", tokens[-1]],
+            server=server,
+            profile=groom,
+            msg=msg,
+        )
+    )
