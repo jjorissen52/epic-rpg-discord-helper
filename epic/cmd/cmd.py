@@ -782,12 +782,36 @@ def admin(client, tokens, message, server, profile, msg, help=None):
 
     ## Sub Commands:
         • `event`: Set global cooldown events
+        • `ban`: Bye-bye, evil-doers.
         • `scrape`: Scrape message history off of a channel (for debugging purposes)
     """
     if len(tokens) > 1:
         return {"tokens": tokens[1:]}
     elif help:
         return {"msg": HelpMessage(admin.__doc__, title="Admin Help")}
+
+
+@register({"ban", "unban"}, protected=True)
+def ban(client, tokens, message, server, profile, msg, help=None):
+    """
+    # Ban Help
+
+    Someone has been naughty...
+
+    ## Usage
+        • `rcd admin ban @player`
+        • `rcd ban @player`
+        • `rcd unban @player`
+        • `rcd ban unban @player`
+    """
+    naughty = Profile.from_tag(tokens[-1], client, server, message)
+    if not naughty:
+        return HelpMessage(ban.__doc__, title="Ban Help")
+    banned = "unban" not in tokens
+    naughty.update(banned="unban" not in tokens)
+    if banned:
+        return NormalMessage(f"Okay, <@!{naughty.pk}> can no longer use `rcd` commands.", title=f"Player Banned :(")
+    return NormalMessage(f"Okay, <@!{naughty.pk}> can use `rcd` commands!", title=f"Player Un-Banned :)")
 
 
 @register({"event"}, protected=True)

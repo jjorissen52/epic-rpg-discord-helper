@@ -77,6 +77,7 @@ class Profile(UpdateAble, models.Model):
     channel = models.PositiveBigIntegerField()
     player_guild = models.ForeignKey(Guild, on_delete=models.SET_NULL, null=True, blank=True)
     partner = models.ForeignKey("epic.Profile", on_delete=models.SET_NULL, null=True, blank=True)
+    banned = models.BooleanField(default=False, db_index=True)
     last_known_nickname = models.CharField(max_length=250)
     cooldown_multiplier = models.DecimalField(
         decimal_places=2,

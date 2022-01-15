@@ -85,6 +85,7 @@ def get_cooldown_messages():
         for _id, channel, uid in (
             Profile.objects.command_type_enabled(cd_type)
             .filter(cooldown__after__lte=now, cooldown__type=cd_type)
+            .exclude(banned=True)
             .values_list("cooldown__id", "channel", "uid")
         ):
             messages.append((f"<@{uid}> {flavor_map[cd_type]} (**{cd_type.title()}**)", channel))

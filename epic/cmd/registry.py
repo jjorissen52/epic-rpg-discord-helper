@@ -120,6 +120,8 @@ def params_as_args(func):
                     "You can only use `help` and `register` commands until "
                     f"{message.channel.guild.name} has used a join code."
                 )
+        elif params["profile"].banned:
+            params["msg"] = ErrorMessage("Sorry, you have been banned.", title="Permission Denied")
         # first token is empty string if there are no given tokens
         params["tokens"] = params["tokens"] if params["tokens"] else [""]
         args = [params.get(arg_name, None) for arg_name in arg_names]
