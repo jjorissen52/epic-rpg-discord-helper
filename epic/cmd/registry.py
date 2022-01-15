@@ -3,7 +3,7 @@ import functools
 import re
 
 from epic.models import Profile, Channel
-from epic.types.classes import ErrorMessage
+from epic.types.classes import ErrorMessage, RCDMessage
 
 ParamTuple = collections.namedtuple("ParamTuple", "client,tokens,message,server,profile,msg,help")
 
@@ -124,8 +124,8 @@ def params_as_args(func):
         params["tokens"] = params["tokens"] if params["tokens"] else [""]
         args = [params.get(arg_name, None) for arg_name in arg_names]
         res = func(*args)
-        if not res:
-            return params
+        if not res or isinstance(res, RCDMessage):
+            return {**params, "msg": res}
         params.update(res)
         return params
 
