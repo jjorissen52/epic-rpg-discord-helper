@@ -6,13 +6,10 @@ import datetime
 import operator
 import functools
 
-from django.db.models import Q
 from django.forms.models import model_to_dict
 from django.core.exceptions import ValidationError
 
 from epic.cmd.registry import default_registry
-from epic.crafting import Inventory, Items
-from epic.crafting.recipes import full_index, full_map
 from epic.models import Channel, CoolDown, Profile, Server, JoinCode, Gamble, Hunt, Event, Sentinel
 from epic.types import HandlerResult
 from epic.utils import tokenize, to_human_readable
@@ -44,12 +41,9 @@ def _help(client, tokens, message, server, profile, msg, help=None):
         • `profile`, `p`: Manage or view your profile
         • `notify`: Manage your notification settings
         • `cd`, `rd` (or just `rcd` and `rrd`): View EPIC Helper Bot's record of your cooldowns
-        • `whocan`, `w`: Ask "who can do this command right now?"
         • `dibbs`, `d`: Claim dibbs on the next guild raid
         • `stats`, `s`: View stats about your gameplay that EPIC Helper Bot has collected
         • `logs`: Calculate the future log-value of your inventory
-        • `craft`, `c`: Ask "can I craft this recipe?"
-        • `howmany`, `hm`: Ask "how many of this recipe can I craft?"
         • `info`, `i`: Information on various topics relating to the bot
     """
     if len(tokens) == 1:
@@ -576,55 +570,6 @@ def multiplier(client, tokens, message, server, profile, msg, help=None):
     return {"msg": SuccessMessage(f"Your Cooldown Multiplier is now `{tokens[1]}`.")}
 
 
-@register({"whocan", "w"})
-def whocan(client, tokens, message, server, profile, msg, help=None):
-    """
-    # Whocan Help
-    Determine who in your server can use a particular command.
-
-    ## Examples
-      • `rcd whocan dungeon`
-      • `rcd w dungeon`
-    """
-    if help or len(tokens) == 1:
-        return {"msg": HelpMessage(whocan.__doc__)}
-
-    rpg_command = " ".join(tokens[1:])
-    if tokens[1] not in CoolDown.COMMAND_RESOLUTION_MAP:
-        return {
-            "msg": ErrorMessage(
-                "`rcd whocan` should work with any group command "
-                "that you can use with EPIC RPG. If you think this "
-                "error is a mistake, let me know.",
-                title=f"Invalid Command Type `{rpg_command}`",
-            )
-        }
-
-    cooldown_type_func = CoolDown.COMMAND_RESOLUTION_MAP[tokens[1]]
-    if len(tokens) > 2:
-        cooldown_type = cooldown_type_func(" ".join(tokens[2:]))
-    else:
-        cooldown_type = cooldown_type_func("")
-
-    ats = [
-        f"<@{uid}>"
-        for uid in set(
-            Profile.objects.exclude(uid=profile.uid)
-            .filter(
-                ~Q(cooldown__type=cooldown_type)
-                | Q(cooldown__after__lte=datetime.datetime.now(tz=datetime.timezone.utc), cooldown__type=cooldown_type)
-            )
-            .filter(server_id=message.channel.guild.id)
-            .values_list("uid", flat=True)
-        )
-    ]
-    if ats:
-        msg = f"All of these players can `{rpg_command}`: \n\n" + "\n\t".join(ats)
-        msg += f"\n\nExample: \n\n```rpg {rpg_command} {' '.join(ats)}\n\n```"
-        return {"msg": SuccessMessage(msg, title=f"They can **{rpg_command.title()}**")}
-    return {"msg": NormalMessage("Sorry, no one can do that right now.")}
-
-
 @register({"dibbs", "dibbs?", "d", "d?"})
 def dibbs(client, tokens, message, server, profile, msg, help=None):
     """
@@ -733,173 +678,6 @@ def logs(client, tokens, message, server, profile, msg, help=None):
         "msg": NormalMessage(
             "Okay, the next time I see your inventory, I'll say how many logs you should have in Area 10.",
             title=f"Logs ({_area})",
-        )
-    }
-
-
-@register({"craft", "c"})
-def craft(client, tokens, message, server, profile, msg, help=None):
-    """
-    # Craft Help
-    Ask whether you can craft the given recipe!
-
-    By default, the command assumes you are in A5.
-
-    ## Usage
-        • `rcd c|craft list gear|food [a{0-15}=a5] [@player=@you]`
-        • `rcd c|craft <recipe_name>|<recipe_number> [a{0-15}=a5] [@player=@you]`
-    ## Example
-        • `rcd craft list gear` Show the list of available gear recipes
-        • `rcd c 1 a3` Can I craft the wooden sword given that I'm in A3?
-        • `rcd craft a5 ruby sword` Can I craft the ruby sword now that I'm in A5?
-    """
-    if help or not tokens:
-        return {"msg": HelpMessage(craft.__doc__)}
-
-    _original_tokens = [*tokens]
-    tokens = tokens[1:]
-    full_message, target, metadata = " ".join(tokens), "", {"area": 5}
-    area_indicator = re.search(r"[aA](\d{1,2})", full_message)
-    if area_indicator:
-        area = int(area_indicator.groups()[0])
-        start, end = area_indicator.span()
-        tokens, metadata["area"] = tokenize(f"{full_message[0:start]}{full_message[end:]}"), area
-        if not 1 <= metadata["area"] <= 15:
-            return {"msg": ErrorMessage("Only areas 1-15 are valid!", title="Craft Error")}
-        full_message = " ".join(tokens)
-
-    target_indicator = re.search(r"(list)? ?(food|gear)? ?([\w\- ]+|\d{1,2})?", full_message)
-    should_list, recipe_type, target = target_indicator.groups()
-    if should_list and not recipe_type:
-        tokens = tokens[1:] if should_list else tokens
-        return {
-            "msg": ErrorMessage(
-                "Incorrect usage; expected a recipe type, got: " f"`{' '.join(tokens)}`", title="Recipe Error"
-            )
-        }
-    elif not should_list and not target:
-        return {"msg": ErrorMessage(f"You must provide a target, e.g.: `craft 1`", title="Recipe Error")}
-
-    if should_list:
-        recipe_list = "\n".join(
-            [f"{number + 1:>2} => {name.replace('_', ' '):<15}" for number, name in full_index[recipe_type].items()]
-        )
-        return {"msg": NormalMessage(f"```{recipe_list}```", title="Recipe List")}
-    elif target:
-        target = full_index.get(int(target) - 1, "") if target.isdigit() else re.sub(r"[^\w]+", "_", target)
-
-    if target not in full_map:
-        return {"msg": ErrorMessage(f"No such recipe `{target}`", title="Craft Error")}
-    metadata.update({"recipe": full_map[target].to_dict(), "name": target})
-
-    mentioned_profile = Profile.from_tag(tokens[-1], client, server, message)
-    if mentioned_profile:
-        profile, metadata["snoop"] = mentioned_profile, profile.uid
-
-    open_sentinels = list(Sentinel.objects.filter(trigger=0, profile=profile, action="can_craft"))
-    len(open_sentinels) == 0 and Sentinel.objects.create(
-        trigger=0, profile=profile, action="can_craft", metadata=metadata
-    )
-    for sentinel in open_sentinels:
-        sentinel.metadata.get("snoop", -1) == metadata.get("snoop", -1) and sentinel.update(metadata=metadata)
-
-    _area = f'Area {metadata["area"]}'
-    if metadata.get("snoop", None):
-        return {
-            "msg": NormalMessage(
-                "Busybody, eh? Okay, I'll check next time they open their inventory.", title=f"Snoop Craft ({_area})"
-            )
-        }
-    return {
-        "msg": NormalMessage(
-            "Okay, the next time I see your inventory, "
-            f"I'll say whether you can craft `{target.replace('_', ' ')}`.",
-            title=f"Can Craft ({_area})",
-        )
-    }
-
-
-@register({"howmany", "hm"})
-def how_many(client, tokens, message, server, profile, msg, help=None):
-    """
-    # How Many Help
-    Ask how many of the given recipe you can craft. By default, you are assumed to be in A5.
-
-    ## Usage
-        • `rcd hm|howmany <recipe_name>|<recipe_number>|<itemized recipe> [a{0-15}=a5] [@player=@you]`
-    ## Examples
-        • `rcd howmany fruit salad` How many fruit salads can I craft given that I'm in A5?
-        • `rcd hm fruit salad a10` How many fruit salads can I craft given that I'm in A10?
-        • `rcd hm apple=1 banana=1` How many times can I craft this custom recipe?
-        • `rcd hm apple` How many apples can I craft?
-    """
-    if help or len(tokens) == 1:
-        return {"msg": HelpMessage(how_many.__doc__)}
-
-    _original_tokens = [*tokens]
-    target, metadata, tokens = "", {"area": 5}, tokens[1:]
-    mentioned_profile = Profile.from_tag(tokens[-1], client, server, message)
-    if mentioned_profile:
-        profile, metadata["snoop"] = mentioned_profile, profile.uid
-        tokens = tokens[:-1]
-    full_message = " ".join(tokens)
-
-    area_indicator = re.search(r"[aA](\d{1,2})", full_message)
-    if area_indicator:
-        area = int(area_indicator.groups()[0])
-        start, end = area_indicator.span()
-        tokens, metadata["area"] = tokenize(f"{full_message[0:start]}{full_message[end:]}"), area
-        if not 1 <= metadata["area"] <= 15:
-            return {"msg": ErrorMessage("Only areas 1-15 are valid!", title="How Many Error")}
-        full_message = " ".join(tokens)
-    target_indicator, recipe_name = re.search(r"^\s*([\w\- ]+|\d{1,2})\s*$", full_message), "custom"
-    if target_indicator:
-        target = target_indicator.groups()[0]
-        target = full_index.get(int(target) - 1, "") if target.isdigit() else re.sub(r"[^\w]+", "_", target)
-        if target not in full_map:
-            if target not in Items:
-                return {"msg": ErrorMessage(f"No such recipe `{target}`", title="How Many Error")}
-            # implicitly they have indicated that they want to know how many of an item they can have
-            recipe = Inventory(**{target: 1})
-        else:
-            recipe = full_map[target]
-        recipe_name = target
-    else:
-        items_list = re.findall(r"([\w\- ]+)=([1-9]+\d*)", full_message)
-        try:
-            recipe = Inventory(**{re.sub(r"[^\w]+", "_", item.strip()): int(qty) for item, qty in items_list})
-        except AttributeError as e:
-            return {
-                "msg": ErrorMessage(
-                    f"`{e.args[0]}` is not a valid item name. " f"Please remove any pluralization and try again.",
-                    title="How Many Error",
-                )
-            }
-    metadata.update({"recipe": recipe.to_dict(), "name": recipe_name})
-
-    mentioned_profile = Profile.from_tag(tokens[-1], client, server, message)
-    if mentioned_profile:
-        profile, metadata["snoop"] = mentioned_profile, profile.uid
-
-    open_sentinels = list(Sentinel.objects.filter(trigger=0, profile=profile, action="how_many"))
-    len(open_sentinels) == 0 and Sentinel.objects.create(
-        trigger=0, profile=profile, action="how_many", metadata=metadata
-    )
-    for sentinel in open_sentinels:
-        sentinel.metadata.get("snoop", -1) == metadata.get("snoop", -1) and sentinel.update(metadata=metadata)
-
-    _area = f'Area {metadata["area"]}'
-    if metadata.get("snoop", None):
-        return {
-            "msg": NormalMessage(
-                "Busybody, eh? Okay, I'll check next time they open their inventory.", title=f"Snoop How Many ({_area})"
-            )
-        }
-    return {
-        "msg": NormalMessage(
-            "Okay, the next time I see your inventory, "
-            f"I'll say how many of `{recipe_name}` you can craft.\n\n{recipe}",
-            title=f"Can Craft ({_area})",
         )
     }
 
