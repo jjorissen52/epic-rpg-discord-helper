@@ -10,6 +10,7 @@ ParamTuple = collections.namedtuple("ParamTuple", "client,tokens,message,server,
 
 def init_registry(*wrappers):
     registry, token_map, admin_protected = [], {}, {}
+    admin_command_entry_tokens = set()
     help_tokens = {"h", "help"}
 
     def token_filter(func, acceptable_tokens, patterns=None, filter_funcs=None):
@@ -55,6 +56,7 @@ def init_registry(*wrappers):
                 _cmd = token_filter(_cmd, entry_tokens, entry_patterns, param_filters)
             if protected:
                 admin_protected[_cmd.__name__] = entry_tokens
+                admin_command_entry_tokens.update(entry_tokens)
                 _cmd = protect(_cmd)
             for w in wrappers:
                 _cmd = w(_cmd)
@@ -78,6 +80,7 @@ def init_registry(*wrappers):
 
     register.registry = registry
     register.admin_protected = admin_protected
+    register.admin_command_entry_tokens = admin_command_entry_tokens
     register.command_by_token = command_by_token
     return register
 
@@ -87,7 +90,7 @@ def params_as_args(func):
 
     @functools.wraps(func)
     def wrapper(params):
-        if params["msg"] or params.get("error", None) or params.get("coro", None):
+        if params.get("msg", None) or params.get("error", None) or params.get("coro", None):
             # short-circuit to prevent running
             # the rest of the command chain
             return params

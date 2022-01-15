@@ -785,10 +785,10 @@ def admin(client, tokens, message, server, profile, msg, help=None):
         • `ban`: Bye-bye, evil-doers.
         • `scrape`: Scrape message history off of a channel (for debugging purposes)
     """
-    if len(tokens) > 1:
+    if len(tokens) > 1 and tokens[1] in register.admin_command_entry_tokens:
         return {"tokens": tokens[1:]}
     elif help:
-        return {"msg": HelpMessage(admin.__doc__, title="Admin Help")}
+        return {"msg": HelpMessage(admin.__doc__)}
 
 
 @register({"ban", "unban"}, protected=True)
@@ -806,7 +806,7 @@ def ban(client, tokens, message, server, profile, msg, help=None):
     """
     naughty = Profile.from_tag(tokens[-1], client, server, message)
     if not naughty:
-        return HelpMessage(ban.__doc__, title="Ban Help")
+        return HelpMessage(ban.__doc__)
     banned = "unban" not in tokens
     naughty.update(banned="unban" not in tokens)
     if banned:
@@ -831,7 +831,7 @@ def event(client, tokens, message, server, profile, msg, help=None):
     ```
     """
     if help or len(tokens) < 3 or tokens[1] not in {"upsert", "show", "delete"}:
-        return {"msg": HelpMessage(event.__doc__, title="Admin Event Help")}
+        return {"msg": HelpMessage(event.__doc__)}
     if tokens[1] == "upsert":
         if len(tokens) > 3:
             _event = Event.parse_event(tokens[3:], tokens[2])
