@@ -38,7 +38,7 @@ class CoolDownHandler(Handler):
     def handle(self):
         if not self.should_trigger:
             return
-        cooldown_type, default_duration = CoolDown.default_cmd_cd(self.content[3:])
+        cooldown_type, default_duration, tokens = CoolDown.default_cmd_cd(self.content[3:])
         if not cooldown_type:
             return
         if self.profile.server_id != self.server.id or self.profile.channel != self.incoming.channel.id:
@@ -49,12 +49,15 @@ class CoolDownHandler(Handler):
             Hunt.initiated_hunt(self.profile.uid, self.content)
         elif cooldown_type in GroupActivity.ACTIVITY_SET:
             # when a group activity is actually a solo activity...
-            if tuple(self.tokens[:2]) not in {("big", "arena"), ("not", "so")}:
+            if tuple(tokens[:2]) not in {("big", "arena"), ("not", "so")}:
                 # need to know the difference between dungeon and miniboss here
-                cooldown_type = "miniboss" if self.tokens[0] == "miniboss" else cooldown_type
+                cooldown_type = "miniboss" if tokens[0] == "miniboss" else cooldown_type
                 return GroupActivity.create_from_tokens(
                     cooldown_type, self.client, self.profile, self.server, self.incoming
                 )
+            else:
+                Sentinel.objects.create(profile=self.profile, trigger=3, metadata=dict(cooldown_type=cooldown_type))
+
         _upsert_cooldowns(
             [
                 CoolDown(profile=self.profile, type=cooldown_type).calculate_cd(
@@ -67,12 +70,14 @@ class CoolDownHandler(Handler):
 class RPGHandler(Handler):
     profile = None
     embed = None
+    content = None
 
     def __init__(self, client, incoming, server=None):
         super().__init__(client, incoming, server)
         if not self.should_trigger:
             return
         if self.incoming.embeds:
+            self.content = self.incoming.content
             self.embed = self.incoming.embeds[0]
             self.profile = Profile.from_embed_icon(self.client, self.server, self.incoming, self.embed)
 
@@ -143,11 +148,13 @@ class RPGHandler(Handler):
             _upsert_cooldowns(pet_cooldowns)
             return default_response
         if self.check_cues("'s inventory"):
-            return [], (Sentinel.act, (self.embed, self.profile, "inventory"))
+            return [], (Sentinel.act, (self.content, self.embed, self.profile, "inventory"))
         if self.check_cues(*Gamble.GAME_CUE_MAP):
             gamble = Gamble.from_results_screen(self.profile, self.embed)
             gamble.save()
             return default_response
+        if "registered" in self.content:
+            return [], (Sentinel.act, (self.content, self.embed, self.profile, "registration_confirmation"))
 
         group_activity_type = self.check_cues(*(GroupActivity.ACTIVITY_SET - {"arena"}))
         if group_activity_type:

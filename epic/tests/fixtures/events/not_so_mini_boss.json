@@ -1,0 +1,86 @@
+{
+  "accepted": {
+    "initiate": {
+      "author": {
+        "id": 296863253869363200,
+        "name": "JP",
+        "discriminator": "7416",
+        "bot": false,
+        "icon_url": null,
+        "guild": {
+          "name": "rpg bj all™",
+          "id": 384523404008488960
+        }
+      },
+      "created_at": "2021-09-04T19:51:56.356000",
+      "content": "Rpg ascended not so mini boss join",
+      "channel": {
+        "name": "botspam-rpg🤖",
+        "id": 437378354887262200
+      },
+      "embeds": []
+    },
+    "confirm": {
+      "author": {
+        "id": 555955826880413700,
+        "name": "EPIC RPG",
+        "discriminator": "4117",
+        "bot": true,
+        "icon_url": null,
+        "guild": {
+          "name": "rpg bj all™",
+          "id": 384523404008488960
+        }
+      },
+      "created_at": "2021-09-04T19:51:56.545000",
+      "content": "**JP**, successfully registered for the next **not so \"mini\" boss** event!\nThe next event is in **2d 22h 8m 3s**, you can see the results in the official server of EPIC RPG",
+      "channel": {
+        "name": "botspam-rpg🤖",
+        "id": 437378354887262200
+      },
+      "embeds": []
+    }
+  },
+  "rejected": {
+    "initiate": {
+      "author": {
+        "id": 296863253869363200,
+        "name": "JP",
+        "discriminator": "7416",
+        "bot": false,
+        "icon_url": null,
+        "guild": {
+          "name": "rpg bj all™",
+          "id": 384523404008488960
+        }
+      },
+      "created_at": "2021-09-05T21:22:20.518000",
+      "content": "Rpg ascended not so mini boss join",
+      "channel": {
+        "name": "botspam-rpg🤖",
+        "id": 437378354887262200
+      },
+      "embeds": []
+    },
+    "confirm": {
+      "author": {
+        "id": 555955826880413700,
+        "name": "EPIC RPG",
+        "discriminator": "4117",
+        "bot": true,
+        "icon_url": null,
+        "guild": {
+          "name": "rpg bj all™",
+          "id": 384523404008488960
+        }
+      },
+      "created_at": "2021-09-05T21:22:20.666000",
+      "content": "<@296863253869363200>, you are already registered!\nThe next event is in **1d 20h 37m 39s**, you can see the results in the official server of EPIC RPG",
+      "channel": {
+        "name": "botspam-rpg🤖",
+        "id": 437378354887262200
+      },
+      "embeds": []
+    }
+  }
+}

@@ -278,22 +278,23 @@ class CoolDown(models.Model):
         return f"{self.profile} can {self.type} after {self.after}"
 
     @staticmethod
-    def default_cmd_cd(cmd: str) -> Tuple[Optional[str], Optional[datetime.timedelta]]:
+    def default_cmd_cd(cmd: str) -> Tuple[Optional[str], Optional[datetime.timedelta], List[str]]:
         tokens = tokenize(cmd)
         if not tokens:
-            return None, None
-        # zero argument commands will just return whether or not the command matched
+            return None, None, []
+        # zero argument commands will just return whether the command matched
         if len(tokens) == 1:
             resolved = CoolDown.COMMAND_RESOLUTION_MAP.get(tokens[0], lambda x: None)("")
         else:
             cmd, *args = tokens
             if cmd == "ascended":
                 cmd, *args = args
+                tokens = [cmd, *args]
             # multi-arguments must be resolved in the basis of other args
             resolved = CoolDown.COMMAND_RESOLUTION_MAP.get(cmd, lambda x: None)(" ".join(args))
         if not resolved:
-            return None, None
-        return resolved, CoolDown.get_cooldown(resolved)
+            return None, None, tokens
+        return resolved, CoolDown.get_cooldown(resolved), tokens
 
     @staticmethod
     def apply_multiplier(
@@ -666,13 +667,18 @@ class Sentinel(models.Model):
     TRIGGER_TYPE_CHOICES = (
         (0, "Inventory"),
         (1, "Time"),
+        (3, "Registration Confirmation"),
     )
-    ACTION_TYPE_CHOICES = (("logs", "Logs"),)
+    ACTION_TYPE_CHOICES = (
+        ("logs", "Logs"),
+        ("can_craft", "Can Craft"),
+        ("how_many", "How Many"),
+    )
 
     profile = models.ForeignKey("epic.Profile", on_delete=models.CASCADE)
     trigger = models.PositiveSmallIntegerField(choices=TRIGGER_TYPE_CHOICES)
     after = models.DateTimeField(null=True, blank=True)
-    action = models.CharField(max_length=10, null=True, blank=True)
+    action = models.CharField(max_length=10, null=True, blank=True, choices=ACTION_TYPE_CHOICES)
     metadata = models.JSONField(null=True, blank=True)
 
     def update(self, **kwargs):
@@ -681,7 +687,7 @@ class Sentinel(models.Model):
         return self.save() or self  # return self if save returns nothing
 
     @staticmethod
-    def act(embed, profile: Profile, caller: str) -> HandlerResult:
+    def act(content, embed, profile: Profile, caller: str) -> HandlerResult:
         results = []
         if caller == "inventory":
             for trigger in Sentinel.objects.filter(trigger=0, profile__uid=profile.uid, action="logs"):
@@ -690,7 +696,21 @@ class Sentinel(models.Model):
                 results.extend(trigger.can_craft_message(embed, profile))
             for trigger in Sentinel.objects.filter(trigger=0, profile__uid=profile.uid, action="how_many"):
                 results.extend(trigger.how_many_message(embed, profile))
+        if caller == "registration_confirmation":
+            for trigger in Sentinel.objects.filter(trigger=3, profile__uid=profile.uid):
+                trigger.event_registration_confirmation(content, profile)
         return results, (None, ())
+
+    def event_registration_confirmation(self, content, profile: Profile):
+        confirmed = content and "successfully registered" in content
+        rejected = content and "already registered" in content
+        if confirmed:
+            return self.delete()
+        if rejected:
+            cooldown_type = defaults_from(self.metadata, {"cooldown_type": None})
+            # delete the associated cooldown since the registration was rejected
+            CoolDown.objects.filter(profile=profile, type=cooldown_type).delete()
+            return self.delete()
 
     def logs_message(self, embed, profile: Profile) -> List[RCDMessage]:
         area, snoop = defaults_from(self.metadata, {"area": 5, "snoop": None})
