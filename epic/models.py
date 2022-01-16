@@ -151,9 +151,9 @@ class CoolDown(models.Model):
         unique_together = ("profile", "type")
 
     time_regex = re.compile(
-        r"(?P<days>\d{1}d)?\s*(?P<hours>\d{1,2}h)?\s*(?P<minutes>\d{1,2}m)?\s*(?P<seconds>\d{1,2}s)"
+        r"(?=\d)(?P<days>\d+d)?\s*(?P<hours>\d+h)?\s*(?P<minutes>\d+m)?\s*(?P<seconds>\d+s)?(?<=[dhms])"
     )
-    on_cooldown_regex = re.compile(r":clock4: ~-~ \*\*`(?P<field_name>[^`]*)`\*\*")
+    on_cooldown_regex = re.compile(r":clock4: ~-~ \*\*`(?P<field_name>[^`]*)`(?P<value>.*)\*\*")
     off_cooldown_regex = re.compile(r":white_check_mark: ~-~ \*\*`(?P<field_name>[^`]*)`\*\*")
 
     COOLDOWN_TYPE_CHOICES = (
@@ -320,22 +320,23 @@ class CoolDown(models.Model):
         for field in fields:
             fields_on_cooldown = CoolDown.on_cooldown_regex.findall(field)
             fields_off_cooldown = CoolDown.off_cooldown_regex.findall(field)
-            if fields_on_cooldown:
-                time_matches = CoolDown.time_regex.findall(field)
-                for i, field_on_cooldown in enumerate(fields_on_cooldown):
-                    time_delta_params = {
-                        key: int(time_matches[i][j][:-1]) if time_matches[i][j] else 0
-                        for j, key in enumerate(["days", "hours", "minutes", "seconds"])
+            for _field, duration in fields_on_cooldown:
+                duration_match = CoolDown.time_regex.search(duration)
+                _groups = duration_match.groupdict()
+                after = start + datetime.timedelta(
+                    **{
+                        key: int(_groups[key][:-1]) if _groups[key] else 0
+                        for key in ["days", "hours", "minutes", "seconds"]
                     }
-                    after = start + datetime.timedelta(**time_delta_params)
-                    for cd_type in cd_types:
-                        if cd_type in field_on_cooldown.lower():
-                            cooldown_updates.append(CoolDown(profile=profile, type=cd_type, after=after))
-                            cd_types.remove(cd_type)
-                            break
-                    # special case
-                    if "mine" in field_on_cooldown.lower():
-                        cooldown_updates.append(CoolDown(profile=profile, type="work", after=after))
+                )
+                for cd_type in cd_types:
+                    if cd_type in _field.lower():
+                        cooldown_updates.append(CoolDown(profile=profile, type=cd_type, after=after))
+                        cd_types.remove(cd_type)
+                        break
+                # special case
+                if "mine" in _field.lower():
+                    cooldown_updates.append(CoolDown(profile=profile, type="work", after=after))
             if fields_off_cooldown:
                 for field_off_cooldown in fields_off_cooldown:
                     for cd_type in cd_types:
@@ -350,24 +351,21 @@ class CoolDown(models.Model):
     @staticmethod
     def from_pet_screen(profile, fields):
         start = datetime.datetime.now(tz=datetime.timezone.utc)
-        matches = [CoolDown.time_regex.findall(field) for field in fields]
+        matches = [CoolDown.time_regex.search(field) for field in fields]
         # remove any empties
-        matches = [match for match in matches if match]
+        matches = [match.groupdict() for match in matches if match]
         if not matches:
             return [], []
-        # find the soonest timedelta to create a cooldown notification from
-        after = start + min(
+        # find the latest timedelta to create a cooldown notification from
+        after = start + max(
             [
                 datetime.timedelta(
                     **{
-                        # key days, hours, minutes, seconds from the countdown matches
-                        # to create timedeltas with
-                        key: int(match[0][j][:-1]) if match[0][j] else 0
-                        for j, key in enumerate(["days", "hours", "minutes", "seconds"])
+                        key: int(groupdict[key][:-1]) if groupdict[key] else 0
+                        for key in ["days", "hours", "minutes", "seconds"]
                     }
                 )
-                for match in matches
-                if match
+                for groupdict in matches
             ]
         )
         return [CoolDown(profile=profile, type="pet", after=after)], []
