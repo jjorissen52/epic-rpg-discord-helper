@@ -872,7 +872,7 @@ def event(client, tokens, message, server, profile, msg, help=None):
     ## Example 2
     «The below command will create a special event with flat multipliers to shorten cooldowns.»
     ```
-    rcd event upsert "100k" start=2022-01-15 end="100000s" lootbox=0.25 adventure=0.25 horse=0.25 dungeon=0.25 arena=0.25
+    rcd event upsert "100k" start=2022-01-15 duration="100000s" lootbox=0.25 adventure=0.25 horse=0.25 dungeon=0.25 arena=0.25
     ```
     """
     if help or len(tokens) < 3 or tokens[1] not in {"upsert", "show", "delete"}:

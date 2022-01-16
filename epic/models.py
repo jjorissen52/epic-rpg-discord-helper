@@ -637,6 +637,7 @@ class Event(models.Model):
         else:
             cooldown_adjustments = event.cooldown_adjustments.copy()
             cooldown_multipliers = event.cooldown_multipliers.copy()
+        duration = None
         for token in tokens:
             param, value = token.split("=")
             if param in CoolDown.COOLDOWN_MAP:
@@ -656,25 +657,28 @@ class Event(models.Model):
                         ).total_seconds()
                     )
             elif param in {"start", "end"}:
+                try:
+                    time = datetime.datetime.strptime(value, "%Y-%m-%dt%H:%M").astimezone(datetime.timezone.utc)
+                except:  # noqa
+                    try:
+                        time = datetime.datetime.strptime(value, "%Y-%m-%d").astimezone(datetime.timezone.utc)
+                    except:  # noqa
+                        time = datetime.datetime.now(tz=datetime.timezone.utc)
+                setattr(event, param, time)
+            elif param == "duration":
                 duration_match = CoolDown.time_regex.match(value)
                 if duration_match:
                     _groups = duration_match.groupdict()
-                    time = datetime.datetime.now(tz=datetime.timezone.utc) + datetime.timedelta(
+                    duration = datetime.timedelta(
                         **{
                             key: int(_groups[key][:-1]) if _groups[key] else 0
                             for key in ["days", "hours", "minutes", "seconds"]
                         }
                     )
-                else:
-                    try:
-                        time = datetime.datetime.strptime(value, "%Y-%m-%dt%H:%M").astimezone(datetime.timezone.utc)
-                    except:  # noqa
-                        try:
-                            time = datetime.datetime.strptime(value, "%Y-%m-%d").astimezone(datetime.timezone.utc)
-                        except:  # noqa
-                            raise
-                            time = datetime.datetime.now(tz=datetime.timezone.utc)
-                setattr(event, param, time)
+        if duration:
+            event.start = getattr(event, "start", None) or datetime.datetime.now(tz=datetime.timezone.utc)
+            event.end = event.start + duration
+
         if upsert:
             event.cooldown_adjustments = cooldown_adjustments
             event.cooldown_multipliers = cooldown_multipliers
