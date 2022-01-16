@@ -1,6 +1,20 @@
 from django.contrib import admin
 
-from .models import Channel, Profile, CoolDown, Server, JoinCode, Guild, Gamble, Hunt, GroupActivity, Invite, Event
+from .models import (
+    Channel,
+    Profile,
+    CoolDown,
+    Server,
+    JoinCode,
+    Guild,
+    Gamble,
+    Hunt,
+    GroupActivity,
+    Invite,
+    Event,
+    Area,
+    Dungeon,
+)
 
 
 @admin.register(JoinCode)
@@ -77,3 +91,15 @@ class ChannelAdmin(admin.ModelAdmin):
 
     def server_name(self, obj):
         return obj.server.name
+
+
+class DungeonInline(admin.StackedInline):
+    model = Dungeon
+    max_num = 2
+    extra = 0
+
+
+@admin.register(Area)
+class AreaAdmin(admin.ModelAdmin):
+    list_display = ("id", "name")
+    inlines = [DungeonInline]

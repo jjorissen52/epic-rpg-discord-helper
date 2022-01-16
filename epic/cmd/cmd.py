@@ -11,7 +11,7 @@ from django.forms.models import model_to_dict
 from django.core.exceptions import ValidationError
 
 from epic.cmd.registry import default_registry
-from epic.models import Channel, CoolDown, Profile, Server, JoinCode, Gamble, Hunt, Event, Sentinel
+from epic.models import Channel, CoolDown, Profile, Server, JoinCode, Gamble, Hunt, Event, Sentinel, Area
 from epic.types import HandlerResult
 from epic.utils import tokenize, to_human_readable
 from epic.types.classes import ErrorMessage, NormalMessage, HelpMessage, SuccessMessage
@@ -31,7 +31,7 @@ def _help(client, tokens, message, server, profile, msg, help=None):
     ```
     rcd help logs
     rcd h join
-    rcd h whocan
+    rcd h checklist
     rcd h stats gambling
     ```
 
@@ -45,6 +45,7 @@ def _help(client, tokens, message, server, profile, msg, help=None):
         • `dibbs`, `d`: Claim dibbs on the next guild raid
         • `stats`, `s`: View stats about your gameplay that EPIC Helper Bot has collected
         • `logs`: Calculate the future log-value of your inventory
+        • `checklist`, `c`: View the checklist for a particular area
         • `info`, `i`: Information on various topics relating to the bot
     """
     if len(tokens) == 1:
@@ -385,6 +386,81 @@ def notify(client, tokens, message, server, profile, msg, help=None):
     }
 
 
+@register({"checklist", "cl"})
+def checklist(client, tokens, message, server, profile, msg, help=None):
+    """
+    # Checklist Help
+    Use this command to determine what you should be doing in a particular area.
+
+    ## Usage
+        • `rcd cl <area>`: Shows what you should be doing in this area
+        • `rcd checklist <area>`: Shows what you should be doing in this area
+
+    ## Examples
+    ```
+    rcd cl a5
+    rcd checklist 15
+    ```
+    """
+    full_message = " ".join(tokens)
+    area_indicator = re.search(r" ([aA])?(\d{1,2})", full_message)
+    if help or not area_indicator:
+        return HelpMessage(checklist.__doc__)
+    area_id = int(area_indicator.groups()[1])
+    area = Area.objects.prefetch_related("dungeons").filter(id=area_id).first()
+    if not area:
+        return ErrorMessage(f"No such area A{area_id}", title="Checklist Error")
+    sections = []
+    if area.activities and isinstance(area.activities, list):
+        sections.append(("**Activities**", "\n".join(f"• {text}" for text in area.activities)))
+
+    if area.ascended_activities and isinstance(area.ascended_activities, list):
+        sections.append(("**Ascended Activities**", "\n".join(f"• {text}" for text in area.ascended_activities)))
+
+    if area.trades and isinstance(area.trades, list):
+        sections.append(("**Before Dungeon**", "\n".join(f"• {text}" for text in area.trades)))
+    else:
+        sections.append(("**Before Dungeon**", "No trades necessary."))
+
+    for dungeon in area.dungeons.all():
+        carry = f"{dungeon.carry} Defense" if dungeon.carry else "N/A"
+        sections.append(
+            (
+                f"**{dungeon.name} Recommendations**",
+                (
+                    f"`{'Level':<7} => {dungeon.level or 'N/A':<30}`\n"
+                    f"`{'Sword':<7} => {dungeon.sword or 'N/A':<30}`\n"
+                    f"`{'Armor':<7} => {dungeon.armor or 'N/A':<30}`\n"
+                    f"`{'Attack':<7} => {dungeon.attack or 'N/A':<30}`\n"
+                    f"`{'Defense':<7} => {dungeon.defense or 'N/A':<30}`\n"
+                    f"`{'HP':<7} => {dungeon.life or 'N/A':<30}`\n"
+                    f"`{'Carry':<7} => {carry:<30}`"
+                ),
+            )
+        )
+        if dungeon.description:
+            sections.append((f"{dungeon.name} Description", dungeon.description))
+
+    if area.id > 10:
+        sections.append(
+            (
+                "**Before Time Travel**",
+                "\n".join(
+                    f"• {text}"
+                    for text in [
+                        "completely ignore holiday items",
+                        "dismantle all things (unless working on pr)",
+                        "trade all to apple (to sell) if ascended, otherwise work on pr",
+                        "sell all things (but not arena cookies)",
+                        "sell sword & armor",
+                    ]
+                ),
+            )
+        )
+
+    return NormalMessage("" if sections else "Sorry, nothing yet.", title=f"**{area.name} Checklist**", fields=sections)
+
+
 @register({"on", "off"})
 def _toggle(client, tokens, message, server, profile, msg, help=None):
     """
@@ -696,9 +772,9 @@ def logs(client, tokens, message, server, profile, msg, help=None):
         return {"msg": HelpMessage(logs.__doc__)}
 
     full_message, metadata = " ".join(tokens), {"area": 5}
-    area_indicator = re.search(r" [aA](\d{1,2})", full_message)
+    area_indicator = re.search(r" ([aA])?(\d{1,2})", full_message)
     if area_indicator:
-        area = int(area_indicator.groups()[0])
+        area = int(area_indicator.groups()[1])
         start, end = area_indicator.span()
         tokens, metadata["area"] = tokenize(f"{full_message[0:start]}{full_message[end:]}"), area
     if not 1 <= metadata["area"] <= 15:

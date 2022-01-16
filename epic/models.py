@@ -821,3 +821,36 @@ class Sentinel(models.Model):
         )
         results.append(message)
         return results
+
+
+class Area(models.Model):
+    class Meta:
+        ordering = ("id",)
+
+    id = models.PositiveSmallIntegerField(primary_key=True)
+    trades = models.JSONField(blank=True, null=True, help_text="What to dismantle and trade before leaving")
+    activities = models.JSONField(blank=True, null=True, help_text="What you should do while you are here")
+    ascended_activities = models.JSONField(blank=True, null=True, help_text="What you should do if ascended")
+
+    @property
+    def name(self):
+        return f"A{self.id}"
+
+    def __str__(self):
+        return self.name
+
+
+class Dungeon(models.Model):
+    area = models.ForeignKey(Area, on_delete=models.PROTECT, related_name="dungeons")
+    name = models.CharField(max_length=100, db_index=True)
+    level = models.PositiveSmallIntegerField(help_text="recommended level")
+    sword = models.CharField(max_length=100, blank=True, null=True, help_text="recommended sword")
+    armor = models.CharField(max_length=100, blank=True, null=True, help_text="recommended armor")
+    attack = models.PositiveSmallIntegerField(blank=True, null=True, help_text="recommended attack")
+    defense = models.PositiveSmallIntegerField(blank=True, null=True, help_text="recommended defense")
+    life = models.PositiveSmallIntegerField(blank=True, null=True, help_text="recommended life")
+    carry = models.PositiveSmallIntegerField(blank=True, null=True, help_text="dungeon defense")
+    description = models.TextField(blank=True, null=True)
+
+    def __str__(self):
+        return self.name
