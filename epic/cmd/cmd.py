@@ -130,8 +130,14 @@ def cd(client, tokens, message, server, profile, msg, help=None):
         msg = (
             "All commands on cooldown! (You may need to use `rpg cd` to populate your cooldowns for the first time.)\n"
         )
+    event_info = ""
+    active_events = Event.objects.active().values_list("event_name", flat=True)
+    if active_events:
+        event_info = ", ".join(active_events) + " event(s) currently active.\n"
     return NormalMessage(
-        msg, title=f"**{nickname}'s** Cooldowns", footer=f"using {profile.timezone}, change with rcd p tz"
+        msg,
+        title=f"**{nickname}'s** Cooldowns",
+        footer=f"{event_info}Timezone is {profile.timezone}, change with rcd p tz.",
     )
 
 
@@ -198,18 +204,20 @@ def info(client, tokens, message, server, profile, msg, help=None):
         return {"msg": NormalMessage(f"```{output}```", title=title)}
     if topic in {"global cooldowns", "2"}:
         title = "Global Cooldowns, Including Event Data"
-        cooldown_map = CoolDown.get_event_cooldown_map()
+        cooldown_map, events = CoolDown.get_event_cooldown_map()
         for key, delta in sorted(cooldown_map.items(), key=lambda x: x[1]):
             output += f"{key:12} => {format.format(*to_human_readable(delta))}\n"
-        return {"msg": NormalMessage(f"```{output}```", title=title)}
+        event_info = ", ".join(events) + " event(s) currently active." if events else "No active events."
+        return {"msg": NormalMessage(f"```{output}```", title=title, footer=event_info)}
     elif topic in {"my cooldowns", "3"}:
         title = "My Cooldowns, Including Event Data and Multipliers"
-        cooldown_map = CoolDown.get_event_cooldown_map()
+        cooldown_map, events = CoolDown.get_event_cooldown_map()
         mp = profile.cooldown_multiplier
         for key, delta in sorted(cooldown_map.items(), key=lambda x: x[1]):
             delta = CoolDown.apply_multiplier(mp, delta, key) if mp else delta
             output += f"{key:12} => {format.format(*to_human_readable(delta))}\n"
-        return {"msg": NormalMessage(f"```{output}```", title=title)}
+        event_info = ", ".join(events) + " event(s) currently active." if events else "No active events."
+        return {"msg": NormalMessage(f"```{output}```", title=title, footer=event_info)}
     return {"msg": ErrorMessage(f"No such topic `{topic}`. ", title="Info Error")}
 
 

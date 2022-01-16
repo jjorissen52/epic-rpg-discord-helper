@@ -224,3 +224,9 @@ class GroupActivityManager(models.Manager):
         else:
             qs = qs.filter(initiator_id=profile_id_or_nickname)
         return qs.order_by("-created").first()
+
+
+class EventQuerySet(models.QuerySet):
+    def active(self, is_active=True):
+        now = datetime.datetime.now(tz=datetime.timezone.utc)
+        return self.filter(start__lt=now, end__gt=now) if is_active else self.exclude(start__lt=now, end__gt=now)

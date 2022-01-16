@@ -1,5 +1,5 @@
 import re
-from typing import Optional, Tuple, Union, List
+from typing import Optional, Tuple, Union, List, Dict
 
 import pytz
 import datetime
@@ -17,7 +17,7 @@ from .mixins import UpdateAble
 from .types import HandlerResult
 from .utils import tokenize, defaults_from, cast
 from .types.classes import RCDMessage, ErrorMessage, NormalMessage, SuccessMessage
-from .managers import ProfileManager, GamblingStatsManager, HuntManager, GroupActivityManager
+from .managers import ProfileManager, GamblingStatsManager, HuntManager, GroupActivityManager, EventQuerySet
 
 
 class JoinCode(models.Model):
@@ -259,16 +259,17 @@ class CoolDown(models.Model):
     after = models.DateTimeField()
 
     @staticmethod
-    def get_event_cooldown_map():
+    def get_event_cooldown_map() -> Tuple[Dict[str, datetime.timedelta], List[str]]:
         cooldown_map = CoolDown.COOLDOWN_MAP.copy()
-        now = datetime.datetime.now(tz=datetime.timezone.utc)
-        active_events = Event.objects.filter(start__lt=now, end__gt=now)
+        active_events = Event.objects.active().values("cooldown_multipliers", "cooldown_adjustments", "event_name")
         for event in active_events:
-            if event.cooldown_multipliers:
-                cooldown_map.update({k: cooldown_map[k] * v for k, v in event.cooldown_multipliers.items()})
-            if event.cooldown_adjustments:
-                cooldown_map.update({k: datetime.timedelta(seconds=v) for k, v in event.cooldown_adjustments.items()})
-        return cooldown_map
+            if event["cooldown_multipliers"]:
+                cooldown_map.update({k: cooldown_map[k] * v for k, v in event["cooldown_multipliers"].items()})
+            if event["cooldown_adjustments"]:
+                cooldown_map.update(
+                    {k: datetime.timedelta(seconds=v) for k, v in event["cooldown_adjustments"].items()}
+                )
+        return cooldown_map, [e["event_name"] for e in active_events]
 
     @staticmethod
     def get_cooldown(cooldown_type, default=None):
@@ -626,6 +627,8 @@ class Event(models.Model):
     cooldown_multipliers = models.JSONField(default=dict)
     start = models.DateTimeField(auto_now_add=True)
     end = models.DateTimeField()
+
+    objects = EventQuerySet.as_manager()
 
     @staticmethod
     def parse_event(tokens, event_name, upsert=True, tz=None):
