@@ -1,8 +1,6 @@
 import datetime
 import inspect
-import re
 import shlex
-import operator
 import functools
 import sys
 import traceback
@@ -19,14 +17,11 @@ def tokenize(cmd, preserve_case=False):
         return []
 
 
-def int_from_token(token):
-    token = token.strip()
-    if re.match(r"^([0-9\* ]+)$", token):
-        int_tokens, prod = token.replace(" ", "").split("*"), 1
-        prod = functools.reduce(operator.mul, [int(t) for t in int_tokens], 1)
-        return prod
-    elif token.isdigit():
-        return int(token)
+def cast(value, _type, coercion=None):
+    try:
+        return coercion(value) if coercion else _type(value)
+    except:  # noqa
+        return
 
 
 def to_human_readable(delta: datetime.timedelta):

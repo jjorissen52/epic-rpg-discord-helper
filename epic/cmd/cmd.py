@@ -862,18 +862,24 @@ def event(client, tokens, message, server, profile, msg, help=None):
     ## Usage
     • `rcd admin event upsert|show|delete "NAME" [param=value {param=value ...}]`
     • `rcd admin event show NAME`
-    ## Example
+    ## Example 1
     «The below command will create or update the event XMAS 2020 to start at `2020-12-01T00:00` UTC,
-    end at `2020-01-01T00:00` UTC, and have cooldown for arena as 7200 seconds for the duration.»
+    end at `2020-01-01T23:55` UTC, and have cooldown adjustment for arena.»
     ```
-    rcd admin event upsert "XMAS 2020" start=2020-12-01T00:00 end=2020-01-01T00:00 arena=60*60*12
+    rcd event upsert "XMAS 2020" start=2020-12-01 end=2020-01-01T23:55 arena="12h 35s"
+    ```
+
+    ## Example 2
+    «The below command will create a special event with flat multipliers to shorten cooldowns.»
+    ```
+    rcd event upsert "100k" start=2022-01-15 end="100000s" lootbox=0.25 adventure=0.25 horse=0.25 dungeon=0.25 arena=0.25
     ```
     """
     if help or len(tokens) < 3 or tokens[1] not in {"upsert", "show", "delete"}:
         return {"msg": HelpMessage(event.__doc__)}
     if tokens[1] == "upsert":
         if len(tokens) > 3:
-            _event = Event.parse_event(tokens[3:], tokens[2])
+            _event = Event.parse_event(tokens[3:], tokens[2], tz=profile.timezone)
             try:
                 _event.save()
             except Exception as e:
@@ -893,17 +899,35 @@ def event(client, tokens, message, server, profile, msg, help=None):
         except Exception as e:
             return {"msg": ErrorMessage(f"Encountered error executing command` {' '.join(tokens)}`; err = {e}")}
     else:
-        _event = Event.parse_event([], tokens[2], upsert=False)
+        _event = Event.parse_event([], tokens[2], upsert=False, tz=profile.timezone)
     fields = [
         (
             "Effective (UTC)",
             f'{_event.start.strftime("%Y-%m-%dT%H:%M")} to {_event.end.strftime("%Y-%m-%dT%H:%M")}',
         ),
     ]
-    if _event.cooldown_adjustments:
-        defaults, adj = CoolDown.COOLDOWN_MAP, _event.cooldown_adjustments
-        output = "\n".join([f"{k:12}: {int(defaults[k].total_seconds()):8} => {adj[k]:8}" for k in adj.keys()])
-        fields.append(("Cooldowns (in Seconds)", f"```{output}```"))
+    if _event.cooldown_adjustments or _event.cooldown_multipliers:
+        duration_format = "{:>1}d {:>02}h {:02}m {:02}s"
+        if _event.cooldown_adjustments:
+            output = ""
+            for key in _event.cooldown_adjustments:
+                delta = datetime.timedelta(seconds=_event.cooldown_adjustments[key])
+                output += f"{key:12} => {duration_format.format(*to_human_readable(delta))}\n"
+            fields.append(("Cooldown Adjustments", f"```{output}```"))
+        if _event.cooldown_multipliers:
+            output = ""
+            for key, value in _event.cooldown_multipliers.items():
+                output += f"{key:12} => {value:.2f}\n"
+            fields.append(("Cooldown Multipliers", f"```{output}```"))
+
+        output = ""
+        for key in {*_event.cooldown_adjustments, *_event.cooldown_multipliers}:
+            multiplier = _event.cooldown_multipliers.get(key, 1)
+            duration = datetime.timedelta(
+                seconds=_event.cooldown_adjustments.get(key, int(CoolDown.COOLDOWN_MAP[key].total_seconds()))
+            )
+            output += f"{key:12} => {duration_format.format(*to_human_readable(duration*multiplier))}\n"
+        fields.append(("Event Cooldowns", f"```{output}```"))
     return {"msg": NormalMessage("", title=f'{tokens[1]} "{tokens[2]}"', fields=fields)}
 
 

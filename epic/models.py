@@ -15,7 +15,7 @@ from django.core.validators import MaxValueValidator, MinValueValidator
 from . import inventory
 from .mixins import UpdateAble
 from .types import HandlerResult
-from .utils import tokenize, int_from_token, defaults_from
+from .utils import tokenize, defaults_from, cast
 from .types.classes import RCDMessage, ErrorMessage, NormalMessage, SuccessMessage
 from .managers import ProfileManager, GamblingStatsManager, HuntManager, GroupActivityManager
 
@@ -264,6 +264,8 @@ class CoolDown(models.Model):
         now = datetime.datetime.now(tz=datetime.timezone.utc)
         active_events = Event.objects.filter(start__lt=now, end__gt=now)
         for event in active_events:
+            if event.cooldown_multipliers:
+                cooldown_map.update({k: cooldown_map[k] * v for k, v in event.cooldown_multipliers.items()})
             if event.cooldown_adjustments:
                 cooldown_map.update({k: datetime.timedelta(seconds=v) for k, v in event.cooldown_adjustments.items()})
         return cooldown_map
@@ -621,26 +623,61 @@ class Invite(models.Model):
 class Event(models.Model):
     event_name = models.CharField(max_length=128)
     cooldown_adjustments = models.JSONField()
+    cooldown_multipliers = models.JSONField(default=dict)
     start = models.DateTimeField(auto_now_add=True)
     end = models.DateTimeField()
 
     @staticmethod
-    def parse_event(tokens, event_name, upsert=True):
-        event = Event.objects.filter(event_name=event_name).first()
+    def parse_event(tokens, event_name, upsert=True, tz=None):
+        event = Event.objects.filter(event_name__iexact=event_name).first()
         if not event:
             event = Event(event_name=event_name)
             cooldown_adjustments = {}
+            cooldown_multipliers = {}
         else:
             cooldown_adjustments = event.cooldown_adjustments.copy()
+            cooldown_multipliers = event.cooldown_multipliers.copy()
         for token in tokens:
             param, value = token.split("=")
             if param in CoolDown.COOLDOWN_MAP:
-                cooldown_adjustments[param] = int_from_token(value)
+                multiplier = cast(value, float)
+                if multiplier:
+                    cooldown_multipliers[param] = multiplier
+                    continue
+                duration_match = CoolDown.time_regex.match(value)
+                if duration_match:
+                    _groups = duration_match.groupdict()
+                    cooldown_adjustments[param] = int(
+                        datetime.timedelta(
+                            **{
+                                key: int(_groups[key][:-1]) if _groups[key] else 0
+                                for key in ["days", "hours", "minutes", "seconds"]
+                            }
+                        ).total_seconds()
+                    )
             elif param in {"start", "end"}:
-                time = datetime.datetime.strptime(value, "%Y-%m-%dt%H:%M").astimezone(datetime.timezone.utc)
+                duration_match = CoolDown.time_regex.match(value)
+                if duration_match:
+                    _groups = duration_match.groupdict()
+                    time = datetime.datetime.now(tz=datetime.timezone.utc) + datetime.timedelta(
+                        **{
+                            key: int(_groups[key][:-1]) if _groups[key] else 0
+                            for key in ["days", "hours", "minutes", "seconds"]
+                        }
+                    )
+                else:
+                    try:
+                        time = datetime.datetime.strptime(value, "%Y-%m-%dt%H:%M").astimezone(datetime.timezone.utc)
+                    except:  # noqa
+                        try:
+                            time = datetime.datetime.strptime(value, "%Y-%m-%d").astimezone(datetime.timezone.utc)
+                        except:  # noqa
+                            raise
+                            time = datetime.datetime.now(tz=datetime.timezone.utc)
                 setattr(event, param, time)
         if upsert:
             event.cooldown_adjustments = cooldown_adjustments
+            event.cooldown_multipliers = cooldown_multipliers
         return event
 
     def __str__(self):
