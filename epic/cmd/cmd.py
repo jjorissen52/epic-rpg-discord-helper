@@ -131,7 +131,7 @@ def cd(client, tokens, message, server, profile, msg, help=None):
             "All commands on cooldown! (You may need to use `rpg cd` to populate your cooldowns for the first time.)\n"
         )
     return NormalMessage(
-        msg, title=f"**{nickname}'s** Cooldowns", footer=f"using profile.timezone, change with rcd p tz"
+        msg, title=f"**{nickname}'s** Cooldowns", footer=f"using {profile.timezone}, change with rcd p tz"
     )
 
 
