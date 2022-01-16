@@ -275,7 +275,7 @@ class CoolDown(models.Model):
     def get_cooldown(cooldown_type, default=None):
         if not cooldown_type in CoolDown.COOLDOWN_MAP:
             return None
-        cooldown_map = CoolDown.get_event_cooldown_map()
+        cooldown_map, _ = CoolDown.get_event_cooldown_map()
         return cooldown_map.get(cooldown_type, default)
 
     def __str__(self):
