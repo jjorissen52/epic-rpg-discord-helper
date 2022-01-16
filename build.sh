@@ -28,7 +28,7 @@ usage() {
   FLAGS
     -t TAG   Tag the resulting image with the provided tag,
              can be used multiple times. Note that the build
-             is tagged with epic-reminder if no tag is provied.
+             is tagged with epic-reminder if no tag is provided.
 
     -p       Push the resulting image (docker push TAG --all-tags).
              Cannot push without at least one provided tag.
